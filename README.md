@@ -23,31 +23,30 @@
 ## プロジェクト構成
 
 ```text
+data/             # 教科書・示方書 PDF 置き場
+rag_index/        # RAG 用のインデックス保存先
 src/
+  main.py         # 簡易動作確認用
   bridge_llm_mvp/
     __init__.py
+    main.py       # メイン実行スクリプト
 
     designer/
       __init__.py
       models.py   # Designer の入出力スキーマ（Pydantic）
       prompts.py  # Designer 用プロンプト（TODO）
-      services.py  # generate_design() の入り口（LLM 呼び出しは TODO）
+      services.py # generate_design() の入り口（LLM 呼び出しは TODO）
 
     judge/
       __init__.py
       models.py   # Judge の入出力スキーマ（Pydantic）
       prompts.py  # Judge 用プロンプト（TODO）
-      services.py  # judge_design() の入り口（LLM 呼び出しは TODO）
+      services.py # judge_design() の入り口（LLM 呼び出しは TODO）
 
     rag/
       __init__.py
       loader.py   # PDF ロード & チャンク化（TODO）
       search.py   # search_text() などの RAG API（いまはダミー）
-
-    main.py
-      # 複数ケースに対して
-      #   DesignerInput -> BridgeDesign -> JudgeInput -> JudgeResult
-      # を回すエントリポイント（実装途中）
 ```
 
 ---

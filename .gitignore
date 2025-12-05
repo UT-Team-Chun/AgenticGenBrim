@@ -19,6 +19,7 @@ EOF
 
 # data
 data/
+rag_index/
 
 # env
 .env

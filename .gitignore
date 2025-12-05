@@ -19,3 +19,6 @@ EOF
 
 # data
 data/
+
+# env
+.env

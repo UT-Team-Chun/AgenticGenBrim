@@ -1,9 +1,13 @@
 from __future__ import annotations
 
 import json
+import sys
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+# src ディレクトリをモジュール検索パスに追加
+sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
 
 import numpy as np
 from dotenv import load_dotenv

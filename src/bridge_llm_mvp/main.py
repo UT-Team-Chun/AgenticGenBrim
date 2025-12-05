@@ -1,6 +1,12 @@
 # src/bridge_llm_mvp/main.py
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# src ディレクトリをモジュール検索パスに追加
+sys.path.append(str(Path(__file__).resolve().parent.parent))
+
 from bridge_llm_mvp.designer.models import DesignerInput
 from bridge_llm_mvp.designer.services import generate_design
 from bridge_llm_mvp.judge.models import JudgeInput

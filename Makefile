@@ -5,13 +5,13 @@ RUFF := uv run ruff
 
 # コード整形だけ
 fmt:
-	$(RUFF) format .
+	$(RUFF) format src
 
 # Lint + 自動修正（import 並び替え含む）+ フォーマット
 fix:
-	$(RUFF) check . --fix
-	$(RUFF) format .
+	$(RUFF) check src --fix
+	$(RUFF) format src
 
 # Lint だけ（CI 相当）
 lint:
-	$(RUFF) check .
+	$(RUFF) check src

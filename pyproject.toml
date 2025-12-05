@@ -14,7 +14,7 @@ target-version = "py313"
 line-length = 100
 
 # チェック対象ディレクトリ
-src = ["."]
+src = ["src"]
 
 # 除外パス
 exclude = [

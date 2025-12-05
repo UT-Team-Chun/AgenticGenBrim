@@ -5,3 +5,35 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = []
+
+[tool.ruff]
+# Python バージョン
+target-version = "py313"
+
+# 文字数制限（お好みで）
+line-length = 100
+
+# チェック対象ディレクトリ
+src = ["."]
+
+# 除外パス
+exclude = [
+    ".venv",
+    "__pycache__",
+]
+
+[tool.ruff.lint]
+# 必要になってきたらルールを足したり無効化したり
+select = ["E", "F", "I"]  # E,F: pycodestyle/pyflakes, I: import整理
+ignore = []
+
+[tool.ruff.format]
+# Black 互換フォーマット（デフォルトでOK）
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.8",
+]

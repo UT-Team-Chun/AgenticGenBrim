@@ -13,7 +13,7 @@ dependencies = [
 target-version = "py313"
 
 # 文字数制限（お好みで）
-line-length = 100
+line-length = 120
 
 # チェック対象ディレクトリ
 src = ["src"]

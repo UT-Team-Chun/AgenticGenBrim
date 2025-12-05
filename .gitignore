@@ -1,0 +1,21 @@
+cat << 'EOF' > .gitignore
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pkl
+
+# venv
+.venv/
+.env/
+
+# VS Code
+.vscode/
+
+# Others
+*.log
+EOF
+
+# data
+data/

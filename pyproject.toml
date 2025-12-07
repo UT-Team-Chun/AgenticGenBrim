@@ -8,7 +8,10 @@ dependencies = [
     "fire>=0.7.1",
     "numpy>=2.3.5",
     "openai>=2.9.0",
+    "pdfplumber>=0.11.8",
     "pydantic>=2.12.5",
+    "pymupdf>=1.26.6",
+    "pymupdf4llm>=0.2.6",
     "pypdf>=6.4.0",
     "python-dotenv>=1.2.1",
 ]

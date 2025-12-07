@@ -28,6 +28,7 @@
 - マジックナンバーの使用禁止。必ず `MAX_LENGTH=5` のように定義した上で `MAX_LENGTH` を使う。
 - 文字列ハードコーディングの禁止。`StrEnum` や Pydantic の`BaseModel` を使用する。
 - 返り値の型に `dict`, `tuple` を使わない。必ず `BaseModel`, `RootModel` 等で適切な型を定義する。
+- 型定義に `dataclass` は使わない。原則`BaseModel`。
 - Pydantic の `Field` に `description` を必ず書く。
 - push 前には必ず `make fmt`, `make fix`, `make lint` を通す。
 - パス操作は必ず `pathlib.Path` を使う。`os` は使用しない。

@@ -36,9 +36,7 @@ def run(
             span_length_m=span_length_m,
             total_width_m=total_width_m,
         )
-        logger.info(
-            "Span L=%.3f m, B=%.3f m で設計を開始", span_length_m, total_width_m
-        )
+        logger.info("Span L=%.3f m, B=%.3f m で設計を開始", span_length_m, total_width_m)
         design = generate_design(input_model)
         judge_input = JudgeInput(
             span_length_m=span_length_m,

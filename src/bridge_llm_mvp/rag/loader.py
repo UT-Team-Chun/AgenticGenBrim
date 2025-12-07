@@ -116,16 +116,16 @@ def embed_texts(
 
 
 def build_corpus() -> None:
-    """PDF からチャンクを作り、embedding とメタデータを保存する。
+    """pdfplumber で抽出したテキストからチャンクを作り、embedding とメタデータを保存する。
 
-    Args:
-        target_filename: 対象とする PDF ファイル名（例: "foo.pdf"）。
-            None の場合は data_dir 配下のすべての PDF を対象とする。
+    入力: data/extracted_by_pdfplumber 配下の TXT ファイル。
+    出力: rag_index/pdfplumber 配下に meta.jsonl と embeddings.npy を保存。
     """
     app_config = get_app_config()
     embedding_config = get_embedding_config()
     client = get_llm_client()
-    index_dir = embedding_config.index_dir
+    # 出力先を rag_index/pdfplumber に変更
+    index_dir = embedding_config.index_dir / "pdfplumber"
     index_dir.mkdir(parents=True, exist_ok=True)
     meta_path = index_dir / IndexFilenames.META_FILENAME
     embeddings_path = index_dir / IndexFilenames.EMBEDDINGS_FILENAME

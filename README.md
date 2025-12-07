@@ -15,10 +15,24 @@
 
 - Python 3.13.5
 - [uv](https://github.com/astral-sh/uv)（パッケージ管理 & 仮想環境）
+  - ライブラリを追加する際は`uv add {ライブラリ名}`
 - [Ruff](https://github.com/astral-sh/ruff)（フォーマッタ & リンタ）
 - VS Code (+ Python 拡張 + Ruff 拡張) 推奨
 
 ---
+
+## 実装ルール
+
+- CLI での引数管理には必ず fire を使う。argparse の使用禁止。
+- 必ず google スタイルの docstring と型アノテーションをつける。
+- マジックナンバーの使用禁止。必ず `MAX_LENGTH=5` のように定義した上で `MAX_LENGTH` を使う。
+- 文字列ハードコーディングの禁止。`StrEnum` や Pydantic の`BaseModel` を使用する。
+- 返り値の型に `dict`, `tuple` を使わない。必ず `BaseModel`, `RootModel` 等で適切な型を定義する。
+- push 前には必ず `make fmt`, `make fix`, `make lint` を通す。
+- パス操作は必ず `pathlib.Path` を使う。`os` は使用しない。
+- ディレクトリやファイルパスは `config.py` などにまとめて定義する。
+- ログ出力は`logger`で行う。`print`の使用禁止。
+  - from .logger_config import get_logger で統一する。
 
 ## プロジェクト構成
 
@@ -29,24 +43,32 @@ src/
   main.py         # 簡易動作確認用
   bridge_llm_mvp/
     __init__.py
-    main.py       # メイン実行スクリプト
+    main.py           # メイン実行スクリプト
+
+    config.py         # パス・ファイル名・共通定数（RAG設定・モデル名など）の集中管理
+    logger_config.py # ロガー設定と get_logger() の定義
+    llm_client.py     # OpenAI LLM クライアント（gpt-5-mini / gpt-5.1）の共通ラッパ
 
     designer/
       __init__.py
-      models.py   # Designer の入出力スキーマ（Pydantic）
-      prompts.py  # Designer 用プロンプト（TODO）
-      services.py # generate_design() の入り口（LLM 呼び出しは TODO）
+      models.py       # Designer の入出力スキーマ（Pydantic）
+      prompts.py      # Designer 用プロンプト（TODO）
+      services.py     # generate_design() の入り口（LLM 呼び出しは TODO）
 
     judge/
       __init__.py
-      models.py   # Judge の入出力スキーマ（Pydantic）
-      prompts.py  # Judge 用プロンプト（TODO）
-      services.py # judge_design() の入り口（LLM 呼び出しは TODO）
+      models.py       # Judge の入出力スキーマ（Pydantic）
+      prompts.py      # Judge 用プロンプト（TODO）
+      services.py     # judge_design() の入り口（LLM 呼び出しは TODO）
 
     rag/
       __init__.py
-      loader.py   # PDF ロード & チャンク化（TODO）
-      search.py   # search_text() などの RAG API（いまはダミー）
+      loader.py       # PDF ロード & チャンク化（TODO）
+      embedding_config.py # 埋め込みモデル名・次元・バッチサイズなどの設定
+      search.py       # search_text() などの RAG API（いまはダミー）
+
+tests/              # （今後）ユニットテスト・統合テスト置き場
+
 ```
 
 ---

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import uuid
 from pathlib import Path
 from typing import Sequence
@@ -22,6 +23,35 @@ from src.bridge_llm_mvp.rag.embedding_config import (
 logger = get_logger(__name__)
 
 DEFAULT_MAX_CHARS_PER_CHUNK: int = 800
+PAGE_MARKER_PATTERN: re.Pattern[str] = re.compile(r"\[Page\s+(\d+)\]")
+
+
+def split_by_page(text: str) -> list[tuple[int, str]]:
+    """テキストを [Page X] マーカーで分割し、ページ番号とテキストのリストを返す。
+
+    Args:
+        text: ページマーカーを含むテキスト。
+
+    Returns:
+        list[tuple[int, str]]: (ページ番号, テキスト) のリスト。
+            ページマーカーが見つからない部分はページ 0 として扱う。
+    """
+    parts = PAGE_MARKER_PATTERN.split(text)
+    result: list[tuple[int, str]] = []
+
+    # parts は ["マーカー前のテキスト", "1", "Page1のテキスト", "2", "Page2のテキスト", ...]
+    # 最初の要素はマーカー前のテキスト（ページ0扱い）
+    if parts and parts[0].strip():
+        result.append((0, parts[0].strip()))
+
+    # 以降は (ページ番号, テキスト) のペアになる
+    for i in range(1, len(parts), 2):
+        page_num = int(parts[i])
+        page_text = parts[i + 1].strip() if i + 1 < len(parts) else ""
+        if page_text:
+            result.append((page_num, page_text))
+
+    return result
 
 
 def chunk_text(
@@ -72,16 +102,21 @@ def build_chunks(txt_root: Path) -> list[IndexChunk]:
             continue
 
         text = txt_path.read_text(encoding="utf-8")
-        for fragment in chunk_text(text):
-            chunks.append(
-                IndexChunk(
-                    id=str(uuid.uuid4()),
-                    source=pdf_like_name,
-                    section="",
-                    page=0,
-                    text=fragment,
-                ),
-            )
+
+        # ページごとにテキストを分割
+        page_texts = split_by_page(text)
+
+        for page_num, page_text in page_texts:
+            for fragment in chunk_text(page_text):
+                chunks.append(
+                    IndexChunk(
+                        id=str(uuid.uuid4()),
+                        source=pdf_like_name,
+                        section="",
+                        page=page_num,
+                        text=fragment,
+                    ),
+                )
 
     return chunks
 

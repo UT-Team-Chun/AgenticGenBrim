@@ -173,7 +173,7 @@ uv run python src/bridge_llm_mvp/main.py
 
 **RAG**
 
-- [ ] 教科書／示方書 PDF を data/ 等に配置
+- [x] 教科書／示方書 PDF を data/ 等に配置
 
 - [ ] rag/loader.py でテキスト抽出 & チャンク化
 

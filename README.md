@@ -28,11 +28,13 @@
 - マジックナンバーの使用禁止。必ず `MAX_LENGTH=5` のように定義した上で `MAX_LENGTH` を使う。
 - 文字列ハードコーディングの禁止。`StrEnum` や Pydantic の`BaseModel` を使用する。
 - 返り値の型に `dict`, `tuple` を使わない。必ず `BaseModel`, `RootModel` 等で適切な型を定義する。
+- Pydantic の `Field` に `description` を必ず書く。
 - push 前には必ず `make fmt`, `make fix`, `make lint` を通す。
 - パス操作は必ず `pathlib.Path` を使う。`os` は使用しない。
 - ディレクトリやファイルパスは `config.py` などにまとめて定義する。
 - ログ出力は`logger`で行う。`print`の使用禁止。
-  - from .logger_config import get_logger で統一する。
+  - from src.bridge_llm_mvp.logger_config import get_logger で統一する。
+- `try: ... except: pass` は絶対禁止です。必ず` except ValidationError as e:` のように捕捉するエラーを明示してください。
 
 ## プロジェクト構成
 

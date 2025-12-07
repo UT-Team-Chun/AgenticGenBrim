@@ -131,7 +131,7 @@ def build_corpus() -> None:
     embeddings_path = index_dir / IndexFilenames.EMBEDDINGS_FILENAME
 
     # PDF からあらかじめ抽出しておいた TXT を使ってチャンクを構築する
-    txt_root = app_config.data_dir / "extracted_by_pypdf"
+    txt_root = app_config.data_dir / "extracted_by_pdfplumber"
     chunks = build_chunks(txt_root)
     logger.info("Total chunks: %d", len(chunks))
 

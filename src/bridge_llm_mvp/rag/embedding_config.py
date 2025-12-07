@@ -6,7 +6,15 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from bridge_llm_mvp.config import get_app_config
+from src.bridge_llm_mvp.config import get_app_config
+
+
+class FileNamesUsedForRag(StrEnum):
+    TEXT_1 = "鋼橋設計の基本_第一章 概論.pdf"
+    TEXT_4 = "鋼橋設計の基本_第四章 鋼橋の設計法.pdf"
+    TEXT_6 = "鋼橋設計の基本_第六章 床版.pdf"
+    TEXT_7 = "鋼橋設計の基本_第七章 プレートガーダー橋.pdf"
+    SPECIFICATION_STEEL = "道路橋示方書_鋼橋・鋼部材編.pdf"
 
 
 class IndexFilenames(StrEnum):

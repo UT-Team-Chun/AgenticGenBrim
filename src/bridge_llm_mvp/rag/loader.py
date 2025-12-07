@@ -2,41 +2,26 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import asdict
 from pathlib import Path
 from typing import Sequence
 
 import numpy as np
 from openai import OpenAI
-from pypdf import PdfReader
 
 from src.bridge_llm_mvp.config import get_app_config
 from src.bridge_llm_mvp.llm_client import get_llm_client
 from src.bridge_llm_mvp.logger_config import get_logger
-from src.bridge_llm_mvp.rag.embedding_config import EmbeddingModel, IndexChunk, IndexFilenames, get_embedding_config
+from src.bridge_llm_mvp.rag.embedding_config import (
+    EmbeddingModel,
+    FileNamesUsedForRag,
+    IndexChunk,
+    IndexFilenames,
+    get_embedding_config,
+)
 
 logger = get_logger(__name__)
 
 DEFAULT_MAX_CHARS_PER_CHUNK: int = 800
-
-
-def extract_text_from_pdf(pdf_path: Path) -> list[str]:
-    """PDF 1冊からページごとのテキストを抜き出す。
-
-    Args:
-        pdf_path: 対象となる PDF ファイルパス。
-
-    Returns:
-        list[str]: ページごとのテキスト一覧。
-    """
-    reader = PdfReader(str(pdf_path))
-    texts: list[str] = []
-
-    for page in reader.pages:
-        text = page.extract_text() or ""
-        texts.append(text)
-
-    return texts
 
 
 def chunk_text(
@@ -66,30 +51,37 @@ def chunk_text(
     return chunks
 
 
-def build_chunks(data_dir: Path) -> list[IndexChunk]:
-    """PDF ディレクトリから TextChunk のリストを構築する。
+def build_chunks(txt_root: Path) -> list[IndexChunk]:
+    """TXT ディレクトリから TextChunk のリストを構築する。
 
     Args:
-        data_dir: PDF が格納されたディレクトリパス。
+        txt_root: テキストファイルが格納されたルートディレクトリパス。
 
     Returns:
         list[IndexChunk]: 抽出されたチャンク一覧。
     """
     chunks: list[IndexChunk] = []
 
-    for pdf_path in sorted(data_dir.glob("*.pdf")):
-        pages = extract_text_from_pdf(pdf_path)
-        for page_index, page_text in enumerate(pages):
-            for fragment in chunk_text(page_text):
-                chunks.append(
-                    IndexChunk(
-                        id=str(uuid.uuid4()),
-                        source=pdf_path.name,
-                        section="",
-                        page=page_index,
-                        text=fragment,
-                    ),
-                )
+    # RAG で利用する PDF 名に対応する TXT のみを対象にする
+    target_filenames = {name.value for name in FileNamesUsedForRag}
+
+    for txt_path in sorted(txt_root.rglob("*.txt")):
+        # 元の PDF 名に戻したときに FileNamesUsedForRag に含まれるかで判定
+        pdf_like_name = txt_path.with_suffix(".pdf").name
+        if pdf_like_name not in target_filenames:
+            continue
+
+        text = txt_path.read_text(encoding="utf-8")
+        for fragment in chunk_text(text):
+            chunks.append(
+                IndexChunk(
+                    id=str(uuid.uuid4()),
+                    source=pdf_like_name,
+                    section="",
+                    page=0,
+                    text=fragment,
+                ),
+            )
 
     return chunks
 
@@ -110,8 +102,12 @@ def embed_texts(
         np.ndarray: shape=(N, D) の埋め込み行列。
     """
     vectors: list[list[float]] = []
+    total = len(texts)
 
-    for text in texts:
+    for i, text in enumerate(texts):
+        if i % 100 == 0:
+            logger.info("Embedding %d / %d", i, total)
+
         response = client.embeddings.create(model=model.value, input=text)
         vector = response.data[0].embedding
         vectors.append(vector)
@@ -120,7 +116,12 @@ def embed_texts(
 
 
 def build_corpus() -> None:
-    """PDF からチャンクを作り、embedding とメタデータを保存する。"""
+    """PDF からチャンクを作り、embedding とメタデータを保存する。
+
+    Args:
+        target_filename: 対象とする PDF ファイル名（例: "foo.pdf"）。
+            None の場合は data_dir 配下のすべての PDF を対象とする。
+    """
     app_config = get_app_config()
     embedding_config = get_embedding_config()
     client = get_llm_client()
@@ -129,7 +130,9 @@ def build_corpus() -> None:
     meta_path = index_dir / IndexFilenames.META_FILENAME
     embeddings_path = index_dir / IndexFilenames.EMBEDDINGS_FILENAME
 
-    chunks = build_chunks(app_config.data_dir)
+    # PDF からあらかじめ抽出しておいた TXT を使ってチャンクを構築する
+    txt_root = app_config.data_dir / "extracted_by_pypdf"
+    chunks = build_chunks(txt_root)
     logger.info("Total chunks: %d", len(chunks))
 
     texts = [chunk.text for chunk in chunks]
@@ -137,7 +140,7 @@ def build_corpus() -> None:
 
     with meta_path.open("w", encoding="utf-8") as file:
         for chunk in chunks:
-            json.dump(asdict(chunk), file, ensure_ascii=False)
+            json.dump(chunk.model_dump(), file, ensure_ascii=False)
             file.write("\n")
 
     np.save(embeddings_path, embeddings)

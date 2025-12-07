@@ -1,47 +1,56 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
-from pathlib import Path
+from typing import Sequence
 
 import numpy as np
-from dotenv import load_dotenv
 from openai import OpenAI
+from pydantic import BaseModel, Field
 
-load_dotenv()
-client = OpenAI()
+from src.bridge_llm_mvp.config import get_app_config
+from src.bridge_llm_mvp.llm_client import get_llm_client
+from src.bridge_llm_mvp.logger_config import get_logger
+from src.bridge_llm_mvp.rag.embedding_config import EmbeddingModel, IndexChunk, IndexFilenames, get_embedding_config
 
+logger = get_logger(__name__)
 
-@dataclass
-class ChunkRecord:
-    id: str
-    source: str
-    section: str
-    page: int
-    text: str
+NUMERIC_STABILITY_EPSILON: float = 1e-8
 
 
-_INDEX_DIR = Path("rag_index")
-_META_PATH = _INDEX_DIR / "meta.jsonl"
-_EMB_PATH = _INDEX_DIR / "embeddings.npy"
-
-_CHUNKS: list[ChunkRecord] | None = None
+_CHUNKS: list[IndexChunk] | None = None
 _EMBEDDINGS: np.ndarray | None = None
 
 
-def _load_index() -> tuple[list[ChunkRecord], np.ndarray]:
-    """メタデータと embedding をメモリにロードする（キャッシュ付き）。"""
+class RagIndex(BaseModel):
+    """RAG インデックス全体を表すモデル。"""
+
+    chunks: list[IndexChunk] = Field(..., description="チャンクメタデータの一覧。")
+    embeddings: np.ndarray = Field(..., description="チャンクごとの埋め込み行列。")
+
+
+def _load_index() -> RagIndex:
+    """メタデータと embedding をメモリにロードする（キャッシュ付き）。
+
+    Returns:
+        RagIndex: チャンクと埋め込み行列。
+    """
     global _CHUNKS, _EMBEDDINGS
 
     if _CHUNKS is not None and _EMBEDDINGS is not None:
-        return _CHUNKS, _EMBEDDINGS
+        return RagIndex(chunks=_CHUNKS, embeddings=_EMBEDDINGS)
 
-    chunks: list[ChunkRecord] = []
-    with _META_PATH.open("r", encoding="utf-8") as f:
-        for line in f:
+    app_config = get_app_config()
+    embedding_config = get_embedding_config()
+    index_dir = embedding_config.index_dir
+    meta_path = index_dir / IndexFilenames.META_FILENAME
+    embeddings_path = index_dir / IndexFilenames.EMBEDDINGS_FILENAME
+
+    chunks: list[IndexChunk] = []
+    with meta_path.open("r", encoding="utf-8") as file:
+        for line in file:
             obj = json.loads(line)
             chunks.append(
-                ChunkRecord(
+                IndexChunk(
                     id=obj["id"],
                     source=obj["source"],
                     section=obj.get("section", ""),
@@ -50,43 +59,96 @@ def _load_index() -> tuple[list[ChunkRecord], np.ndarray]:
                 ),
             )
 
-    embeddings = np.load(_EMB_PATH)
+    embeddings = np.load(embeddings_path)
+    logger.info("Loaded %d chunks from %s", len(chunks), app_config.rag_index_dir)
+    logger.info("Loaded embeddings from %s, shape=%s", embeddings_path, embeddings.shape)
 
     _CHUNKS = chunks
     _EMBEDDINGS = embeddings
 
-    return chunks, embeddings
+    return RagIndex(chunks=chunks, embeddings=embeddings)
 
 
-def _embed_query(query: str, model: str = "text-embedding-3-small") -> np.ndarray:
-    """クエリ1本を embedding ベクトルに変換する。"""
-    resp = client.embeddings.create(model=model, input=query)
-    vec = np.array(resp.data[0].embedding, dtype="float32")
-    return vec
+def _embed_query(
+    query: str,
+    client: OpenAI,
+    model: EmbeddingModel,
+) -> np.ndarray:
+    """クエリ1本を embedding ベクトルに変換する。
+
+    Args:
+        query: クエリ文字列。
+        model: 使用する埋め込みモデル。
+
+    Returns:
+        np.ndarray: shape=(D,) のベクトル。
+    """
+    response = client.embeddings.create(model=model.value, input=query)
+    vector = np.array(response.data[0].embedding, dtype=np.float32)
+    return vector
 
 
-def search_text(query: str, top_k: int = 5) -> list[str]:
+def search_text(
+    query: str,
+    client: OpenAI,
+    top_k: int,
+) -> list[str]:
     """embedding に基づく類似度検索 (cosine similarity) を行う。
 
-    戻り値は「テキストチャンク」のリスト。
+    Args:
+        query: 検索クエリ文字列。
+        top_k: 返却する上位件数。
+
+    Returns:
+        list[str]: 類似度の高いテキストチャンク。
     """
-    chunks, embeddings = _load_index()
-    q_vec = _embed_query(query)
+    rag_index = _load_index()
+    embedding_config = get_embedding_config()
+    query_vector = _embed_query(query, client=client, model=embedding_config.model)
 
     # 正規化してコサイン類似度を計算
-    emb_norm = embeddings / (np.linalg.norm(embeddings, axis=1, keepdims=True) + 1e-8)
-    q_norm = q_vec / (np.linalg.norm(q_vec) + 1e-8)
+    embeddings_norm = rag_index.embeddings / (
+        np.linalg.norm(rag_index.embeddings, axis=1, keepdims=True) + NUMERIC_STABILITY_EPSILON
+    )
+    query_norm = query_vector / (np.linalg.norm(query_vector) + NUMERIC_STABILITY_EPSILON)
 
-    sims = emb_norm @ q_norm  # shape: (N,)
+    similarities = embeddings_norm @ query_norm
 
-    top_idx = np.argsort(-sims)[:top_k]
+    indices = np.argsort(-similarities)[:top_k]
     results: list[str] = []
-    for i in top_idx:
-        results.append(chunks[int(i)].text)
+    for index in indices:
+        results.append(rag_index.chunks[int(index)].text)
 
     return results
 
 
-def search_multiple(queries: list[str], top_k: int = 5) -> list[list[str]]:
-    """複数クエリをまとめて検索する簡易ヘルパー。"""
-    return [search_text(q, top_k=top_k) for q in queries]
+def search_multiple(
+    queries: Sequence[str],
+    client: OpenAI,
+    top_k: int,
+) -> list[list[str]]:
+    """複数クエリをまとめて検索する簡易ヘルパー。
+
+    Args:
+        queries: 検索クエリ列。
+        top_k: 各クエリごとに返却する上位件数。
+
+    Returns:
+        list[list[str]]: 各クエリごとの検索結果リスト。
+    """
+    return [search_text(query, client=client, top_k=top_k) for query in queries]
+
+
+if __name__ == "__main__":
+    # 簡易テスト
+    client = get_llm_client()
+    test_queries = [
+        "鋼橋の設計における主要な考慮事項は何ですか？",
+        "橋梁の耐荷性能を評価する方法を教えてください。",
+    ]
+    results = search_multiple(test_queries, client=client, top_k=2)
+    for i, query in enumerate(test_queries):
+        print(f"=== Query {i + 1}: {query} ===")
+        for j, text in enumerate(results[i]):
+            print(f"[Result {j + 1}] {text[:200]}...")
+            print("-" * 40)

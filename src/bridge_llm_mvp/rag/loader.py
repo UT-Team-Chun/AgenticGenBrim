@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from pathlib import Path
 from typing import Sequence
 
@@ -13,22 +13,11 @@ from pypdf import PdfReader
 from src.bridge_llm_mvp.config import get_app_config
 from src.bridge_llm_mvp.llm_client import get_llm_client
 from src.bridge_llm_mvp.logger_config import get_logger
-from src.bridge_llm_mvp.rag.embedding_config import EmbeddingModel, get_embedding_config
+from src.bridge_llm_mvp.rag.embedding_config import EmbeddingModel, IndexChunk, IndexFilenames, get_embedding_config
 
 logger = get_logger(__name__)
 
 DEFAULT_MAX_CHARS_PER_CHUNK: int = 800
-
-
-@dataclass
-class TextChunk:
-    """RAG 用の最小チャンク。"""
-
-    id: str
-    source: str  # PDF ファイル名
-    section: str  # 章名など（MVPでは空でOK）
-    page: int
-    text: str
 
 
 def extract_text_from_pdf(pdf_path: Path) -> list[str]:
@@ -77,7 +66,7 @@ def chunk_text(
     return chunks
 
 
-def build_chunks(data_dir: Path) -> list[TextChunk]:
+def build_chunks(data_dir: Path) -> list[IndexChunk]:
     """PDF ディレクトリから TextChunk のリストを構築する。
 
     Args:
@@ -86,14 +75,14 @@ def build_chunks(data_dir: Path) -> list[TextChunk]:
     Returns:
         list[TextChunk]: 抽出されたチャンク一覧。
     """
-    chunks: list[TextChunk] = []
+    chunks: list[IndexChunk] = []
 
     for pdf_path in sorted(data_dir.glob("*.pdf")):
         pages = extract_text_from_pdf(pdf_path)
         for page_index, page_text in enumerate(pages):
             for fragment in chunk_text(page_text):
                 chunks.append(
-                    TextChunk(
+                    IndexChunk(
                         id=str(uuid.uuid4()),
                         source=pdf_path.name,
                         section="",
@@ -126,7 +115,7 @@ def embed_texts(
         vector = response.data[0].embedding
         vectors.append(vector)
 
-    return np.array(vectors, dtype="float32")
+    return np.array(vectors, dtype=np.float32)
 
 
 def build_corpus() -> None:
@@ -136,8 +125,8 @@ def build_corpus() -> None:
     client = get_llm_client()
     index_dir = embedding_config.index_dir
     index_dir.mkdir(parents=True, exist_ok=True)
-    meta_path = index_dir / "meta.jsonl"
-    embeddings_path = index_dir / "embeddings.npy"
+    meta_path = index_dir / IndexFilenames.META_FILENAME
+    embeddings_path = index_dir / IndexFilenames.EMBEDDINGS_FILENAME
 
     chunks = build_chunks(app_config.data_dir)
     logger.info("Total chunks: %d", len(chunks))

@@ -1,21 +1,23 @@
 from __future__ import annotations
 
 import json
-import sys
 import uuid
 from dataclasses import asdict, dataclass
 from pathlib import Path
-
-# src ディレクトリをモジュール検索パスに追加
-sys.path.append(str(Path(__file__).resolve().parent.parent.parent))
+from typing import Sequence
 
 import numpy as np
-from dotenv import load_dotenv
 from openai import OpenAI
 from pypdf import PdfReader
 
-load_dotenv()
-client = OpenAI()
+from src.bridge_llm_mvp.config import get_app_config
+from src.bridge_llm_mvp.llm_client import get_llm_client
+from src.bridge_llm_mvp.logger_config import get_logger
+from src.bridge_llm_mvp.rag.embedding_config import EmbeddingModel, get_embedding_config
+
+logger = get_logger(__name__)
+
+DEFAULT_MAX_CHARS_PER_CHUNK: int = 800
 
 
 @dataclass
@@ -30,7 +32,14 @@ class TextChunk:
 
 
 def extract_text_from_pdf(pdf_path: Path) -> list[str]:
-    """PDF 1冊からページごとのテキストを抜き出す。"""
+    """PDF 1冊からページごとのテキストを抜き出す。
+
+    Args:
+        pdf_path: 対象となる PDF ファイルパス。
+
+    Returns:
+        list[str]: ページごとのテキスト一覧。
+    """
     reader = PdfReader(str(pdf_path))
     texts: list[str] = []
 
@@ -41,81 +50,110 @@ def extract_text_from_pdf(pdf_path: Path) -> list[str]:
     return texts
 
 
-def chunk_text(text: str, max_chars: int = 800) -> list[str]:
-    """長いテキストを max_chars ごとにざっくり分割する。"""
+def chunk_text(
+    text: str,
+    max_chars: int = DEFAULT_MAX_CHARS_PER_CHUNK,
+) -> list[str]:
+    """長いテキストを max_chars ごとにざっくり分割する。
+
+    Args:
+        text: 分割対象のテキスト。
+        max_chars: 1 チャンクあたりの最大文字数。
+
+    Returns:
+        list[str]: 分割後のテキストチャンク一覧。
+    """
     text = text.replace("\n", " ")
     chunks: list[str] = []
     start = 0
 
     while start < len(text):
         end = start + max_chars
-        frag = text[start:end].strip()
-        if frag:
-            chunks.append(frag)
+        fragment = text[start:end].strip()
+        if fragment:
+            chunks.append(fragment)
         start = end
 
     return chunks
 
 
 def build_chunks(data_dir: Path) -> list[TextChunk]:
-    """data/ 以下の PDF をすべて読んで TextChunk のリストを作る。"""
+    """PDF ディレクトリから TextChunk のリストを構築する。
+
+    Args:
+        data_dir: PDF が格納されたディレクトリパス。
+
+    Returns:
+        list[TextChunk]: 抽出されたチャンク一覧。
+    """
     chunks: list[TextChunk] = []
 
     for pdf_path in sorted(data_dir.glob("*.pdf")):
         pages = extract_text_from_pdf(pdf_path)
-        for page_idx, page_text in enumerate(pages):
-            for frag in chunk_text(page_text):
+        for page_index, page_text in enumerate(pages):
+            for fragment in chunk_text(page_text):
                 chunks.append(
                     TextChunk(
                         id=str(uuid.uuid4()),
                         source=pdf_path.name,
-                        section="",  # TODO: 余裕があればしおりから章名を取る
-                        page=page_idx,
-                        text=frag,
+                        section="",
+                        page=page_index,
+                        text=fragment,
                     ),
                 )
 
     return chunks
 
 
-def embed_texts(texts: list[str], model: str = "text-embedding-3-small") -> np.ndarray:
-    """テキストリストを embedding して 2D array にして返す。"""
+def embed_texts(
+    texts: Sequence[str],
+    client: OpenAI,
+    model: EmbeddingModel,
+) -> np.ndarray:
+    """テキストリストを embedding して 2D array にして返す。
+
+    Args:
+        texts: 埋め込み対象のテキスト列。
+        model: 使用する埋め込みモデル。
+
+    Returns:
+        np.ndarray: shape=(N, D) の埋め込み行列。
+    """
     vectors: list[list[float]] = []
 
-    for t in texts:
-        resp = client.embeddings.create(model=model, input=t)
-        vec = resp.data[0].embedding
-        vectors.append(vec)
+    for text in texts:
+        response = client.embeddings.create(model=model.value, input=text)
+        vector = response.data[0].embedding
+        vectors.append(vector)
 
     return np.array(vectors, dtype="float32")
 
 
-def build_corpus(
-    data_dir: Path = Path("data"),
-    index_dir: Path = Path("rag_index"),
-) -> None:
+def build_corpus() -> None:
     """PDF からチャンクを作り、embedding とメタデータを保存する。"""
+    app_config = get_app_config()
+    embedding_config = get_embedding_config()
+    client = get_llm_client()
+    index_dir = embedding_config.index_dir
     index_dir.mkdir(parents=True, exist_ok=True)
     meta_path = index_dir / "meta.jsonl"
-    emb_path = index_dir / "embeddings.npy"
+    embeddings_path = index_dir / "embeddings.npy"
 
-    chunks = build_chunks(data_dir)
-    print(f"total chunks: {len(chunks)}")
+    chunks = build_chunks(app_config.data_dir)
+    logger.info("Total chunks: %d", len(chunks))
 
-    texts = [c.text for c in chunks]
-    embeddings = embed_texts(texts)
+    texts = [chunk.text for chunk in chunks]
+    embeddings = embed_texts(texts, client=client, model=embedding_config.model)
 
-    # メタデータ保存
-    with meta_path.open("w", encoding="utf-8") as f:
-        for c in chunks:
-            json.dump(asdict(c), f, ensure_ascii=False)
-            f.write("\n")
+    with meta_path.open("w", encoding="utf-8") as file:
+        for chunk in chunks:
+            json.dump(asdict(chunk), file, ensure_ascii=False)
+            file.write("\n")
 
-    # ベクトル保存
-    np.save(emb_path, embeddings)
+    np.save(embeddings_path, embeddings)
 
-    print(f"saved meta to {meta_path}")
-    print(f"saved embeddings to {emb_path}, shape={embeddings.shape}")
+    logger.info("Saved meta to %s", meta_path)
+    logger.info("Saved embeddings to %s, shape=%s", embeddings_path, embeddings.shape)
 
 
 if __name__ == "__main__":

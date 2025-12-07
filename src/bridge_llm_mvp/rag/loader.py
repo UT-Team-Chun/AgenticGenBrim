@@ -73,7 +73,7 @@ def build_chunks(data_dir: Path) -> list[IndexChunk]:
         data_dir: PDF が格納されたディレクトリパス。
 
     Returns:
-        list[TextChunk]: 抽出されたチャンク一覧。
+        list[IndexChunk]: 抽出されたチャンク一覧。
     """
     chunks: list[IndexChunk] = []
 
@@ -103,6 +103,7 @@ def embed_texts(
 
     Args:
         texts: 埋め込み対象のテキスト列。
+        client: OpenAI クライアント。
         model: 使用する埋め込みモデル。
 
     Returns:

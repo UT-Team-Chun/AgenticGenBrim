@@ -1,8 +1,8 @@
 # src/bridge_llm_mvp/judge/service.py
 from __future__ import annotations
 
-from bridge_llm_mvp.judge.models import JudgeInput, JudgeResult, OverallStatus
-from bridge_llm_mvp.rag.search import search_text
+from src.bridge_llm_mvp.judge.models import JudgeInput, JudgeResult, OverallStatus
+from src.bridge_llm_mvp.rag.search import search_text
 
 
 def build_judge_system_prompt() -> str:

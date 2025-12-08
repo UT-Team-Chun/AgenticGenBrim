@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Sequence
 
 # from fire import Fire
+from src.bridge_llm_mvp.config import get_app_config
 from src.bridge_llm_mvp.designer.models import DesignerInput
 from src.bridge_llm_mvp.designer.services import generate_design
 from src.bridge_llm_mvp.judge.models import JudgeInput
@@ -55,10 +57,20 @@ def main() -> None:
     """Fire 経由で `run` を公開するラッパー。"""
     # Fire(run)
     # テストとして1ケースで実行
+    app_config = get_app_config()
     inputs = DesignerInput(span_length_m=50.0, total_width_m=10.0)
     design = generate_design(inputs, top_k=TOP_K, model_name=LlmModel.GPT_5_MINI)
-    logger.info(design.model_dump_json(indent=2, ensure_ascii=False))
 
+    # JSON ファイルとして保存
+    output_dir = app_config.generated_bridge_json_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_path = output_dir / f"design_L{inputs.span_length_m:.0f}_B{inputs.total_width_m:.0f}_{timestamp}.json"
+    output_path.write_text(
+        design.model_dump_json(indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    logger.info("Saved design to %s", output_path)
 
 if __name__ == "__main__":
     main()

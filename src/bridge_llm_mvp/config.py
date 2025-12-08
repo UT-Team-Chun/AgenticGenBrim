@@ -15,6 +15,8 @@ class AppConfig(BaseModel):
     src_dir: Path
     data_dir: Path
     rag_index_dir: Path
+    rag_index_dir_plumber: Path
+    rag_index_dir_pymupdf: Path
     env_file: Path
 
 
@@ -31,5 +33,7 @@ def get_app_config() -> AppConfig:
         src_dir=project_root / "src",
         data_dir=project_root / "data",
         rag_index_dir=project_root / "rag_index",
+        rag_index_dir_plumber=project_root / "rag_index" / "pdfplumber",
+        rag_index_dir_pymupdf=project_root / "rag_index" / "pymupdf",
         env_file=project_root / ".env",
     )

@@ -5,27 +5,22 @@ from typing import Sequence
 
 import numpy as np
 from openai import OpenAI
-from pydantic import BaseModel, Field
 
-from src.bridge_llm_mvp.config import get_app_config
 from src.bridge_llm_mvp.llm_client import get_llm_client
 from src.bridge_llm_mvp.logger_config import get_logger
-from src.bridge_llm_mvp.rag.embedding_config import EmbeddingModel, IndexChunk, IndexFilenames, get_embedding_config
+from src.bridge_llm_mvp.rag.embedding_config import (
+    EmbeddingModel,
+    IndexChunk,
+    IndexFilenames,
+    RagIndex,
+    SearchResult,
+    get_embedding_config,
+)
 
 logger = get_logger(__name__)
 
-NUMERIC_STABILITY_EPSILON: float = 1e-8
 
-
-_CHUNKS: list[IndexChunk] | None = None
-_EMBEDDINGS: np.ndarray | None = None
-
-
-class RagIndex(BaseModel):
-    """RAG インデックス全体を表すモデル。"""
-
-    chunks: list[IndexChunk] = Field(..., description="チャンクメタデータの一覧。")
-    embeddings: np.ndarray = Field(..., description="チャンクごとの埋め込み行列。")
+_RAG_INDEX: RagIndex | None = None
 
 
 def _load_index() -> RagIndex:
@@ -34,12 +29,11 @@ def _load_index() -> RagIndex:
     Returns:
         RagIndex: チャンクと埋め込み行列。
     """
-    global _CHUNKS, _EMBEDDINGS
+    global _RAG_INDEX
 
-    if _CHUNKS is not None and _EMBEDDINGS is not None:
-        return RagIndex(chunks=_CHUNKS, embeddings=_EMBEDDINGS)
+    if _RAG_INDEX is not None:
+        return _RAG_INDEX
 
-    app_config = get_app_config()
     embedding_config = get_embedding_config()
     index_dir = embedding_config.index_dir
     meta_path = index_dir / IndexFilenames.META_FILENAME
@@ -60,13 +54,16 @@ def _load_index() -> RagIndex:
             )
 
     embeddings = np.load(embeddings_path)
-    logger.info("Loaded %d chunks from %s", len(chunks), app_config.rag_index_dir)
+    logger.info("Loaded %d chunks from %s", len(chunks), index_dir)
     logger.info("Loaded embeddings from %s, shape=%s", embeddings_path, embeddings.shape)
 
-    _CHUNKS = chunks
-    _EMBEDDINGS = embeddings
+    _RAG_INDEX = RagIndex.from_chunks_and_embeddings(
+        chunks=chunks,
+        embeddings=embeddings,
+        dim=embedding_config.dimensions,
+    )
 
-    return RagIndex(chunks=chunks, embeddings=embeddings)
+    return _RAG_INDEX
 
 
 def _embed_query(
@@ -78,6 +75,7 @@ def _embed_query(
 
     Args:
         query: クエリ文字列。
+        client: OpenAI クライアント。
         model: 使用する埋め込みモデル。
 
     Returns:
@@ -92,49 +90,38 @@ def search_text(
     query: str,
     client: OpenAI,
     top_k: int,
-) -> list[str]:
+) -> list[SearchResult]:
     """embedding に基づく類似度検索 (cosine similarity) を行う。
 
     Args:
         query: 検索クエリ文字列。
+        client: OpenAI クライアント。
         top_k: 返却する上位件数。
 
     Returns:
-        list[str]: 類似度の高いテキストチャンク。
+        list[SearchResult]: 検索結果のリスト。
     """
     rag_index = _load_index()
     embedding_config = get_embedding_config()
     query_vector = _embed_query(query, client=client, model=embedding_config.model)
 
-    # 正規化してコサイン類似度を計算
-    embeddings_norm = rag_index.embeddings / (
-        np.linalg.norm(rag_index.embeddings, axis=1, keepdims=True) + NUMERIC_STABILITY_EPSILON
-    )
-    query_norm = query_vector / (np.linalg.norm(query_vector) + NUMERIC_STABILITY_EPSILON)
-
-    similarities = embeddings_norm @ query_norm
-
-    indices = np.argsort(-similarities)[:top_k]
-    results: list[str] = []
-    for index in indices:
-        results.append(rag_index.chunks[int(index)].text)
-
-    return results
+    return rag_index.search(query_embedding=query_vector, top_k=top_k)
 
 
 def search_multiple(
     queries: Sequence[str],
     client: OpenAI,
     top_k: int,
-) -> list[list[str]]:
+) -> list[list[SearchResult]]:
     """複数クエリをまとめて検索する簡易ヘルパー。
 
     Args:
         queries: 検索クエリ列。
+        client: OpenAI クライアント。
         top_k: 各クエリごとに返却する上位件数。
 
     Returns:
-        list[list[str]]: 各クエリごとの検索結果リスト。
+        list[list[SearchResult]]: 各クエリごとの検索結果リスト。
     """
     return [search_text(query, client=client, top_k=top_k) for query in queries]
 
@@ -148,7 +135,8 @@ if __name__ == "__main__":
     ]
     results = search_multiple(test_queries, client=client, top_k=2)
     for i, query in enumerate(test_queries):
-        print(f"=== Query {i + 1}: {query} ===")
-        for j, text in enumerate(results[i]):
-            print(f"[Result {j + 1}] {text[:200]}...")
-            print("-" * 40)
+        print(f"Query: {query}")
+        for result in results[i]:
+            print(f"- Score: {result.score:.4f}, Source: {result.chunk.source}, Page: {result.chunk.page}")
+            print(f"  Text: {result.chunk.text[:100]}...")
+        print()

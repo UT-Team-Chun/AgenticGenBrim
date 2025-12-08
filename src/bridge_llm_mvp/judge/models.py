@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-from enum import Enum
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from bridge_llm_mvp.designer.models import BridgeDesign
+from src.bridge_llm_mvp.designer.models import BridgeDesign
 
 
-class CheckStatus(str, Enum):
+class CheckStatus(StrEnum):
     OK = "ok"
     MINOR_NG = "minor_ng"
     CRITICAL_NG = "critical_ng"
 
 
-class OverallStatus(str, Enum):
+class OverallStatus(StrEnum):
     OK = "ok"
     OK_WITH_MINOR_ISSUES = "ok_with_minor_issues"
     NG = "ng"

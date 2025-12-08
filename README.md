@@ -3,9 +3,10 @@
 橋長 `L` [m] と幅員 `B` [m] から、
 鋼プレートガーダー橋（RC 床版）の**断面モデルを LLM で生成・評価する**ための MVP プロジェクト。
 
-- **Designer**: 教科書＋道路橋示方書を RAG で参照しながら、断面モデル（JSON）を生成する LLM エージェント
-- **Judge**: 同じ示方書を参照し、Designer の出力が寸法規定を満たしているか評価する LLM エージェント
-- **RAG**: 教科書／示方書 PDF をチャンク化・埋め込みし、類似検索する層
+- **RAG**: 教科書／道路橋示方書 PDF をテキスト化・チャンク化・埋め込みし、類似検索する層
+- **Extractor**: RAG で取得した条文テキストをもとに、「床版厚さ・腹板厚さなどの設計ルール（制約）」を構造化して抽出する LLM エージェント
+- **Designer**: Extractor が抽出した制約＋入力条件（L, B）を使って、断面モデル（BridgeDesign JSON）を生成する LLM エージェント
+- **Judge**: 同じ示方書を参照し、Designer の出力が寸法規定を満たしているか評価する LLM エージェント（本研究では補助的な位置づけ）
 
 ---
 
@@ -13,9 +14,12 @@
 
 - Python 3.13.5
 - [uv](https://github.com/astral-sh/uv)（パッケージ管理 & 仮想環境）
-  - ライブラリを追加する際は`uv add {ライブラリ名}`
+  - ライブラリを追加する際は `uv add {ライブラリ名}`
 - [Ruff](https://github.com/astral-sh/ruff)（フォーマッタ & リンタ）
-- OpenAI API（埋め込み: `text-embedding-3-small`、検証: `gpt-5-mini`, 本番: `gpt-5.1` ）
+- OpenAI API
+  - 埋め込み: `text-embedding-3-small`
+  - 検証用: `gpt-5-mini`
+  - 本番用: `gpt-5.1`
 - VS Code (+ Python 拡張 + Ruff 拡張) 推奨
 
 ---
@@ -25,27 +29,28 @@
 - CLI での引数管理には必ず fire を使う。argparse の使用禁止。
 - 必ず google スタイルの docstring と型アノテーションをつける。
 - マジックナンバーの使用禁止。必ず `MAX_LENGTH=5` のように定義した上で `MAX_LENGTH` を使う。
-- 文字列ハードコーディングの禁止。`StrEnum` や Pydantic の`BaseModel` を使用する。
+- 文字列ハードコーディングの禁止。`StrEnum` や Pydantic の `BaseModel` を使用する。
 - 返り値の型に `dict`, `tuple` を使わない。必ず `BaseModel`, `RootModel` 等で適切な型を定義する。
-- 型定義に `dataclass` は使わない。原則`BaseModel`。
+- 型定義に `dataclass` は使わない。原則 `BaseModel`。
 - Pydantic の `Field` に `description` を必ず書く。
 - push 前には必ず `make fmt`, `make fix`, `make lint` を通す。
 - パス操作は必ず `pathlib.Path` を使う。`os` は使用しない。
 - ディレクトリやファイルパスは `config.py` などにまとめて定義する。
-- ログ出力は`logger`で行う。`print`の使用禁止。
-  - from src.bridge_llm_mvp.logger_config import get_logger で統一する。
-- `try: ... except: pass` は絶対禁止です。必ず`except ValidationError as e:`のように捕捉するエラーを明示してください。
+- ログ出力は `logger` で行う。`print` の使用禁止。
+  - `from src.bridge_llm_mvp.logger_config import get_logger` で統一する。
+- `try: ... except: pass` は絶対禁止。必ず `except ValidationError as e:` のように捕捉するエラーを明示する。
 
 ---
 
 ## プロジェクト構成
 
-```text
+````text
 data/
   design_knowledge/          # 教科書・示方書 PDF 置き場
   extracted_by_pdfplumber/   # pdfplumber で抽出したテキスト（推奨）
   extracted_by_pypdf/        # pypdf で抽出したテキスト
   extracted_by_pymupdf4llm/  # pymupdf4llm で抽出したテキスト
+  generated_bridge_json/     # Designer が生成した設計結果 JSON
 
 rag_index/
   pdfplumber/                # pdfplumber 版の埋め込みインデックス
@@ -53,7 +58,6 @@ rag_index/
     embeddings.npy           # 埋め込みベクトル
 
 src/
-  main.py                    # 簡易動作確認用
   bridge_llm_mvp/
     __init__.py
     main.py                  # メイン実行スクリプト
@@ -61,27 +65,37 @@ src/
     logger_config.py         # ロガー設定と get_logger() の定義
     llm_client.py            # OpenAI クライアントの共通ラッパ
 
+    extractor/
+      __init__.py
+      models.py              # Extractor の入出力スキーマ（ConstraintItem, ConstraintSet 等）
+      prompts.py             # 制約抽出用プロンプト組み立て
+      services.py            # extract_constraints() - RAG+LLM で設計ルールを抽出
+
     designer/
       __init__.py
-      models.py              # Designer の入出力スキーマ（Pydantic）
-      prompts.py             # Designer 用プロンプト
-      services.py            # generate_design() の入り口
+      models.py              # Designer の入出力スキーマ（BridgeDesign 等）
+      prompts.py             # Designer 用プロンプト組み立て
+      services.py            # generate_design() - Extractor の制約を使って設計生成
 
     judge/
       __init__.py
-      models.py              # Judge の入出力スキーマ（Pydantic）
-      prompts.py             # Judge 用プロンプト
-      services.py            # judge_design() の入り口
+      models.py              # Judge の入出力スキーマ（JudgeResult 等）
+      prompts.py             # Judge 用プロンプト組み立て
+      services.py            # judge_design() - 設計結果を評価（補助的）
 
     rag/
       __init__.py
-      embedding_config.py    # 埋め込みモデル名・次元・対象ファイル名などの設定
+      embedding_config.py    # 埋め込み設定・RagIndex・SearchResult モデル
       loader.py              # テキストチャンク化 & 埋め込み生成
-      search.py              # search_chunks() による類似検索 API
+      search.py              # search_text() による類似検索 API
       extract_pdfs_with_pdfplumber.py   # PDF→TXT 抽出（pdfplumber）
       extract_pdfs_with_pypdf.py        # PDF→TXT 抽出（pypdf）
       extract_pdfs_with_pymupdf4llm.py  # PDF→TXT 抽出（pymupdf4llm）
-```
+
+.vscode/
+  settings.json              # Ruff 自動フォーマット設定
+  launch.json                # デバッグ実行設定（PYTHONPATH 設定済み）
+
 
 ---
 
@@ -94,7 +108,7 @@ src/
 
 ```bash
 uv --version
-```
+````
 
 ### 1. リポジトリ取得
 
@@ -177,12 +191,95 @@ uv run python -m src.bridge_llm_mvp.rag.loader
 ### Step 3: 類似検索（search.py）
 
 ```python
-from src.bridge_llm_mvp.rag.search import search_chunks
+from src.bridge_llm_mvp.rag.search import search_text
+from src.bridge_llm_mvp.llm_client import get_llm_client
 
-results = search_chunks("プレートガーダーの設計", top_k=5)
-for chunk in results:
-    print(chunk.source, chunk.text[:100])
+client = get_llm_client()
+results = search_text("プレートガーダーの設計", client=client, top_k=5)
+for result in results:
+    print(f"Score: {result.score:.4f}, Source: {result.chunk.source}")
+    print(f"Text: {result.chunk.text[:100]}...")
 ```
+
+---
+
+## Extractor & Designer & Judge
+
+### Extractor
+
+RAG で関連チャンクを取得し、LLM に Structured Output で「設計制約（寸法ルール）」を抽出させる。
+
+```python
+from src.bridge_llm_mvp.extractor.models import ExtractorInput, ConstraintTarget, ConstraintSet
+from src.bridge_llm_mvp.extractor.services import extract_constraints
+
+inputs = ExtractorInput(
+    span_length_m=50.0,
+    total_width_m=10.0,
+    targets=[
+        ConstraintTarget.DECK_THICKNESS,
+        ConstraintTarget.WEB_THICKNESS,
+    ],
+)
+constraints: ConstraintSet = extract_constraints(inputs)
+logger.info(constraints.model_dump_json(indent=2, ensure_ascii=False))
+```
+
+**抽出される情報の例**
+
+- どの文書・どの節に書かれていたか (source_doc, section_hint, page_hint)
+- 条件式のテキスト (expression_text)
+- 自然文での要約 (natural_language_summary)
+- どの設計変数に関する制約か (related_variables)
+
+### Designer
+
+Extractor が抽出した制約＋入力条件（L, B）を使って、LLM に BridgeDesign を生成させる。
+
+```python
+from src.bridge_llm_mvp.designer.models import DesignerInput
+from src.bridge_llm_mvp.designer.services import generate_design
+from src.bridge_llm_mvp.llm_client import LlmModel
+
+inputs = DesignerInput(span_length_m=50.0, total_width_m=10.0)
+design = generate_design(inputs, top_k=5, model_name=LlmModel.GPT_5_MINI)
+print(design.model_dump_json(indent=2))
+```
+
+**出力スキーマ (BridgeDesign):**
+
+- `dimensions`: 支間長、全幅、主桁本数、桁間隔、横桁ピッチ
+- `sections.girder_standard`: 主桁断面（腹板高さ/厚、上下フランジ幅/厚）
+- `sections.crossbeam_standard`: 横桁断面
+- `components.deck`: 床版厚
+
+### Judge
+
+Designer の出力が道路橋示方書の寸法規定を満たすか評価する。
+
+```python
+from src.bridge_llm_mvp.judge.models import JudgeInput
+from src.bridge_llm_mvp.judge.services import judge_design
+
+judge_input = JudgeInput(
+    span_length_m=50.0,
+    total_width_m=10.0,
+    design=design,
+)
+result = judge_design(judge_input)
+print(result.overall_status)  # OK / NG / PARTIAL
+```
+
+---
+
+## メイン実行
+
+```bash
+uv run python -m src.bridge_llm_mvp.main
+```
+
+- L=50m, B=10m で Extractor→Designer を実行
+- 結果を `data/generated_bridge_json/design_L50_B10_{timestamp}.json` に保存
 
 ---
 
@@ -203,37 +300,16 @@ make fix
 make lint
 ```
 
-**VSCode 設定(ワークスペース)**
+**VSCode 設定**
 
-.vscode/settings.json に以下のような設定を入れておくと、保存時に Ruff が自動でフォーマット & lint を行います。
-
-```json
-{
-  "python.formatting.provider": "none",
-  "editor.formatOnSave": true,
-  "ruff.enable": true,
-  "ruff.lint.run": "onSave",
-  "ruff.format.enable": true
-}
-```
+`.vscode/settings.json` で保存時に Ruff が自動でフォーマット & lint を行います。
 
 ---
 
-## 実装の流れ
+## VS Code でのデバッグ実行
 
-1. `DesignerInput(span_length_m=L, total_width_m=B)` を作成
-
-2. `generate_design(input: DesignerInput) -> BridgeDesign` を呼ぶ
-
-3. `JudgeInput(span_length_m=L, total_width_m=B, design=BridgeDesign)` を作成
-
-4. `judge_design(judge_input: JudgeInput) -> JudgeResult` を呼ぶ
-
-5. 複数ケース（例: L=30,40,50,60,70 m）で一括実行するスクリプトとして main.py を利用
-
-```bash
-uv run python src/bridge_llm_mvp/main.py
-```
+`.vscode/launch.json` が設定済みなので、F5 キーまたは右上の三角ボタンでファイルを実行できます。
+`PYTHONPATH` が自動設定されるため、`ModuleNotFoundError: No module named 'src'` エラーは発生しません。
 
 ---
 
@@ -244,20 +320,32 @@ uv run python src/bridge_llm_mvp/main.py
 - [x] 教科書／示方書 PDF を data/ に配置
 - [x] PDF → テキスト抽出スクリプト実装（pdfplumber / pypdf / pymupdf4llm）
 - [x] rag/loader.py でテキストチャンク化 & 埋め込み生成
-- [x] rag/search.py の search_chunks() を実装
+- [x] rag/search.py の search_text() を実装
+- [x] SearchResult モデルで検索結果を返す（スコア付き）
 - [ ] 検索精度の評価・チューニング
+
+**Extractor**
+
+- [ ] extractor/models.py に ConstraintItem, ConstraintSet, ExtractorInput を定義
+- [ ] RAG を組み込んだ extract_constraints() を実装
+- [ ] プレートガーダー橋（L=50m, B=10m）で制約抽出の挙動を確認
+- [ ] 抽出された制約と示方書の真の条文との対応をサンプル比較
 
 **Designer**
 
-- [ ] プロンプト本文を designer/prompts.py に整理
-- [ ] RAG を組み込んだ generate_design() を実装
+- [x] プロンプト本文を designer/prompts.py に整理
+- [x] RAG を組み込んだ generate_design() を実装
+- [x] 設計結果を JSON ファイルに出力
+- [ ] Extractor の ConstraintSet を使うように内部ロジックをリファクタリング
 
 **Judge**
 
-- [ ] プロンプト本文を judge/prompts.py に整理
-- [ ] RAG を組み込んだ judge_design() を実装
+- [x] judge/models.py に JudgeResult スキーマを定義
+- [ ] RAG を組み込んだ judge_design() を本実装（現在はダミー）
+- [ ] Python 側の簡易ルール（床版厚さ、腹板厚さなど）で Designer の精度を評価する仕組み検討
 
 **実験**
 
-- [ ] 代表 3〜5 ケースで Designer→Judge を実行
+- [ ] 代表 3〜5 ケースで Extracter→Designer→Judge を実行
 - [ ] 結果を表/図として整理（卒論用）
+- [ ] ルール抽出（Extractor）と設計（Designer）を分けた場合のメリット・課題を整理

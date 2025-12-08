@@ -135,8 +135,8 @@ if __name__ == "__main__":
     ]
     results = search_multiple(test_queries, client=client, top_k=2)
     for i, query in enumerate(test_queries):
-        print(f"Query: {query}")
+        logger.info(f"Query: {query}")
         for result in results[i]:
-            print(f"- Score: {result.score:.4f}, Source: {result.chunk.source}, Page: {result.chunk.page}")
-            print(f"  Text: {result.chunk.text[:100]}...")
-        print()
+            logger.info(f"- Score: {result.score:.4f}, Source: {result.chunk.source}, Page: {result.chunk.page}")
+            logger.info(f"  Text: {result.chunk.text[:100]}...")
+        logger.info("")

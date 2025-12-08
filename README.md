@@ -3,9 +3,14 @@
 橋長 `L` [m] と幅員 `B` [m] から、
 鋼プレートガーダー橋（RC 床版）の**断面モデルを LLM で生成・評価する**ための MVP プロジェクト。
 
-- **RAG**: 教科書／道路橋示方書 PDF をテキスト化・チャンク化・埋め込みし、類似検索する層
-- **Extractor**: RAG で取得した条文テキストをもとに、「床版厚さ・腹板厚さなどの設計ルール（制約）」を構造化して抽出する LLM エージェント
-- **Designer**: Extractor が抽出した制約＋入力条件（L, B）を使って、断面モデル（BridgeDesign JSON）を生成する LLM エージェント
+- **RAG**: 教科書／道路橋示方書 PDF をテキスト化・チャンク化・埋め込みし、
+  「どの文書／どの章・ページ付近を参照すべきか」を決めるための索引用レイヤ
+- **Extractor**: RAG で候補になった章・ページ情報をもとに、
+  **Responses API の file input で元 PDF を LLM に読ませ**、
+  「床版厚さ・腹板厚さなどの設計ルール（制約）」を構造化して抽出するエージェント
+- **Designer**: Extractor が抽出した制約＋入力条件（L, B）を使い、
+  必要に応じて同じ PDF を file input で参照しながら、
+  断面モデル（BridgeDesign JSON）を自律的に生成するエージェント
 - **Judge**: 同じ示方書を参照し、Designer の出力が寸法規定を満たしているか評価する LLM エージェント（本研究では補助的な位置づけ）
 
 ---
@@ -200,6 +205,14 @@ for result in results:
     print(f"Score: {result.score:.4f}, Source: {result.chunk.source}")
     print(f"Text: {result.chunk.text[:100]}...")
 ```
+
+> **補足（file input との関係）**
+>
+> RAG（埋め込み）はあくまで「どの文書のどの辺を見に行くか」を決めるための索引用です。
+> 実際に設計ルールを読む段階（Extractor / Designer からの LLM 呼び出し）では、
+> Responses API の file input 機能を使って、
+> `data/design_knowledge/` 内の元 PDF を LLM に渡し、
+> 数式や記号を含めた元の紙面を直接読ませる想定です。
 
 ---
 

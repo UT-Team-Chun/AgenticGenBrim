@@ -55,7 +55,7 @@ class JudgeInput(BaseModel):
     元の L,B と、Designer の設計結果をまとめて渡す。
     """
 
-    span_length_m: float
+    bridge_length_m: float
     total_width_m: float
     design: BridgeDesign
 

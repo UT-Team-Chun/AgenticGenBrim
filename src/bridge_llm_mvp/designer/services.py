@@ -56,7 +56,7 @@ def generate_design(inputs: DesignerInput, top_k: int, model_name: LlmModel) -> 
 
     logger.info(
         "Designer: generated design for L=%.1f, B=%.1f",
-        inputs.span_length_m,
+        inputs.bridge_length_m,
         inputs.total_width_m,
     )
 

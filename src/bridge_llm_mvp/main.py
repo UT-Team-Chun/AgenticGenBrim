@@ -37,15 +37,15 @@ def run(
     Returns:
         None: 返り値は利用しない。
     """
-    for span_length_m in span_lengths_m:
+    for bridge_length_m in span_lengths_m:
         input_model = DesignerInput(
-            span_length_m=span_length_m,
+            bridge_length_m=bridge_length_m,
             total_width_m=total_width_m,
         )
-        logger.info("Span L=%.3f m, B=%.3f m で設計を開始", span_length_m, total_width_m)
+        logger.info("Span L=%.3f m, B=%.3f m で設計を開始", bridge_length_m, total_width_m)
         design = generate_design(input_model, top_k=top_k, model_name=model_name)
         judge_input = JudgeInput(
-            span_length_m=span_length_m,
+            bridge_length_m=bridge_length_m,
             total_width_m=total_width_m,
             design=design,
         )
@@ -58,14 +58,14 @@ def main() -> None:
     # Fire(run)
     # テストとして1ケースで実行
     app_config = get_app_config()
-    inputs = DesignerInput(span_length_m=50.0, total_width_m=10.0)
+    inputs = DesignerInput(bridge_length_m=50.0, total_width_m=10.0)
     design = generate_design(inputs, top_k=TOP_K, model_name=LlmModel.GPT_5_MINI)
 
     # JSON ファイルとして保存
     output_dir = app_config.generated_bridge_json_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    output_path = output_dir / f"design_L{inputs.span_length_m:.0f}_B{inputs.total_width_m:.0f}_{timestamp}.json"
+    output_path = output_dir / f"design_L{inputs.bridge_length_m:.0f}_B{inputs.total_width_m:.0f}_{timestamp}.json"
     output_path.write_text(
         design.model_dump_json(indent=2, ensure_ascii=False),
         encoding="utf-8",

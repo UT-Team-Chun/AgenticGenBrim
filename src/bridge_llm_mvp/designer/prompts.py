@@ -21,7 +21,7 @@ def build_designer_prompt(
 橋長 L と幅員 B が与えられたとき、鋼プレートガーダー橋（RC床版）の断面モデルを提案してください。
 
 ## 設計条件
-- 橋長 L = {inputs.span_length_m:.1f} m
+- 橋長 L = {inputs.bridge_length_m:.1f} m
 - 幅員 B = {inputs.total_width_m:.1f} m
 ## 参考文献
 次に示すのは、教科書および道路橋示方書からの参考抜粋です。

@@ -30,7 +30,7 @@ def build_judge_user_prompt(judge_input: JudgeInput) -> str:
     return (
         "以下の鋼プレートガーダー橋断面について、道路橋示方書の寸法規定を満足しているか"
         "評価してください。\n"
-        f"- 橋長 L = {judge_input.span_length_m:.3f} m\n"
+        f"- 橋長 L = {judge_input.bridge_length_m:.3f} m\n"
         f"- 幅員 B = {judge_input.total_width_m:.3f} m\n"
         "対象は床版厚・腹板厚・フランジ幅厚比・横桁間隔の4点です。"
     )

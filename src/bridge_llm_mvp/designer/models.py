@@ -9,15 +9,15 @@ class DesignerInput(BaseModel):
     橋長 L [m] と 全幅 B [m] だけ。
     """
 
-    span_length_m: float = Field(..., description="支間長 L [m]")
-    total_width_m: float = Field(..., description="全幅 B [m]")
+    span_length_m: float = Field(..., description="橋長 L [m]")
+    total_width_m: float = Field(..., description="幅員 B [m]")
 
 
 class Dimensions(BaseModel):
     """設計結果の全体寸法（単位 mm）。"""
 
-    span_length_mm: float = Field(..., description="支間長 L [mm]")
-    total_width_mm: float = Field(..., description="全幅 B [mm]")
+    span_length_mm: float = Field(..., description="橋長 L [mm]")
+    total_width_mm: float = Field(..., description="幅員 B [mm]")
     num_girders: int = Field(..., description="主桁本数")
     girder_spacing_mm: float = Field(..., description="主桁間隔 [mm]")
     panel_length_mm: float = Field(..., description="横桁ピッチ [mm]")

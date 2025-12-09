@@ -11,19 +11,18 @@ def build_designer_prompt(
     """Designer 用のプロンプト文を組み立てる。
 
     Args:
-        inputs: 設計条件（支間長 L, 全幅 B）。
+        inputs: 設計条件（橋長 L, 幅員 B）。
         chunks: 参考文献チャンク（教科書・示方書から RAG で取得）。
 
     Returns:
         str: LLM に渡すプロンプト文。
     """
     header = f"""あなたは鋼橋の設計担当エンジニアです。
-支間長 L と全幅 B が与えられたとき、鋼プレートガーダー橋（RC床版）の断面モデルを提案してください。
+橋長 L と幅員 B が与えられたとき、鋼プレートガーダー橋（RC床版）の断面モデルを提案してください。
 
 ## 設計条件
-- 支間長 L = {inputs.span_length_m:.1f} m
-- 全幅 B = {inputs.total_width_m:.1f} m
-
+- 橋長 L = {inputs.span_length_m:.1f} m
+- 幅員 B = {inputs.total_width_m:.1f} m
 ## 参考文献
 次に示すのは、教科書および道路橋示方書からの参考抜粋です。
 これらを根拠として、工学的に妥当な寸法のモデルを提案してください。

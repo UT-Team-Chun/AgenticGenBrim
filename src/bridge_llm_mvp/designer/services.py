@@ -22,7 +22,7 @@ def generate_design(inputs: DesignerInput, top_k: int, model_name: LlmModel) -> 
         3. LLM に Structured Output で BridgeDesign を生成させる
 
     Args:
-        inputs: 設計条件。支間長 L [m] と全幅 B [m] を含む。
+        inputs: 設計条件。橋長 L [m] と幅員 B [m] を含む。
         top_k: RAG 検索で取得するチャンク数。
         model_name: 使用する LLM モデル名。
 

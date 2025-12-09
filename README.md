@@ -261,7 +261,7 @@ print(design.model_dump_json(indent=2))
 
 **出力スキーマ (BridgeDesign):**
 
-- `dimensions`: 支間長、全幅、主桁本数、桁間隔、横桁ピッチ
+- `dimensions`: 橋長、幅員、主桁本数、桁間隔、横桁ピッチ
 - `sections.girder_standard`: 主桁断面（腹板高さ/厚、上下フランジ幅/厚）
 - `sections.crossbeam_standard`: 横桁断面
 - `components.deck`: 床版厚

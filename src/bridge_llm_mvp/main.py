@@ -31,8 +31,8 @@ def run(
 
     Args:
         model_name: 使用する LLM モデル名。
-        span_lengths_m: 検討する支間長 L [m] の列。
-        total_width_m: 全ケース共通の全幅 B [m]。
+        span_lengths_m: 検討する橋長 L [m] の列。
+        total_width_m: 全ケース共通の幅員 B [m]。
 
     Returns:
         None: 返り値は利用しない。

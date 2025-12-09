@@ -72,5 +72,6 @@ def main() -> None:
     )
     logger.info("Saved design to %s", output_path)
 
+
 if __name__ == "__main__":
     main()

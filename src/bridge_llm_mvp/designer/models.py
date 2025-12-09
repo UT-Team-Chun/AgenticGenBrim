@@ -12,17 +12,14 @@ class DesignerInput(BaseModel):
     bridge_length_m: float = Field(..., description="橋長 L [m]")
     total_width_m: float = Field(..., description="幅員 B [m]")
 
+
 class Dimensions(BaseModel):
     bridge_length: float = Field(..., description="橋長 [mm]。")
     total_width: float = Field(..., description="橋全幅 [mm]。")
     num_girders: int = Field(..., description="主桁本数。")
     girder_spacing: float = Field(..., description="主桁間隔 [mm]。")
     panel_length: float = Field(..., description="パネル長 [mm]。")
-    num_panels: int | None = Field(
-        default=None,
-        description="指定がない場合は bridge_length / panel_length から算出。"
-    )
-
+    num_panels: int | None = Field(default=None, description="指定がない場合は bridge_length / panel_length から算出。")
 
 
 class GirderSection(BaseModel):
@@ -43,6 +40,7 @@ class CrossbeamSection(BaseModel):
     web_thickness: float = Field(..., description="腹板板厚 [mm]")
     flange_width: float = Field(..., description="フランジ幅 [mm]")
     flange_thickness: float = Field(..., description="フランジ厚 [mm]")
+
 
 class Deck(BaseModel):
     """床版（MVPでは厚さだけ）。"""

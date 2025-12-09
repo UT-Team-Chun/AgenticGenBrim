@@ -65,6 +65,12 @@ rag_index/
     embeddings.npy           # 埋め込みベクトル
 
 src/
+  bridge_json_to_ifc/
+    __init__.py
+    convert_simple_to_detailed_json.py    # LLMの出力したjsonをifcに変換できる詳細な形にするスクリプト
+    models.py                             # 詳細jsonスキーマ（pydantic定義）
+    convert_json_to_ifc.py                # 詳細jsonをifcに変換するスクリプト
+
   bridge_llm_mvp/
     __init__.py
     main.py                  # メイン実行スクリプト

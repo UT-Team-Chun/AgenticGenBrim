@@ -14,7 +14,9 @@ class AppConfig(BaseModel):
     project_root: Path
     src_dir: Path
     data_dir: Path
-    generated_bridge_json_dir: Path
+    generated_simple_bridge_json_dir: Path
+    generated_detailed_bridge_json_dir: Path
+    generated_ifc_dir: Path
     rag_index_dir: Path
     rag_index_dir_plumber: Path
     rag_index_dir_pymupdf: Path
@@ -33,7 +35,9 @@ def get_app_config() -> AppConfig:
         project_root=project_root,
         src_dir=project_root / "src",
         data_dir=project_root / "data",
-        generated_bridge_json_dir=project_root / "data" / "generated_bridge_json",
+        generated_simple_bridge_json_dir=project_root / "data" / "generated_simple_bridge_json",
+        generated_detailed_bridge_json_dir=project_root / "data" / "generated_detailed_bridge_json",
+        generated_ifc_dir=project_root / "data" / "generated_ifc",
         rag_index_dir=project_root / "rag_index",
         rag_index_dir_plumber=project_root / "rag_index" / "pdfplumber",
         rag_index_dir_pymupdf=project_root / "rag_index" / "pymupdf",

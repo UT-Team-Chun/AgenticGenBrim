@@ -62,7 +62,7 @@ def main() -> None:
     design = generate_design(inputs, top_k=TOP_K, model_name=LlmModel.GPT_5_MINI)
 
     # JSON ファイルとして保存
-    output_dir = app_config.generated_bridge_json_dir
+    output_dir = app_config.generated_simple_bridge_json_dir
     output_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_path = output_dir / f"design_L{inputs.bridge_length_m:.0f}_B{inputs.total_width_m:.0f}_{timestamp}.json"

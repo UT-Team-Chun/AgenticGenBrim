@@ -44,6 +44,8 @@
 - ログ出力は `logger` で行う。`print` の使用禁止。
   - `from src.bridge_llm_mvp.logger_config import get_logger` で統一する。
 - `try: ... except: pass` は絶対禁止。必ず `except ValidationError as e:` のように捕捉するエラーを明示する。
+- `typing` の `List`, `Dict` などは使わず、`list`, `dict` 等を使う。
+- `Optional` は使わず、`str | None` のように記述する。
 
 ---
 

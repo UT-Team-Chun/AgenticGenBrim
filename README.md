@@ -229,7 +229,7 @@ from src.bridge_llm_mvp.extractor.models import ExtractorInput, ConstraintTarget
 from src.bridge_llm_mvp.extractor.services import extract_constraints
 
 inputs = ExtractorInput(
-    span_length_m=50.0,
+    bridge_length_m=50.0,
     total_width_m=10.0,
     targets=[
         ConstraintTarget.DECK_THICKNESS,
@@ -256,7 +256,7 @@ from src.bridge_llm_mvp.designer.models import DesignerInput
 from src.bridge_llm_mvp.designer.services import generate_design
 from src.bridge_llm_mvp.llm_client import LlmModel
 
-inputs = DesignerInput(span_length_m=50.0, total_width_m=10.0)
+inputs = DesignerInput(bridge_length_m=50.0, total_width_m=10.0)
 design = generate_design(inputs, top_k=5, model_name=LlmModel.GPT_5_MINI)
 print(design.model_dump_json(indent=2))
 ```
@@ -277,7 +277,7 @@ from src.bridge_llm_mvp.judge.models import JudgeInput
 from src.bridge_llm_mvp.judge.services import judge_design
 
 judge_input = JudgeInput(
-    span_length_m=50.0,
+    bridge_length_m=50.0,
     total_width_m=10.0,
     design=design,
 )

@@ -17,13 +17,13 @@ from src.bridge_llm_mvp.rag.embedding_config import TOP_K
 
 logger = get_logger(__name__)
 
-DEFAULT_SPAN_LENGTHS_M: Sequence[float] = (30.0, 40.0, 50.0, 60.0, 70.0)
+DEFAULT_BRIDGE_LENGTHS_M: Sequence[float] = (30.0, 40.0, 50.0, 60.0, 70.0)
 DEFAULT_TOTAL_WIDTH_M: float = 10.0
 
 
 def run(
     model_name: LlmModel,
-    span_lengths_m: Sequence[float] = DEFAULT_SPAN_LENGTHS_M,
+    bridge_lengths_m: Sequence[float] = DEFAULT_BRIDGE_LENGTHS_M,
     total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
     top_k: int = TOP_K,
 ) -> None:
@@ -31,13 +31,13 @@ def run(
 
     Args:
         model_name: 使用する LLM モデル名。
-        span_lengths_m: 検討する橋長 L [m] の列。
+        bridge_lengths_m: 検討する橋長 L [m] の列。
         total_width_m: 全ケース共通の幅員 B [m]。
 
     Returns:
         None: 返り値は利用しない。
     """
-    for bridge_length_m in span_lengths_m:
+    for bridge_length_m in bridge_lengths_m:
         input_model = DesignerInput(
             bridge_length_m=bridge_length_m,
             total_width_m=total_width_m,

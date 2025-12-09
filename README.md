@@ -33,8 +33,9 @@
 
 - CLI での引数管理には必ず fire を使う。argparse の使用禁止。
 - 必ず google スタイルの docstring と型アノテーションをつける。
-- マジックナンバーの使用禁止。必ず `MAX_LENGTH=5` のように定義した上で `MAX_LENGTH` を使う。
+- マジックナンバーの使用禁止。必ず `HOGE = 5` のように定義した上で `HOGE` を使う。
 - 文字列ハードコーディングの禁止。`StrEnum` や Pydantic の `BaseModel` を使用する。
+- StrEnum の中身を取り出す際、`.value`は用いない。
 - 返り値の型に `dict`, `tuple` を使わない。必ず `BaseModel`, `RootModel` 等で適切な型を定義する。
 - 型定義に `dataclass` は使わない。原則 `BaseModel`。
 - Pydantic の `Field` に `description` を必ず書く。
@@ -45,7 +46,7 @@
   - `from src.bridge_llm_mvp.logger_config import get_logger` で統一する。
 - `try: ... except: pass` は絶対禁止。必ず `except ValidationError as e:` のように捕捉するエラーを明示する。
 - `typing` の `List`, `Dict` などは使わず、`list`, `dict` 等を使う。
-- `Optional` は使わず、`str | None` のように記述する。
+- `Optional` は使わず、`hoge | None` のように記述する。
 
 ---
 
@@ -66,38 +67,35 @@ rag_index/
 
 src/
   bridge_json_to_ifc/
-    __init__.py
+    ifc_utils/
+      DefMath.py                          #
+      DefIFC.py                           #
     convert_simple_to_detailed_json.py    # LLMの出力したjsonをifcに変換できる詳細な形にするスクリプト
     models.py                             # 詳細jsonスキーマ（pydantic定義）
     convert_json_to_ifc.py                # 詳細jsonをifcに変換するスクリプト
 
   bridge_llm_mvp/
-    __init__.py
     main.py                  # メイン実行スクリプト
     config.py                # パス・ファイル名・共通定数の集中管理
     logger_config.py         # ロガー設定と get_logger() の定義
     llm_client.py            # OpenAI クライアントの共通ラッパ
 
     extractor/
-      __init__.py
       models.py              # Extractor の入出力スキーマ（ConstraintItem, ConstraintSet 等）
       prompts.py             # 制約抽出用プロンプト組み立て
       services.py            # extract_constraints() - RAG+LLM で設計ルールを抽出
 
     designer/
-      __init__.py
       models.py              # Designer の入出力スキーマ（BridgeDesign 等）
       prompts.py             # Designer 用プロンプト組み立て
       services.py            # generate_design() - Extractor の制約を使って設計生成
 
     judge/
-      __init__.py
       models.py              # Judge の入出力スキーマ（JudgeResult 等）
       prompts.py             # Judge 用プロンプト組み立て
       services.py            # judge_design() - 設計結果を評価（補助的）
 
     rag/
-      __init__.py
       embedding_config.py    # 埋め込み設定・RagIndex・SearchResult モデル
       loader.py              # テキストチャンク化 & 埋め込み生成
       search.py              # search_text() による類似検索 API

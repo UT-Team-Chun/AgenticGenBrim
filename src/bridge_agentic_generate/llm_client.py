@@ -8,8 +8,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel
 
-from src.bridge_llm_mvp.config import get_app_config
-from src.bridge_llm_mvp.logger_config import get_logger
+from src.bridge_agentic_generate.config import get_app_config
+from src.bridge_agentic_generate.logger_config import get_logger
 
 logger = get_logger(__name__)
 

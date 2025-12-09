@@ -1,7 +1,7 @@
 from typing import Sequence
 
-from src.bridge_llm_mvp.designer.models import DesignerInput
-from src.bridge_llm_mvp.rag.embedding_config import IndexChunk
+from src.bridge_agentic_generate.designer.models import DesignerInput
+from src.bridge_agentic_generate.rag.embedding_config import IndexChunk
 
 
 def build_designer_prompt(

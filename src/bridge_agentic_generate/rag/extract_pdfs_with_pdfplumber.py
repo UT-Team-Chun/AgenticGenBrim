@@ -4,9 +4,9 @@ from pathlib import Path
 
 import pdfplumber
 
-from src.bridge_llm_mvp.config import get_app_config
-from src.bridge_llm_mvp.logger_config import get_logger
-from src.bridge_llm_mvp.rag.embedding_config import FileNamesUsedForRag
+from src.bridge_agentic_generate.config import get_app_config
+from src.bridge_agentic_generate.logger_config import get_logger
+from src.bridge_agentic_generate.rag.embedding_config import FileNamesUsedForRag
 
 logger = get_logger(__name__)
 

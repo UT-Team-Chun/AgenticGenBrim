@@ -1,8 +1,8 @@
-from src.bridge_llm_mvp.designer.models import BridgeDesign, DesignerInput
-from src.bridge_llm_mvp.designer.prompts import build_designer_prompt
-from src.bridge_llm_mvp.llm_client import LlmModel, call_llm_with_structured_output, get_llm_client
-from src.bridge_llm_mvp.logger_config import get_logger
-from src.bridge_llm_mvp.rag.search import (
+from src.bridge_agentic_generate.designer.models import BridgeDesign, DesignerInput
+from src.bridge_agentic_generate.designer.prompts import build_designer_prompt
+from src.bridge_agentic_generate.llm_client import LlmModel, call_llm_with_structured_output, get_llm_client
+from src.bridge_agentic_generate.logger_config import get_logger
+from src.bridge_agentic_generate.rag.search import (
     SearchResult,
     search_text,
 )

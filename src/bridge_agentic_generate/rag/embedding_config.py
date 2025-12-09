@@ -9,7 +9,7 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
-from src.bridge_llm_mvp.config import get_app_config
+from src.bridge_agentic_generate.config import get_app_config
 
 NUMERIC_STABILITY_EPSILON: float = 1e-8
 EMBEDDING_DIMENSION: int = 1536

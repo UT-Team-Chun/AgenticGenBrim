@@ -9,10 +9,10 @@ from typing import Sequence
 import numpy as np
 from openai import OpenAI
 
-from src.bridge_llm_mvp.config import get_app_config
-from src.bridge_llm_mvp.llm_client import get_llm_client
-from src.bridge_llm_mvp.logger_config import get_logger
-from src.bridge_llm_mvp.rag.embedding_config import (
+from src.bridge_agentic_generate.config import get_app_config
+from src.bridge_agentic_generate.llm_client import get_llm_client
+from src.bridge_agentic_generate.logger_config import get_logger
+from src.bridge_agentic_generate.rag.embedding_config import (
     EmbeddingModel,
     FileNamesUsedForRag,
     IndexChunk,

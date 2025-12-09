@@ -6,14 +6,14 @@ from datetime import datetime
 from typing import Sequence
 
 # from fire import Fire
-from src.bridge_llm_mvp.config import get_app_config
-from src.bridge_llm_mvp.designer.models import DesignerInput
-from src.bridge_llm_mvp.designer.services import generate_design
-from src.bridge_llm_mvp.judge.models import JudgeInput
-from src.bridge_llm_mvp.judge.services import judge_design
-from src.bridge_llm_mvp.llm_client import LlmModel
-from src.bridge_llm_mvp.logger_config import get_logger
-from src.bridge_llm_mvp.rag.embedding_config import TOP_K
+from src.bridge_agentic_generate.config import get_app_config
+from src.bridge_agentic_generate.designer.models import DesignerInput
+from src.bridge_agentic_generate.designer.services import generate_design
+from src.bridge_agentic_generate.judge.models import JudgeInput
+from src.bridge_agentic_generate.judge.services import judge_design
+from src.bridge_agentic_generate.llm_client import LlmModel
+from src.bridge_agentic_generate.logger_config import get_logger
+from src.bridge_agentic_generate.rag.embedding_config import TOP_K
 
 logger = get_logger(__name__)
 

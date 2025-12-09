@@ -4,7 +4,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from src.bridge_llm_mvp.designer.models import BridgeDesign
+from src.bridge_agentic_generate.designer.models import BridgeDesign
 
 
 class CheckStatus(StrEnum):

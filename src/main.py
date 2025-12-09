@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from fire import Fire
 
-from src.bridge_llm_mvp.main import main as bridge_main
+from src.bridge_agentic_generate.main import main as bridge_main
 
 
 def cli() -> None:

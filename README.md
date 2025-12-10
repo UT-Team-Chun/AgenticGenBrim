@@ -70,9 +70,11 @@ src/
     ifc_utils/
       DefMath.py                          #
       DefIFC.py                           #
+    convert_detailed_json_to_ifc.py       # 詳細jsonをifcに変換するスクリプト
     convert_simple_to_detailed_json.py    # LLMの出力したjsonをifcに変換できる詳細な形にするスクリプト
     models.py                             # 詳細jsonスキーマ（pydantic定義）
-    convert_json_to_ifc.py                # 詳細jsonをifcに変換するスクリプト
+    run_convert.py                        # LLMの出力をIFCに変換する
+
 
   bridge_llm_mvp/
     main.py                  # メイン実行スクリプト

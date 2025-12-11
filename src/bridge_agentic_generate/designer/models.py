@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from enum import StrEnum
+
 from pydantic import BaseModel, Field
 
 
@@ -85,6 +87,14 @@ class DesignerRagLog(BaseModel):
     query: str = Field(..., description="RAG 用に投げたクエリ文字列")
     top_k: int = Field(..., description="取得した件数")
     hits: list[RagHit] = Field(..., description="ヒット一覧（スコア順）")
+    reasoning: str = Field(
+        default="",
+        description="設計プロセス全体の思考・判断根拠。",
+    )
+    rules: list[DesignRule] = Field(
+        default_factory=list,
+        description="適用した設計ルール一覧。",
+    )
 
 
 class DesignResult(BaseModel):
@@ -92,3 +102,91 @@ class DesignResult(BaseModel):
 
     design: BridgeDesign = Field(..., description="生成された設計結果")
     rag_log: DesignerRagLog = Field(..., description="RAGの実行ログ")
+    rules: list[DesignRule] | None = Field(
+        default=None,
+        description="今回の設計で使用したルール一覧（あれば）。",
+    )
+
+
+class DesignRuleCategory(StrEnum):
+    DIMENSIONS = "dimensions"
+    GIRDER_SECTION = "girder_section"
+    DECK = "deck"
+    CROSSBEAM_SECTION = "crossbeam_section"
+    OTHER = "other"
+
+
+class DesignRule(BaseModel):
+    """今回の設計で使用したルール 1 件分（簡易 Extractor 用）。
+
+    - 今は Designer の中で都度生成するが、
+      将来的には独立した Extractor コンポーネントでも再利用できる形を目指す。
+    """
+
+    rule_id: str = Field(
+        ...,
+        description='ルールID (例: "R1", "R2" などの連番)。',
+    )
+    category: DesignRuleCategory = Field(
+        ...,
+        description=(
+            "ルールのカテゴリ。"
+            "dimensions: 橋長・幅員・桁本数・桁間隔・パネル長など全体寸法, "
+            "girder_section: 主桁断面, "
+            "deck: RC床版, "
+            "crossbeam_section: 横桁, "
+            "other: その他。"
+        ),
+    )
+    summary: str = Field(
+        ...,
+        description="ルール内容の日本語要約（1〜3文程度）。",
+    )
+    condition_expression: str | None = Field(
+        default=None,
+        description='不等式や比などの条件式 (例: "web_height ≒ L/20〜L/25")。省略可。',
+    )
+    formula_latex: str | None = Field(
+        default=None,
+        description=('数式がある場合の LaTeX 風表現 (例: "h_g \\approx L/20 \\sim L/25")。省略可。'),
+    )
+    applies_to_fields: list[str] = Field(
+        default_factory=list,
+        description=(
+            "このルールが影響する BridgeDesign のフィールド名一覧。"
+            '例: ["dimensions.num_girders", '
+            '"sections.girder_standard.web_height"] など。'
+        ),
+    )
+    source_hit_ranks: list[int] = Field(
+        default_factory=list,
+        description=(
+            "該当する RAG ヒットの rank (1 始まり) の一覧。DesignerRagLog.hits[*].rank への参照として用いる。"
+        ),
+    )
+    notes: str | None = Field(
+        default=None,
+        description="解釈上の注意や適用範囲などの補足。省略可。",
+    )
+
+
+class DesignerOutput(BaseModel):
+    """LLM (Designer) からの Structured Output。
+
+    - reasoning: 設計プロセス全体の思考・判断根拠
+    - rules: 今回の設計で使用したルール一覧（簡易 Extractor 的）
+    - bridge_design: 既存の BridgeDesign モデル
+    """
+
+    reasoning: str = Field(
+        ...,
+        description="設計プロセス全体の思考・判断根拠。なぜその寸法を選んだか、どの条文を重視したかなど。",
+    )
+    rules: list[DesignRule] = Field(
+        default_factory=list,
+        description="今回の設計で利用した設計ルール一覧。",
+    )
+    bridge_design: BridgeDesign = Field(
+        ...,
+        description="生成された橋梁断面 (BridgeDesign)。",
+    )

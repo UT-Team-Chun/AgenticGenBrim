@@ -159,5 +159,6 @@ def run(
     logger.info("IFC: %s", ifc_path)
     return RunResult(design_json=str(design_path), detailed_json=str(detailed_path), ifc=str(ifc_path))
 
+
 if __name__ == "__main__":
     Fire(run)

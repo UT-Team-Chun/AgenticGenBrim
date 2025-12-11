@@ -85,3 +85,10 @@ class DesignerRagLog(BaseModel):
     query: str = Field(..., description="RAG 用に投げたクエリ文字列")
     top_k: int = Field(..., description="取得した件数")
     hits: list[RagHit] = Field(..., description="ヒット一覧（スコア順）")
+
+
+class DesignResult(BaseModel):
+    """設計結果とRAGログを含むレスポンスモデル。"""
+
+    design: BridgeDesign = Field(..., description="生成された設計結果")
+    rag_log: DesignerRagLog = Field(..., description="RAGの実行ログ")

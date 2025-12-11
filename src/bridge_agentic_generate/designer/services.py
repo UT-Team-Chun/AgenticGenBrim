@@ -2,6 +2,7 @@ from src.bridge_agentic_generate.designer.models import (
     BridgeDesign,
     DesignerInput,
     DesignerRagLog,
+    DesignResult,
     RagHit,
 )
 from src.bridge_agentic_generate.designer.prompts import build_designer_prompt
@@ -44,19 +45,19 @@ def generate_design(
     model_name: LlmModel,
 ) -> BridgeDesign:
     """後方互換用: BridgeDesign だけ欲しいときはこちら。"""
-    design, _ = generate_design_with_rag_log(
+    result = generate_design_with_rag_log(
         inputs=inputs,
         top_k=top_k,
         model_name=model_name,
     )
-    return design
+    return result.design
 
 
 def generate_design_with_rag_log(
     inputs: DesignerInput,
     top_k: int,
     model_name: LlmModel,
-) -> tuple[BridgeDesign, DesignerRagLog]:
+) -> DesignResult:
     """RAG コンテキストのログも含めて設計を生成する。
 
     Args:
@@ -65,7 +66,7 @@ def generate_design_with_rag_log(
         model_name: 使用する LLM モデル
 
     Returns:
-        (BridgeDesign, DesignerRagLog) のタプル
+        DesignResult: 設計結果とRAGログ
     """
     client = get_llm_client()
 
@@ -90,4 +91,4 @@ def generate_design_with_rag_log(
     # 4) RAG ログ構築
     rag_log = _build_rag_log(query=rag_query, top_k=top_k, results=rag_results)
 
-    return design, rag_log
+    return DesignResult(design=design, rag_log=rag_log)

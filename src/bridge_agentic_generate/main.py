@@ -67,7 +67,9 @@ def run_single_case(
     raglog_json_dir = app_config.generated_bridge_raglog_json_dir
     raglog_json_dir.mkdir(parents=True, exist_ok=True)
     inputs = DesignerInput(bridge_length_m=bridge_length_m, total_width_m=total_width_m)
-    design, rag_log = generate_design_with_rag_log(inputs=inputs, top_k=top_k, model_name=model_name)
+    result = generate_design_with_rag_log(inputs=inputs, top_k=top_k, model_name=model_name)
+    design = result.design
+    rag_log = result.rag_log
 
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
     base_name = f"design_L{int(inputs.bridge_length_m)}_B{int(inputs.total_width_m * 10):02d}_{timestamp}"

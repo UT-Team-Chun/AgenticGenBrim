@@ -66,6 +66,7 @@ rag_index/
     embeddings.npy           # 埋め込みベクトル
 
 src/
+  main.py                    # メイン実行スクリプト。生成からifc変換までをパイプラインとして実行。
   bridge_json_to_ifc/
     ifc_utils/
       DefMath.py                          #
@@ -76,7 +77,7 @@ src/
     run_convert.py                        # LLMの出力をIFCに変換する
 
 
-  bridge_llm_mvp/
+  bridge_agentic_generate/
     main.py                  # メイン実行スクリプト
     config.py                # パス・ファイル名・共通定数の集中管理
     logger_config.py         # ロガー設定と get_logger() の定義

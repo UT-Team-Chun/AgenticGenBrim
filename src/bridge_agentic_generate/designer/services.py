@@ -6,7 +6,7 @@ from src.bridge_agentic_generate.designer.models import (
     DesignResult,
     RagHit,
 )
-from src.bridge_agentic_generate.designer.prompts import DESIGNER_PROMPT
+from src.bridge_agentic_generate.designer.prompts import build_designer_prompt
 from src.bridge_agentic_generate.llm_client import LlmModel, call_llm_with_structured_output, get_llm_client
 from src.bridge_agentic_generate.logger_config import get_logger
 from src.bridge_agentic_generate.rag.search import (
@@ -130,13 +130,11 @@ def generate_design_with_rag_log(
     )
 
     # 4) プロンプト組み立て
-    prompt = DESIGNER_PROMPT.format(
-        bridge_length_m=inputs.bridge_length_m,
-        total_width_m=inputs.total_width_m,
+    prompt = build_designer_prompt(
+        inputs=inputs,
         dimensions_context=dimensions_context,
         girder_section_context=girder_context,
         deck_context=deck_context,
-        other_context="",  # 余力あればここも埋める
     )
 
     # 5) LLM呼び出し

@@ -71,11 +71,11 @@ def run_single_case(
     design = result.design
     rag_log = result.rag_log
 
-    timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     base_name = f"design_L{int(inputs.bridge_length_m)}_B{int(inputs.total_width_m)}_{timestamp}"
 
     design_path = simple_json_dir / f"{base_name}.json"
-    raglog_path = raglog_json_dir / f"{base_name}_raglog.json"
+    raglog_path = raglog_json_dir / f"{base_name}_design_log.json"
 
     design_path.write_text(design.model_dump_json(indent=2, ensure_ascii=False), encoding="utf-8")
     raglog_path.write_text(rag_log.model_dump_json(indent=2, ensure_ascii=False), encoding="utf-8")

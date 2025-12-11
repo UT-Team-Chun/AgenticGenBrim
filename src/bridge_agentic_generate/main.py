@@ -72,7 +72,7 @@ def run_single_case(
     rag_log = result.rag_log
 
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S")
-    base_name = f"design_L{int(inputs.bridge_length_m)}_B{int(inputs.total_width_m * 10):02d}_{timestamp}"
+    base_name = f"design_L{int(inputs.bridge_length_m)}_B{int(inputs.total_width_m)}_{timestamp}"
 
     design_path = simple_json_dir / f"{base_name}.json"
     raglog_path = raglog_json_dir / f"{base_name}_raglog.json"
@@ -96,7 +96,7 @@ def run_single_case(
 def main() -> None:
     """CLI エントリーポイント。"""
     run_single_case(
-        bridge_length_m=50.0, total_width_m=10.0, model_name=LlmModel.GPT_5_MINI, top_k=TOP_K, judge_enabled=True
+        bridge_length_m=50, total_width_m=10, model_name=LlmModel.GPT_5_MINI, top_k=TOP_K, judge_enabled=True
     )
 
 

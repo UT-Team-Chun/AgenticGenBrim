@@ -67,3 +67,21 @@ class BridgeDesign(BaseModel):
     dimensions: Dimensions = Field(..., description="橋全体の寸法情報。")
     sections: Sections = Field(..., description="主桁・横桁の断面情報。")
     components: Components = Field(..., description="床版などの構成要素。")
+
+
+class RagHit(BaseModel):
+    """RAG で取得した 1 件分のヒット。"""
+
+    rank: int = Field(..., description="ランキング（1始まり）")
+    score: float = Field(..., description="コサイン類似度スコア")
+    source: str = Field(..., description="元ファイル名（PDF 名）")
+    page: int = Field(..., description="PDF ページ番号（0始まり）")
+    text: str = Field(..., description="チャンク本文")
+
+
+class DesignerRagLog(BaseModel):
+    """Designer 実行時の RAG コンテキストログ。"""
+
+    query: str = Field(..., description="RAG 用に投げたクエリ文字列")
+    top_k: int = Field(..., description="取得した件数")
+    hits: list[RagHit] = Field(..., description="ヒット一覧（スコア順）")

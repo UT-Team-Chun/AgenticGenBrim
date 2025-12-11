@@ -1,4 +1,9 @@
-from src.bridge_agentic_generate.designer.models import BridgeDesign, DesignerInput
+from src.bridge_agentic_generate.designer.models import (
+    BridgeDesign,
+    DesignerInput,
+    DesignerRagLog,
+    RagHit,
+)
 from src.bridge_agentic_generate.designer.prompts import build_designer_prompt
 from src.bridge_agentic_generate.llm_client import LlmModel, call_llm_with_structured_output, get_llm_client
 from src.bridge_agentic_generate.logger_config import get_logger
@@ -13,51 +18,76 @@ logger = get_logger(__name__)
 DEFAULT_RAG_QUERY: str = "プレートガーダー 桁 床版 厚さ 桁高 腹板 フランジ"
 
 
-def generate_design(inputs: DesignerInput, top_k: int, model_name: LlmModel) -> BridgeDesign:
-    """RAG + LLM を使って鋼プレートガーダー橋の断面モデルを 1 ケース生成する。
+def _build_rag_log(
+    query: str,
+    top_k: int,
+    results: list[SearchResult],
+) -> DesignerRagLog:
+    """SearchResult のリストを DesignerRagLog に変換する。"""
+    hits: list[RagHit] = []
+    for idx, res in enumerate(results):
+        hits.append(
+            RagHit(
+                rank=idx + 1,
+                score=float(res.score),
+                source=res.chunk.source,
+                page=res.chunk.page,
+                text=res.chunk.text,
+            ),
+        )
+    return DesignerRagLog(query=query, top_k=top_k, hits=hits)
 
-    処理の流れ:
-        1. RAG で教科書・示方書から関連チャンクを取得
-        2. チャンクと設計条件からプロンプトを組み立て
-        3. LLM に Structured Output で BridgeDesign を生成させる
+
+def generate_design(
+    inputs: DesignerInput,
+    top_k: int,
+    model_name: LlmModel,
+) -> BridgeDesign:
+    """後方互換用: BridgeDesign だけ欲しいときはこちら。"""
+    design, _ = generate_design_with_rag_log(
+        inputs=inputs,
+        top_k=top_k,
+        model_name=model_name,
+    )
+    return design
+
+
+def generate_design_with_rag_log(
+    inputs: DesignerInput,
+    top_k: int,
+    model_name: LlmModel,
+) -> tuple[BridgeDesign, DesignerRagLog]:
+    """RAG コンテキストのログも含めて設計を生成する。
 
     Args:
-        inputs: 設計条件。橋長 L [m] と幅員 B [m] を含む。
-        top_k: RAG 検索で取得するチャンク数。
-        model_name: 使用する LLM モデル名。
+        inputs: 橋長・幅員などの入力パラメータ
+        top_k: RAG で取得するチャンク数
+        model_name: 使用する LLM モデル
 
     Returns:
-        BridgeDesign: 主桁・横桁・床版の寸法を含む設計結果。
+        (BridgeDesign, DesignerRagLog) のタプル
     """
-    # 1. RAG で関連チャンク取得
     client = get_llm_client()
-    search_results: list[SearchResult] = search_text(
-        query=DEFAULT_RAG_QUERY,
-        client=client,
-        top_k=top_k,
+
+    # 1) RAG クエリ生成（今既にやっているものをそのまま使う）
+    rag_query = (
+        f"橋長 {inputs.bridge_length_m} m, 幅員 {inputs.total_width_m} m の"
+        "鋼プレートガーダー橋の断面設計に関係する条文・式を探してください。"
     )
-    chunks = [r.chunk for r in search_results]
+    rag_results = search_text(query=rag_query, client=client, top_k=top_k)
 
-    logger.info(
-        "Designer: retrieved %d chunks for query='%s'",
-        len(chunks),
-        DEFAULT_RAG_QUERY,
-    )
+    # 2) プロンプト組み立て（RAG 結果の text を渡す）
+    context_chunks = [res.chunk for res in rag_results]
+    prompt = build_designer_prompt(inputs=inputs, chunks=context_chunks)
 
-    # 2. プロンプト組み立て
-    prompt = build_designer_prompt(inputs=inputs, chunks=chunks)
-
-    # 3. LLM 呼び出し
+    # 3) LLM 本体呼び出し（既存の Structured Output ラッパー）
     design: BridgeDesign = call_llm_with_structured_output(
         input=prompt,
         model=model_name,
         text_format=BridgeDesign,
     )
 
-    logger.info(
-        "Designer: generated design for L=%.1f, B=%.1f",
-        inputs.bridge_length_m,
-        inputs.total_width_m,
-    )
+    # 4) RAG ログ構築
+    rag_log = _build_rag_log(query=rag_query, top_k=top_k, results=rag_results)
 
-    return design
+    return design, rag_log

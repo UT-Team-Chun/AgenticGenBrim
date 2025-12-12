@@ -140,12 +140,7 @@ def generate_design_with_rag_log(
     )
     deck_context = _join_chunks(
         rag_results_deck,
-        start_index=(
-            1
-            + len(rag_results_dimensions)
-            + len(rag_results_girder_layout)
-            + len(rag_results_girder)
-        ),
+        start_index=(1 + len(rag_results_dimensions) + len(rag_results_girder_layout) + len(rag_results_girder)),
     )
     crossbeam_context = _join_chunks(
         rag_results_crossbeam,

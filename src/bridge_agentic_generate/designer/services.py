@@ -82,6 +82,15 @@ def generate_design_with_rag_log(
         top_k=top_k,
     )
 
+    rag_results_girder_layout = search_text(
+        query=(
+            "主桁 本数 幅員 主桁間隔。並列I桁の主桁間隔の実例、幅員と主桁本数の関係、"
+            "標準断面の主桁本数や主桁間隔（例: 主桁間隔 3.36 m、6本主桁など）に関する記述を探してください。"
+        ),
+        client=client,
+        top_k=top_k,
+    )
+
     rag_results_girder = search_text(
         query=(
             f"橋長 {inputs.bridge_length_m} m のプレートガーダー橋の "
@@ -102,6 +111,16 @@ def generate_design_with_rag_log(
         top_k=top_k,
     )
 
+    rag_results_crossbeam = search_text(
+        query=(
+            "横桁 OR 床桁 OR 横梁 OR 横ばり。床組。cross girder OR floorbeam OR diaphragm。"
+            "横桁（床桁）の設計、断面、支間（主桁取付腹板の中心間隔）、配置・間隔、対傾構・横構に関する"
+            "条文・図・表を探してください。12章 床組。"
+        ),
+        client=client,
+        top_k=top_k,
+    )
+
     # 2) プロンプト用コンテキスト組み立て
     def _join_chunks(results: list[SearchResult], start_index: int = 1) -> str:
         parts: list[str] = []
@@ -111,18 +130,43 @@ def generate_design_with_rag_log(
         return "\n".join(parts)
 
     dimensions_context = _join_chunks(rag_results_dimensions, start_index=1)
+    girder_layout_context = _join_chunks(
+        rag_results_girder_layout,
+        start_index=1 + len(rag_results_dimensions),
+    )
     girder_context = _join_chunks(
         rag_results_girder,
-        start_index=1 + len(rag_results_dimensions),
+        start_index=1 + len(rag_results_dimensions) + len(rag_results_girder_layout),
     )
     deck_context = _join_chunks(
         rag_results_deck,
-        start_index=1 + len(rag_results_dimensions) + len(rag_results_girder),
+        start_index=(
+            1
+            + len(rag_results_dimensions)
+            + len(rag_results_girder_layout)
+            + len(rag_results_girder)
+        ),
+    )
+    crossbeam_context = _join_chunks(
+        rag_results_crossbeam,
+        start_index=(
+            1
+            + len(rag_results_dimensions)
+            + len(rag_results_girder_layout)
+            + len(rag_results_girder)
+            + len(rag_results_deck)
+        ),
     )
 
     # 3) 全ヒットをまとめて RAGログを作る（rank を通し番号にする）
-    all_results: list[SearchResult] = rag_results_dimensions + rag_results_girder + rag_results_deck
-    rag_query = "multi: dimensions/girder/deck"
+    all_results: list[SearchResult] = (
+        rag_results_dimensions
+        + rag_results_girder_layout
+        + rag_results_girder
+        + rag_results_deck
+        + rag_results_crossbeam
+    )
+    rag_query = "multi: dimensions/girder_layout/girder/deck/crossbeam"
     rag_log = _build_rag_log(
         query=rag_query,
         top_k=len(all_results),
@@ -133,8 +177,10 @@ def generate_design_with_rag_log(
     prompt = build_designer_prompt(
         inputs=inputs,
         dimensions_context=dimensions_context,
+        girder_layout_context=girder_layout_context,
         girder_section_context=girder_context,
         deck_context=deck_context,
+        crossbeam_context=crossbeam_context,
     )
 
     # 5) LLM呼び出し

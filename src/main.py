@@ -8,18 +8,15 @@ from pathlib import Path
 from fire import Fire
 from pydantic import BaseModel
 
-from src.bridge_agentic_generate.config import get_app_config
+from src.bridge_agentic_generate.config import app_config
 from src.bridge_agentic_generate.llm_client import LlmModel
-from src.bridge_agentic_generate.logger_config import get_logger
+from src.bridge_agentic_generate.logger_config import logger
 from src.bridge_agentic_generate.main import run_single_case
 from src.bridge_agentic_generate.rag.embedding_config import TOP_K
 from src.bridge_json_to_ifc.run_convert import FileSuffixes
 from src.bridge_json_to_ifc.run_convert import convert as bridge_convert
 
-logger = get_logger(__name__)
-app_config = get_app_config()
-
-DEFAULT_BRIDGE_LENGTH_M = 50.0
+DEFAULT_BRIDGE_LENGTH_M = 30.0
 DEFAULT_TOTAL_WIDTH_M = 10.0
 DEFAULT_JUDGE_ENABLED = True
 

@@ -45,3 +45,6 @@ def get_app_config() -> AppConfig:
         rag_index_dir_pymupdf=project_root / "rag_index" / "pymupdf",
         env_file=project_root / ".env",
     )
+
+
+app_config = get_app_config()

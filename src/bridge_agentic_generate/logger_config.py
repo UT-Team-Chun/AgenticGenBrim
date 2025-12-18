@@ -26,3 +26,6 @@ def get_logger(name: str = "bridge_llm_mvp") -> logging.Logger:
     logger.setLevel(DEFAULT_LEVEL)
     logger.propagate = False
     return logger
+
+
+logger = get_logger(__name__)

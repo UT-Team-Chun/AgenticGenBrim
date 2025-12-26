@@ -113,9 +113,8 @@ def generate_design_with_rag_log(
 
     rag_results_crossbeam = search_text(
         query=(
-            "横桁 OR 床桁 OR 横梁 OR 横ばり。床組。cross girder OR floorbeam OR diaphragm。"
             "横桁（床桁）の設計、断面、支間（主桁取付腹板の中心間隔）、配置・間隔、対傾構・横構に関する"
-            "条文・図・表を探してください。12章 床組。"
+            "条文・図・表を探してください。"
         ),
         client=client,
         top_k=top_k,

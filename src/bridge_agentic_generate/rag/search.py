@@ -7,7 +7,7 @@ import numpy as np
 from openai import OpenAI
 
 from src.bridge_agentic_generate.llm_client import get_llm_client
-from src.bridge_agentic_generate.logger_config import get_logger
+from src.bridge_agentic_generate.logger_config import logger
 from src.bridge_agentic_generate.rag.embedding_config import (
     EmbeddingModel,
     IndexChunk,
@@ -16,9 +16,6 @@ from src.bridge_agentic_generate.rag.embedding_config import (
     SearchResult,
     get_embedding_config,
 )
-
-logger = get_logger(__name__)
-
 
 _RAG_INDEX: RagIndex | None = None
 

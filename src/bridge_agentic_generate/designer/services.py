@@ -74,48 +74,36 @@ def generate_design_with_rag_log(
     # 1) マルチクエリRAG
     rag_results_dimensions = search_text(
         query=(
-            f"橋長 {inputs.bridge_length_m} m, 幅員 {inputs.total_width_m} m の "
-            "鋼プレートガーダー橋の桁配置・主桁本数・桁間隔・パネル長に関する "
-            "条文・図・表を探してください。"
+            f"鋼プレートガーダー橋 橋長{inputs.bridge_length_m}m 幅員{inputs.total_width_m}m "
+            "桁配置 主桁本数 桁間隔 パネル長"
         ),
         client=client,
         top_k=top_k,
     )
 
     rag_results_girder_layout = search_text(
-        query=(
-            "主桁 本数 幅員 主桁間隔。並列I桁の主桁間隔の実例、幅員と主桁本数の関係、"
-            "標準断面の主桁本数や主桁間隔（例: 主桁間隔 3.36 m、6本主桁など）に関する記述を探してください。"
-        ),
+        query="並列I桁 主桁間隔 幅員と主桁本数の関係 標準断面 主桁本数",
         client=client,
         top_k=top_k,
     )
 
     rag_results_girder = search_text(
         query=(
-            f"橋長 {inputs.bridge_length_m} m のプレートガーダー橋の "
-            "主桁断面（桁高・腹板厚さ・フランジ幅・フランジ厚さ）の決め方、 "
-            "経済的桁高の目安、h/L の経験式に関する記述を探してください。"
+            f"プレートガーダー橋 橋長{inputs.bridge_length_m}m "
+            "主桁断面 桁高 腹板厚さ フランジ幅 フランジ厚さ 経済的桁高 h/L"
         ),
         client=client,
         top_k=top_k,
     )
 
     rag_results_deck = search_text(
-        query=(
-            "RC床版合成桁における床版厚さの決め方、"
-            "最小床版厚、床版厚と支間の比の規定、代表的な床版厚の例に関する "
-            "条文・図・表を探してください。"
-        ),
+        query="RC床版合成桁 床版厚さ 最小床版厚 床版厚と支間の比",
         client=client,
         top_k=top_k,
     )
 
     rag_results_crossbeam = search_text(
-        query=(
-            "横桁（床桁）の設計、断面、支間（主桁取付腹板の中心間隔）、配置・間隔、対傾構・横構に関する"
-            "条文・図・表を探してください。"
-        ),
+        query="横桁 対傾構 横構 設計",
         client=client,
         top_k=top_k,
     )

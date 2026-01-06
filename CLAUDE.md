@@ -31,6 +31,7 @@ AgenticGenBrim/
 ├── backlog/                          # プロジェクト仕様
 ├── tasks/                            # タスクテンプレート
 ├── .claude/                          # Claude Code 設定
+│   ├── commands/                     # カスタムコマンド
 │   └── agents/                       # カスタムエージェント
 └── Makefile                          # 開発コマンド
 ```
@@ -54,6 +55,24 @@ AgenticGenBrim/
 - **フォーマット/Lint**: Ruff
 
 詳細: `src/CLAUDE.md` 参照
+
+## カスタムコマンド
+
+### /impl [タスク内容]
+
+機能実装を行い、自動でレビューまで実行するコマンド。
+
+```bash
+# 使用例
+/impl RAG検索の精度を改善
+/impl --ultrathink 複雑なリファクタリング
+```
+
+**実行内容:**
+1. タスク内容に応じて `designer-impl` または `ifc-impl` エージェントで実装
+2. `make fmt && make lint` で検証
+3. `quality-check` エージェントでレビュー
+4. 問題があれば修正を繰り返す
 
 ## カスタムエージェント
 

@@ -126,14 +126,11 @@ def search_multiple(
 if __name__ == "__main__":
     # 簡易テスト
     client = get_llm_client()
-    test_queries = [
-        "鋼橋の設計における主要な考慮事項は何ですか？",
-        "橋梁の耐荷性能を評価する方法を教えてください。",
-    ]
-    results = search_multiple(test_queries, client=client, top_k=2)
-    for i, query in enumerate(test_queries):
-        logger.info(f"Query: {query}")
-        for result in results[i]:
-            logger.info(f"- Score: {result.score:.4f}, Source: {result.chunk.source}, Page: {result.chunk.page}")
-            logger.info(f"  Text: {result.chunk.text[:100]}...")
+    test_query = "横桁 対傾構 横構 設計"
+
+    results = search_text(test_query, client=client, top_k=5)
+    logger.info(f"Query: {test_query}")
+    for result in results:
+        logger.info(f"- Score: {result.score:.4f}, Source: {result.chunk.source}, Page: {result.chunk.page}")
+        logger.info(f"  Text: {result.chunk.text[:100]}...")
         logger.info("")

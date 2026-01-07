@@ -34,10 +34,9 @@
 \maketitle
 \thispagestyle{empty}
 \clearpage
+\setcounter{page}{1}
 
-
-
-
+  \tableofcontents
 \clearpage
 
 \section{概要}
@@ -147,12 +146,6 @@ IFC ファイル生成数 & 21 件 \\
   \par
 \end{itemize}
 
-
-\tableofcontents
-\clearpage
-
-
-\clearpage
 
 \section{序論}
 
@@ -328,57 +321,7 @@ IFC ファイル生成数 & 21 件 \\
   \end{itemize}
 \end{enumerate}
 
-\noindent\textbf{出力：} IFC ファイル（\texttt{data/generated\_ifc/*.ifc}）
-
-
-\subsection{ディレクトリ構成}
-
-\begin{verbatim}
-AgenticGenBrim/
-├── src/                              # ソースコード
-│   ├── main.py                       # 統合 CLI エントリーポイント
-│   ├── bridge_agentic_generate/      # 設計生成モジュール
-│   │   ├── main.py                   # Designer + Judge 実行
-│   │   ├── config.py                 # アプリケーション設定
-│   │   ├── llm_client.py             # OpenAI API ラッパー
-│   │   ├── logger_config.py          # ロギング設定
-│   │   ├── designer/                 # Designer サブシステム
-│   │   │   ├── models.py             # Pydantic モデル定義
-│   │   │   ├── prompts.py            # プロンプトテンプレート
-│   │   │   └── services.py           # 設計生成ロジック
-│   │   ├── judge/                    # Judge サブシステム（ダミー）
-│   │   ├── rag/                      # RAG サブシステム
-│   │   │   ├── embedding_config.py   # 埋め込み設定
-│   │   │   ├── loader.py             # インデックス構築
-│   │   │   ├── search.py             # ベクトル検索
-│   │   │   └── extract_pdfs_*.py     # PDF 抽出スクリプト
-│   │   └── extractor/                # Extractor（計画中）
-│   └── bridge_json_to_ifc/           # IFC 変換モジュール
-│       ├── run_convert.py            # 変換 CLI
-│       ├── convert_simple_to_detailed_json.py
-│       ├── convert_detailed_json_to_ifc.py
-│       ├── models.py                 # 詳細 JSON スキーマ
-│       └── ifc_utils/                # IFC 生成ユーティリティ
-│           ├── DefIFC.py             # IFC 要素定義
-│           └── DefMath.py            # 数学ユーティリティ
-├── data/                             # データディレクトリ（.gitignore）
-│   ├── design_knowledge/             # 元 PDF 配置場所
-│   ├── extracted_by_pdfplumber/      # 抽出テキスト
-│   ├── generated_simple_bridge_json/ # Designer 出力 JSON
-│   ├── generated_bridge_raglog_json/ # RAG ログ
-│   ├── generated_detailed_bridge_json/ # IFC 変換用詳細 JSON
-│   └── generated_ifc/                # IFC 出力
-├── rag_index/                        # RAG インデックス（.gitignore）
-│   └── pdfplumber/
-│       ├── meta.jsonl                # チャンクメタデータ
-│       └── embeddings.npy            # 埋め込みベクトル
-├── docs/                             # ドキュメント
-├── backlog/                          # プロジェクト仕様
-├── tasks/                            # タスクテンプレート
-└── Makefile                          # 開発コマンド
-
-
-\end{verbatim}
+\noindent\textbf{出力：} IFC ファイル
 
 
 \clearpage
@@ -448,121 +391,16 @@ RAG（Retrieval-Augmented Generation）サブシステムは、道路橋示方�
 \end{itemize}
 
 
-\subsection{テキスト抽出機能}
+\subsection{インデックス構築と検索}
 
-
-PDF からのテキスト抽出には以下の 3 つの方法を提供している：
-
+PDF からのテキスト抽出には pdfplumber を使用し、以下の処理を行う：
 
 \begin{enumerate}
-  \item pdfplumber（推奨）
-\begin{itemize}
-  \item src/bridge\_agentic\_generate/rag/extract\_pdfs\_with\_pdfplumber.py
-  \item テーブル構造の保持に優れる
-  \item 出力: data/extracted\_by\_pdfplumber/*.txt
-  \par
-\end{itemize}
-  \item pypdf
-\begin{itemize}
-  \item src/bridge\_agentic\_generate/rag/extract\_pdfs\_with\_pypdf.py
-  \item 軽量で高速
-  \item 出力: data/extracted\_by\_pypdf/*.txt
-  \par
-\end{itemize}
-  \item pymupdf4llm
-\begin{itemize}
-  \item src/bridge\_agentic\_generate/rag/extract\_pdfs\_with\_pymupdf4llm.py
-  \item Markdown 形式での出力に対応
-  \item 出力: data/extracted\_by\_pymupdf4llm/*.md
-  \par
-\end{itemize}
+  \item PDF からテキストを抽出し、ページ境界を記録
+  \item 各ページを最大 800 文字ごとにチャンク化
+  \item OpenAI の text-embedding-3-small で埋め込みベクトルを生成
+  \item クエリとのコサイン類似度に基づき関連チャンクを検索
 \end{enumerate}
-
-テキスト抽出時にはページ境界を [Page X] マーカーで記録し、後のチャンク化時にページ番号を保持できるようにしている。
-
-
-
-
-\subsection{チャンク化とインデックス構築}
-
-
-【チャンク化処理】（src/bridge\_agentic\_generate/rag/loader.py）
-
-
-\begin{itemize}
-  \item 入力：抽出済みテキストファイル（.txt）
-  \item 処理：
-  \\ 1. [Page X] マーカーでページごとに分割
-  \\ 2. 各ページテキストを最大 800 文字ごとに分割
-  \\ 3. 各チャンクに UUID、ソースファイル名、ページ番号を付与
-  \item 出力：IndexChunk オブジェクトのリスト
-  \par
-\end{itemize}
-
-
-\subsubsection{インデックス構築処理}
-
-
-\begin{itemize}
-  \item 埋め込みモデル: text-embedding-3-small（OpenAI）
-  \item 埋め込み次元: 1536
-  \item 出力ファイル：
-\begin{itemize}
-  \item rag\_index/pdfplumber/meta.jsonl（チャンクメタデータ）
-  \item rag\_index/pdfplumber/embeddings.npy（埋め込みベクトル行列）
-  \par
-\end{itemize}
-\end{itemize}
-
-
-\paragraph{IndexChunk スキーマ}
-
-
-\{"id": "UUID文字列","source": "元PDFファイル名","section": "章名（現状は空）","page": ページ番号（0始まり）,"text": "チャンクテキスト本文"\}
-
-
-
-
-\subsection{ベクトル検索機能}
-
-
-【検索処理】（src/bridge\_agentic\_generate/rag/search.py）
-
-
-search\_text() 関数による検索：
-
-
-入力：
-
-\begin{itemize}
-  \item query: 検索クエリ文字列
-  \item client: OpenAI クライアント
-  \item top\_k: 返却する上位件数（デフォルト 5）
-  \par
-\end{itemize}
-
-処理：1. クエリをtext-embedding-3-small で埋め込みベクトル化2. 保存済み埋め込み行列とのコサイン類似度を計算3. 上位 top\_k 件を抽出
-
-
-出力：
-
-\begin{itemize}
-  \item list[SearchResult]: チャンクとスコアのペアのリスト
-  \par
-\end{itemize}
-
-
-\subsubsection{検索結果スキーマ}
-
-
-SearchResult:
-
-\begin{itemize}
-  \item chunk: IndexChunk（マッチしたチャンク）
-  \item score: float（コサイン類似度スコア、0.0 ～ 1.0）
-  \par
-  \par
-\end{itemize}
 
 
 \clearpage
@@ -839,51 +677,6 @@ BridgeDesign から DetailedBridgeJson への変換では、以下の座標計�
 \end{enumerate}
 
 
-\subsubsection{DetailedBridgeJson スキーマ}
-
-
-\begin{description}
-  \item[\texttt{DetailedBridgeJson}] IFC 生成用詳細スキーマ
-  \begin{itemize}
-    \item \texttt{bridge\_type}: str --- "Steel Girder"
-  \end{itemize}
-  \begin{description}
-    \item[\texttt{geometry}: Geometry] ジオメトリ情報
-    \begin{description}
-      \item[\texttt{girders}: GirdersGeometry] 主桁ジオメトリ
-      \begin{itemize}
-        \item \texttt{num\_girders}: int
-        \item \texttt{spacing\_x}: float --- 主桁間隔 [mm]
-        \item \texttt{length}: float --- 主桁長さ [mm]
-        \item \texttt{x\_offset}: float --- 主桁開始位置 X [mm]
-        \item \texttt{web\_height}, \texttt{web\_thickness}: float
-        \item \texttt{top\_flange\_width}, \texttt{top\_flange\_thickness}: float
-        \item \texttt{bottom\_flange\_width}, \texttt{bottom\_flange\_thickness}: float
-      \end{itemize}
-      \item[\texttt{deck}: DeckGeometry] 床版ジオメトリ
-      \begin{itemize}
-        \item \texttt{length}, \texttt{width}, \texttt{thickness}: float
-        \item \texttt{points}: list[list[float]] --- 床版輪郭座標
-      \end{itemize}
-      \item[\texttt{partition}: Partition] 格間定義
-      \begin{itemize}
-        \item \texttt{x\_positions}: list[float]
-        \item \texttt{y\_positions}: list[float]
-      \end{itemize}
-    \end{description}
-    \item[\texttt{crossbeams}: Crossbeams] 横桁情報
-    \begin{itemize}
-      \item \texttt{use\_crossbeams}: bool
-      \item \texttt{use\_i\_section}: bool
-      \item \texttt{num\_cross\_girders}: int
-      \item \texttt{spacing\_z}, \texttt{initial\_position\_z}: float
-      \item \texttt{height}, \texttt{flange\_width}, \texttt{flange\_thickness}: float
-      \item \texttt{web\_thickness}, \texttt{length}: float
-    \end{itemize}
-  \end{description}
-\end{description}
-
-
 \subsection{詳細 JSON から IFC への変換}
 
 
@@ -1139,175 +932,51 @@ Rank & ソース & Score & 内容 \\
 
 \subsection{抽出された設計ルール}
 
+Designer は設計値とともに、適用した設計ルールを構造化して出力する。以下は実際に抽出された主要なルール：
 
-Designer は設計値とともに、適用した設計ルールを構造化して出力する。以下は実際に抽出された 8 件のルール：
+\begin{table}[ht]
+\centering
+\caption{抽出された設計ルール一覧}
+\begin{tabular}{clll}
+\hline
+ID & ルール内容 & 数式・条件 & 根拠 \\
+\hline
+R1 & 桁高の目安 & $h \approx L/20 \sim L/25$ & 文献 \\
+R2 & RC床版最小厚 & $d \geq 30L + 110$ [mm] & 道路橋示方書 \\
+R3 & 横桁間隔の制限 & $\leq 20$ m & 文献 \\
+R4 & 横桁断面の目安 & 主桁高の 0.8 倍 & 文献 \\
+R5 & 主桁間隔の実務目安 & 約 3.36 m & 文献実例 \\
+R6 & パネル長の選定 & 4/5/6 m から選定 & 仮定 \\
+R7 & 張出し長の目安 & 0.5〜1.5 m & 実務目安 \\
+R8 & 横桁の役割 & 所要剛度を満たす程度 & 文献 \\
+\hline
+\end{tabular}
+\end{table}
 
-
-【R1: 桁高の目安】（girder\_section カテゴリ）
-
-\begin{itemize}
-  \item summary: 桁高はスパンLの概算として L/20 ～ L/25 程度を採用する
-  \item condition\_expression: sections.girder\_standard.web\_height ≈ bridge\_length / 20 \textasciitilde{} 25
-  \item formula\_latex: h\_g \textbackslash{}approx L/20 \textbackslash{}sim L/25
-  \item source\_hit\_ranks: [2, 13]  ← RAG ヒットの rank 2 と 13 が根拠
-  \item notes: 文献（式(7.363)〜(7.364)、図7.134）に基づく設計目安
-  \par
-\end{itemize}
-
-【R2: RC床版最小厚】（deck カテゴリ）
-
-\begin{itemize}
-  \item summary: 連続RC床版の最小全厚は支間に応じて算出（d = 30L + 110 mm）
-  \item condition\_expression: components.deck.thickness >= 30 * L\_support + 110
-  \item formula\_latex: d \textbackslash{}ge 30 L\_\{support\} + 110 (mm)
-  \item source\_hit\_ranks: [17, 19]  ← 道路橋示方書の条文が根拠
-  \item notes: 道路橋示方書の表・式に基づく。L\_supportは主桁中心間隔(m)
-  \par
-\end{itemize}
-
-【R3: 横桁間隔の制限】（dimensions カテゴリ）
-
-\begin{itemize}
-  \item summary: 横桁（panel）間隔は通常 d ≤ 20 m とする
-  \item condition\_expression: dimensions.panel\_length <= 20000 (mm)
-  \item source\_hit\_ranks: [22]
-  \item notes: プレートガーダーの横桁間隔に関する設計指針
-  \par
-\end{itemize}
-
-【R4: 横桁断面の目安】（crossbeam\_section カテゴリ）
-
-\begin{itemize}
-  \item summary: 横桁高さ ≒ 主桁高さの0.8、横桁フランジ幅 ≒ 横桁高さの1/4
-  \item condition\_expression: total\_height ≈ 0.8 * web\_height, flange\_width ≈ total\_height/4
-  \item source\_hit\_ranks: [22]
-  \item notes: 文献の横桁設計の経験的目安（剛度確保のための案）
-  \par
-\end{itemize}
-
-【R5: 主桁間隔の実務目安】（dimensions カテゴリ）
-
-\begin{itemize}
-  \item summary: 文献中に主桁間隔の代表値（≈3.36 m）の記載がある
-  \item source\_hit\_ranks: [13]
-  \item notes: 表・図中の実例値は設計評価の判断材料として用いる
-  \par
-\end{itemize}
-
-【R6: パネル長の選定】（deck カテゴリ）
-
-\begin{itemize}
-  \item summary: panel\_length は 4000/5000/6000 mm から選び、整数パネル数になるようにする
-  \item source\_hit\_ranks: []  ← 根拠なし（仮定）
-  \item notes: RAG中に明確な数式根拠なしのため仮定扱い
-  \par
-\end{itemize}
-
-【R7: 張出し長の目安】（other カテゴリ）
-
-\begin{itemize}
-  \item summary: 張出し長（overhang）は概ね0.5 m〜1.5 m程度を確保
-  \item source\_hit\_ranks: []  ← 根拠なし（仮定）
-  \item notes: 本設計指示に含まれる実務目安を採用
-  \par
-\end{itemize}
-
-【R8: 横桁の役割】（crossbeam\_section カテゴリ）
-
-\begin{itemize}
-  \item summary: 床版と横桁は通常合成しないため、横桁は所要剛度を満たす程度の断面とする
-  \item source\_hit\_ranks: [22]
-  \item notes: RC床版合成桁の場合の横桁役割に関する要求
-  \par
-  \par
-\end{itemize}
+各ルールには根拠となる RAG ヒットの rank 番号が記録され、設計の透明性を確保している。根拠が文献に見当たらない場合は「仮定」として明記される。
 
 
 \subsection{生成された IFC ファイル}
 
 
 
-\subsubsection{IFC 出力の構成}
-
-
-生成された IFC ファイル（\texttt{design\_L50\_B10\_20260106\_163611.ifc}）には以下の 3D 要素が含まれる：
+生成された IFC ファイルには以下の 3D 要素が含まれる：
 
 \begin{table}[ht]
 \centering
-\caption{床版（Deck）}
-\begin{tabular}{ll}
+\caption{IFC 出力の構成}
+\begin{tabular}{llll}
 \hline
-項目 & 値 \\
+要素 & 形状表現 & 断面形状 & 要素数 \\
 \hline
-形状表現 & Brep（境界表現） \\
-寸法 & 50,000 mm $\times$ 10,000 mm $\times$ 190 mm \\
-要素数 & 1 \\
+床版 & Brep & 直方体 & 1 \\
+主桁 & SweptSolid & I形 & 40（4桁 $\times$ 10セグメント） \\
+横桁 & SweptSolid & I形 & 27（9行 $\times$ 3間隔） \\
 \hline
 \end{tabular}
 \end{table}
 
-\begin{table}[ht]
-\centering
-\caption{主桁（Girder）}
-\begin{tabular}{ll}
-\hline
-項目 & 値 \\
-\hline
-形状表現 & SweptSolid（断面押し出し） \\
-断面形状 & I形（上下フランジ＋腹板） \\
-本数 & 4 本 \\
-セグメント数 & 各桁 10 セグメント（パネル分割） \\
-要素数 & 40 ($= 4$ 桁 $\times$ 10 セグメント) \\
-命名例 & \texttt{Girder\_1\_Seg\_1}, \texttt{Girder\_2\_Seg\_5}, ... \\
-\hline
-\end{tabular}
-\end{table}
-
-\begin{table}[ht]
-\centering
-\caption{横桁（Crossbeam）}
-\begin{tabular}{ll}
-\hline
-項目 & 値 \\
-\hline
-形状表現 & SweptSolid（断面押し出し） \\
-断面形状 & I形 \\
-行数 & 9 行（パネル数 $- 1$） \\
-間隔数 & 各行 3 間隔（桁本数 $- 1$） \\
-要素数 & 27 ($= 9$ 行 $\times$ 3 間隔) \\
-命名例 & \texttt{Crossbeam\_Row1\_Gap1}, \texttt{Crossbeam\_Row5\_Gap2}, ... \\
-\hline
-\end{tabular}
-\end{table}
-
-
-\paragraph{IFC ファイルの活用}
-
-
-生成された IFC ファイルは以下のソフトウェアで表示・活用可能：
-
-
-\begin{itemize}
-  \item BIM ビューア: BIMvision, xBIM, Solibri
-  \item CAD: Autodesk Revit, ARCHICAD
-  \item CIM: InfraWorks, Civil 3D
-  \item オープンソース: FreeCAD, BlenderBIM
-  \par
-\end{itemize}
-
-
-\paragraph{3D モデルの座標系}
-
-
-\begin{itemize}
-  \item X 軸: 橋軸直角方向（幅員方向）
-  \item Y 軸: 橋軸方向（橋長方向）
-  \item Z 軸: 鉛直方向（上向き正）
-  \item 原点: 床版左下角（X=0, Y=0, Z=床版上面=0）
-  \item 主桁・横桁は床版下面より下に配置
-  \par
-  \par
-\end{itemize}
+生成された IFC ファイルは BIMvision、Revit、FreeCAD 等の BIM/CIM ソフトウェアで表示可能。
 
 
 \clearpage
@@ -1497,130 +1166,4 @@ Designer は設計値とともに、適用した設計ルールを構造化し�
   \par
 \end{itemize}
 \end{enumerate}
-
-
-\appendix
-
-\clearpage
-
-\section{主要 Pydantic モデル一覧}
-
-
-
-\subsection{Designer 関連}
-
-
-\begin{itemize}
-  \item DesignerInput: 入力パラメータ（橋長、幅員）
-  \item BridgeDesign: 設計結果のトップレベルモデル
-  \item Dimensions: 全体寸法
-  \item GirderSection: 主桁断面（I形）
-  \item CrossbeamSection: 横桁断面（I形）
-  \item Deck: 床版
-  \item Sections: 断面情報コンテナ
-  \item Components: 構成要素コンテナ
-  \item DesignerOutput: LLM からの Structured Output
-  \item DesignRule: 設計ルール
-  \item DesignerRagLog: RAG 実行ログ
-  \item RagHit: RAG ヒット 1 件分
-  \item DesignResult: 設計結果 + RAG ログ
-  \par
-\end{itemize}
-
-
-\subsubsection{IFC 変換関連}
-
-
-\begin{itemize}
-  \item DetailedBridgeJson: IFC 生成用詳細スキーマ
-  \item Geometry: ジオメトリ情報コンテナ
-  \item GirdersGeometry: 主桁ジオメトリ
-  \item DeckGeometry: 床版ジオメトリ
-  \item Partition: 格間定義
-  \item Crossbeams: 横桁情報
-  \par
-\end{itemize}
-
-
-\paragraph{RAG 関連}
-
-
-\begin{itemize}
-  \item IndexChunk: チャンクメタデータ
-  \item SearchResult: 検索結果
-  \item RagIndex: 検索インデックス
-  \item EmbeddingConfig: 埋め込み設定
-  \par
-  \par
-\end{itemize}
-
-
-\clearpage
-
-\section{設計ルールカテゴリ}
-
-
-DesignRuleCategory（StrEnum）:
-
-
-\begin{itemize}
-  \item dimensions: 橋長・幅員・桁本数・桁間隔・パネル長など全体寸法
-  \item girder\_section: 主桁断面（腹板高さ、板厚、フランジ寸法）
-  \item deck: RC床版（厚さ）
-  \item crossbeam\_section: 横桁（桁高、板厚、フランジ寸法）
-  \item other: その他
-  \par
-  \par
-\end{itemize}
-
-
-\clearpage
-
-\section{対応 LLM モデル}
-
-
-LlmModel（StrEnum）:
-
-
-\begin{itemize}
-  \item GPT\_5\_MINI = "gpt-5-mini"
-\begin{itemize}
-  \item 高速・低コスト
-  \item 概略設計には十分な精度
-  \item デフォルト設定
-  \par
-\end{itemize}
-  \item GPT\_5\_1 = "gpt-5.1"
-\begin{itemize}
-  \item 高精度
-  \item 複雑な設計条件に対応
-  \par
-  \par
-\end{itemize}
-\end{itemize}
-
-
-\clearpage
-
-\section{参考文献（RAG 対象 PDF）}
-
-
-FileNamesUsedForRag:
-
-
-1. 鋼橋設計の基本\_第一章 概論.pdf2. 鋼橋設計の基本\_第四章 鋼橋の設計法.pdf3. 鋼橋設計の基本\_第六章 床版.pdf4. 鋼橋設計の基本\_第七章 プレートガーダー橋.pdf5. 道路橋示方書\_鋼橋・鋼部材編.pdf
-
-
-
-
-\clearpage
-
-\section*{文書情報}
-\addcontentsline{toc}{section}{文書情報}
-
-
-作成者: AgenticGenBrim 開発チーム作成日: 2026年1月7日バージョン: 1.0ステータス: MVP (Minimum Viable Product)
-
-
-
 \end{document}

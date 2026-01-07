@@ -23,3 +23,5 @@ rag_index/
 
 # env
 .env
+
+workspace/

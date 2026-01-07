@@ -10,6 +10,11 @@
 \usepackage{enumitem}
 \usepackage{longtable}
 
+% Diagrams
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc}
+
 % For preformatted blocks
 \usepackage{fvextra}
 \DefineVerbatimEnvironment{verbatim}{Verbatim}{breaklines=true,breakanywhere=true,fontsize=\small}
@@ -76,6 +81,13 @@
   \par
 \end{itemize}
 \end{enumerate}
+
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.92\linewidth]{images/bim_model.png}
+\caption{BIM/CIM ビューアで表示した IFC モデル}
+\label{fig:bim-model}
+\end{figure}
 
 
 \subsubsection{実証済みの成果}
@@ -269,6 +281,47 @@ IFC ファイル生成数 & 21 件 \\
   \end{itemize}
 \end{description}
 
+\begin{figure}[ht]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw,rounded corners,align=center,inner sep=4pt,minimum height=8mm,text width=26mm},
+  storebox/.style={box,text width=34mm},
+  lab/.style={font=\scriptsize,fill=white,inner sep=1.5pt},
+  arrow/.style={-Latex,thick},
+  node distance=10mm and 14mm
+]
+  \node[box] (input) {ユーザー入力\\橋長 $L$\\幅員 $B$};
+  \node[box, right=of input] (cli) {統合CLI\\(generate/run)};
+  \node[box, right=of cli] (retrieve) {Retrieve\\(検索・参照)};
+  \node[box, right=of retrieve] (designer) {Designer\\(設計生成)};
+  \node[box, right=of designer] (ifc) {IFC変換\\(JSON→IFC)};
+  \node[box, right=of ifc] (viewer) {BIM/CIM\\ビューア};
+
+  \node[storebox, below=16mm of designer] (store) {出力\\設計JSON\\詳細JSON\\IFC\\RAGログ};
+
+  \node[box, above=14mm of retrieve] (pdf) {PDF知識ベース\\(示方書等)};
+  \node[box, above=14mm of designer] (openai) {OpenAI API\\Embeddings\\LLM};
+
+  \draw[arrow] (input) -- (cli);
+  \draw[arrow] (cli) -- (retrieve);
+  \draw[arrow] (retrieve) -- node[midway, above, yshift=5pt, lab]{参考文献コンテキスト} (designer);
+  \draw[arrow] (designer) -- (ifc);
+  \draw[arrow] (ifc) -- (viewer);
+
+  \draw[arrow] (designer) -- (store);
+  \draw[arrow] (ifc) -- (store);
+
+  \draw[arrow] (pdf) -- (retrieve);
+  \draw[arrow] (retrieve) -- node[midway, above left, xshift=-2pt, yshift=3pt, lab]{埋め込み} (openai);
+  \draw[arrow] (designer) -- node[midway, above right, xshift=2pt, yshift=3pt, lab]{Structured Output} (openai);
+\end{tikzpicture}
+}%
+\caption{システム全体構成}
+\label{fig:system-block}
+\end{figure}
+
 
 \subsection{データフロー}
 
@@ -402,6 +455,47 @@ PDF からのテキスト抽出には pdfplumber を使用し、以下の処理�
   \item クエリとのコサイン類似度に基づき関連チャンクを検索
 \end{enumerate}
 
+\begin{figure}[ht]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw,rounded corners,align=center,inner sep=4pt,minimum height=8mm,text width=32mm},
+  arrow/.style={-Latex,thick},
+  node distance=7mm and 18mm
+]
+  \node[box] (pdf) {PDF文書};
+  \node[box, below=of pdf] (extract) {テキスト抽出\\(pdfplumber)};
+  \node[box, below=of extract] (chunk) {チャンク化\\(最大800文字)};
+  \node[box, below=of chunk] (emb) {埋め込み生成\\(Embeddings)};
+  \node[box, below=of emb] (index) {ベクトル\\インデックス};
+
+  \node[box, right=62mm of extract] (query) {ユーザークエリ};
+  \node[box, below=of query] (qemb) {クエリ埋め込み};
+  \node[box, below=of qemb] (search) {類似度検索\\(cosine, top\_k)};
+  \node[box, below=of search] (chunks) {上位チャンク\\(本文+出典+score)};
+  \node[box, below=of chunks] (prompt) {LLMプロンプト\\へ挿入};
+
+  \draw[arrow] (pdf) -- (extract);
+  \draw[arrow] (extract) -- (chunk);
+  \draw[arrow] (chunk) -- (emb);
+  \draw[arrow] (emb) -- (index);
+
+  \draw[arrow] (query) -- (qemb);
+  \draw[arrow] (qemb) -- (search);
+  \draw[arrow] (search) -- (chunks);
+  \draw[arrow] (chunks) -- (prompt);
+
+  \draw[arrow] (index.east) -- (search.west);
+
+  \node[draw,dashed,rounded corners,fit=(pdf)(index),inner sep=8pt,label={[font=\scriptsize]above:{事前処理（インデックス構築）}}] {};
+  \node[draw,dashed,rounded corners,fit=(query)(prompt),inner sep=8pt,label={[font=\scriptsize]above:{検索時（クエリ実行）}}] {};
+\end{tikzpicture}
+}%
+\caption{RAG の検索パイプライン（概略）}
+\label{fig:rag-pipeline}
+\end{figure}
+
 
 \clearpage
 
@@ -433,8 +527,11 @@ Designer サブシステムは、橋長と幅員を入力として受け取り�
 
 \subsubsection{DesignerInput スキーマ}
 
-
-class DesignerInput(BaseModel):bridge\_length\_m: float  \# 橋長 L [m]total\_width\_m: float    \# 幅員 B [m]
+\begin{verbatim}
+class DesignerInput(BaseModel):
+  bridge_length_m: float  # 橋長 L [m]
+  total_width_m: float    # 幅員 B [m]
+\end{verbatim}
 
 
 入力パラメータは最小限の 2 つのみとし、その他の設計パラメータ（主桁本数、桁高、板厚など）は LLM が RAG コンテキストを参照して自動決定する。
@@ -545,6 +642,55 @@ Designer は設計生成時に、以下の 5 種類のクエリで RAG 検索を
 
 各クエリで top\_k 件（デフォルト 5 件）を取得し、合計最大 25 チャンクの参考文献をプロンプトに含める。
 
+\begin{figure}[ht]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw,rounded corners,align=center,inner sep=4pt,minimum height=8mm,text width=34mm},
+  arrow/.style={-Latex,thick},
+  node distance=11mm and 16mm
+]
+  \node[box, text width=20mm] (inp) {入力\\$L, B$};
+  \node[box, right=18mm of inp] (q1) {寸法\\(dimensions)};
+  \node[box, below=of q1] (q2) {主桁配置\\\texttt{girder\_layout}};
+  \node[box, below=of q2] (q3) {主桁断面\\\texttt{girder\_section}};
+  \node[box, below=of q3] (q4) {床版\\\texttt{deck}};
+  \node[box, below=of q4] (q5) {横桁\\\texttt{crossbeam}};
+
+  \node[box, right=18mm of q3, text width=30mm] (rag) {RAG検索\\(各 top\_k=5)};
+  \node[box, right=18mm of rag, text width=34mm] (ctx) {統合RAG\\コンテキスト\\(最大25\\チャンク)};
+  \node[box, right=18mm of ctx, text width=26mm] (llm) {Designer\\(LLM)};
+  \node[box, right=14mm of llm, text width=24mm] (out) {設計JSON\\+ログ};
+
+  % Spread outgoing arrows from the input box and aim at the middle of each target's left edge.
+  \coordinate (inpa) at ($(inp.north east)!0.15!(inp.south east)$);
+  \coordinate (inpb) at ($(inp.north east)!0.32!(inp.south east)$);
+  \coordinate (inpc) at ($(inp.north east)!0.50!(inp.south east)$);
+  \coordinate (inpd) at ($(inp.north east)!0.68!(inp.south east)$);
+  \coordinate (inpe) at ($(inp.north east)!0.85!(inp.south east)$);
+
+  \draw[arrow] (inpa) |- (q1.west);
+  \draw[arrow] (inpb) |- (q2.west);
+  \draw[arrow] (inpc) |- (q3.west);
+  \draw[arrow] (inpd) |- (q4.west);
+  \draw[arrow] (inpe) |- (q5.west);
+
+  \draw[arrow] (q1) -- (rag);
+  \draw[arrow] (q2) -- (rag);
+  \draw[arrow] (q3) -- (rag);
+  \draw[arrow] (q4) -- (rag);
+  \draw[arrow] (q5) -- (rag);
+
+  \draw[arrow] (rag) -- (ctx);
+  \draw[arrow] (ctx) -- (llm);
+  \draw[arrow] (llm) -- (out);
+\end{tikzpicture}
+}%
+\caption{マルチクエリ RAG（5観点）と Designer への統合}
+\label{fig:multiquery-rag}
+\end{figure}
+
 
 
 
@@ -643,6 +789,24 @@ IFC 変換サブシステムは、Designer が生成した BridgeDesign JSON を
   \par
 \end{enumerate}
 
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw,rounded corners,align=center,inner sep=4pt,minimum width=26mm,minimum height=9mm,text width=26mm},
+  arrow/.style={-Latex,thick},
+  node distance=18mm
+]
+  \node[box] (simple) {BridgeDesign\\JSON};
+  \node[box, right=of simple] (detailed) {Detailed\\JSON};
+  \node[box, right=of detailed] (ifc) {IFC};
+  \draw[arrow] (simple) -- node[above, align=center, font=\scriptsize]{座標付与・分割} (detailed);
+  \draw[arrow] (detailed) -- node[above, align=center, font=\scriptsize]{ifcopenshell} (ifc);
+\end{tikzpicture}
+\caption{IFC 変換の 2 段階パイプライン}
+\label{fig:ifc-pipeline}
+\end{figure}
+
 
 \subsection{BridgeDesign から詳細 JSON への変換}
 
@@ -675,6 +839,44 @@ BridgeDesign から DetailedBridgeJson への変換では、以下の座標計�
   \par
 \end{itemize}
 \end{enumerate}
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  arrow/.style={-Latex,thick},
+  dim/.style={Latex-Latex,thick},
+  girder/.style={draw,thick},
+]
+  % Deck (plan view)
+  \draw[thick] (0,0) rectangle (10,4);
+  \node[anchor=north] at (5,0) {X（幅員方向）};
+  \node[anchor=west] at (10,2) {Y（橋長方向）};
+
+  % Axes
+  \draw[arrow] (0,0) -- (11,0) node[below] {X};
+  \draw[arrow] (0,0) -- (0,5) node[left] {Y};
+  \draw[arrow] (10.8,4.2) -- (10.8,5.1) node[right] {Z};
+
+  % Origin
+  \fill (0,0) circle (1.3pt);
+  \node[anchor=north west] at (0,0) {原点（床版左下角）};
+
+  % Girders (4 lines)
+  \draw[girder] (2,0) -- (2,4);
+  \draw[girder] (4,0) -- (4,4);
+  \draw[girder] (6,0) -- (6,4);
+  \draw[girder] (8,0) -- (8,4);
+  \node[anchor=south] at (5,4) {主桁（例：4本）};
+
+  % Dimensions: x_offset and spacing
+  \draw[dim] (0,-0.6) -- node[below]{x\_offset} (2,-0.6);
+  \draw[dim] (2,-1.2) -- node[below]{girder\_spacing} (4,-1.2);
+  \node[anchor=west] at (0,5.2) {$x = x\_offset + i\,\times\,girder\_spacing$};
+\end{tikzpicture}
+\caption{座標系（X/Y/Z）と主桁配置の模式図（平面図）}
+\label{fig:coord-girders}
+\end{figure}
 
 
 \subsection{詳細 JSON から IFC への変換}
@@ -976,6 +1178,13 @@ R8 & 横桁の役割 & 所要剛度を満たす程度 & 文献 \\
 \end{tabular}
 \end{table}
 
+\begin{figure}[ht]
+\centering
+\includegraphics[width=0.92\linewidth]{images/bim_component.png}
+\caption{BIM/CIM ビューアでの部材別表示（選択・色分け例）}
+\label{fig:bim-component}
+\end{figure}
+
 生成された IFC ファイルは BIMvision、Revit、FreeCAD 等の BIM/CIM ソフトウェアで表示可能。
 
 
@@ -989,7 +1198,7 @@ R8 & 横桁の役割 & 所要剛度を満たす程度 & 文献 \\
 
 
 
-\subsubsection{設計面の制約}
+\paragraph{設計面の制約}
 
 
 \begin{enumerate}
@@ -997,12 +1206,14 @@ R8 & 横桁の役割 & 所要剛度を満たす程度 & 文献 \\
 \begin{itemize}
   \item 現状は鋼プレートガーダー橋（RC床版）のみ
   \item 鋼床版、PC橋、トラス橋などは未対応
+  \item これに関しては「将来的には同様に教科書を参照させることで対応しうる」と着地させる
   \par
 \end{itemize}
   \item 断面変化への未対応
 \begin{itemize}
   \item 全長にわたって同一断面を仮定
   \item 支点部・中央部での断面変化は考慮していない
+  \item これはBIMとしてそこまで厳密なものは不要、でにげる
   \par
 \end{itemize}
   \item 荷重・応力照査の未実装
@@ -1025,12 +1236,6 @@ R8 & 横桁の役割 & 所要剛度を満たす程度 & 文献 \\
 
 
 \begin{enumerate}
-  \item RAG の精度
-\begin{itemize}
-  \item チャンク化が固定長（800文字）で、文脈が分断される場合がある
-  \item 表・図のテキスト抽出が不完全な場合がある
-  \par
-\end{itemize}
   \item Judge の未実装
 \begin{itemize}
   \item 現状はダミー実装（常に OK を返す）
@@ -1047,20 +1252,7 @@ R8 & 横桁の役割 & 所要剛度を満たす程度 & 文献 \\
 \end{enumerate}
 
 
-\subsection{計画中の機能}
-
-
-
-\subsubsection{Extractor コンポーネント}
-
-
-\begin{itemize}
-  \item RAG で取得した条文から設計制約を構造化抽出するエージェント
-  \item 設計ルールのデータベース化
-  \item src/bridge\_agentic\_generate/extractor/ に実装予定
-  \par
-  \par
-\end{itemize}
+\subsection{今後の拡張方針}
 
 
 \paragraph{Judge コンポーネントの完成}
@@ -1075,95 +1267,4 @@ R8 & 横桁の役割 & 所要剛度を満たす程度 & 文献 \\
 \end{itemize}
 
 
-\paragraph{複数断面への対応}
-
-
-\begin{itemize}
-  \item 支点部・中央部での断面変化
-  \item ハンチの考慮
-  \par
-  \par
-\end{itemize}
-
-
-\subsection{今後の拡張方針}
-
-
-
-\subsubsection{短期目標}
-
-
-\begin{enumerate}
-  \item RAG 検索精度の向上
-\begin{itemize}
-  \item セマンティックチャンキングの導入
-  \item リランキングモデルの適用
-  \par
-\end{itemize}
-  \item Judge の基本実装
-\begin{itemize}
-  \item 桁高/支間比のチェック
-  \item 板厚の最小値チェック
-  \par
-\end{itemize}
-  \item IFC 出力の充実
-\begin{itemize}
-  \item 材料情報の追加
-  \item プロパティセットの設定
-  \par
-  \par
-\end{itemize}
-\end{enumerate}
-
-
-\paragraph{中期目標}
-
-
-\begin{enumerate}
-  \item 複数橋種への対応
-\begin{itemize}
-  \item 鋼床版橋
-  \item 箱桁橋
-  \par
-\end{itemize}
-  \item 連続桁への対応
-\begin{itemize}
-  \item 支間割の自動計算
-  \item 支点部の断面変化
-  \par
-\end{itemize}
-  \item 3次元配置への対応
-\begin{itemize}
-  \item 平面線形（曲線橋）
-  \item 縦断勾配
-  \par
-  \par
-\end{itemize}
-\end{enumerate}
-
-
-\paragraph{長期目標}
-
-
-\begin{enumerate}
-  \item 構造解析連携
-\begin{itemize}
-  \item FEM モデルへの自動変換
-  \item 応力照査の自動化
-  \par
-\end{itemize}
-  \item コスト最適化
-\begin{itemize}
-  \item 鋼材量の最小化
-  \item 製作・施工コストの考慮
-  \par
-\end{itemize}
-  \item マルチエージェント化
-\begin{itemize}
-  \item Designer / Judge / Extractor の連携
-  \item 自律的な設計改善ループ
-  \par
-  \par
-\end{itemize}
-\end{enumerate}
 \end{document}

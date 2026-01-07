@@ -69,7 +69,6 @@
 \begin{itemize}
   \item 「桁高 ≒ L/20」「床版厚 d = 30L + 110」などの数式を明示
   \item 各ルールに根拠（文献の rank）または「仮定」を付与
-  \item 将来の設計ルールDB構築の基盤
   \par
 \end{itemize}
   \item IFC 形式での 3D モデル出力
@@ -207,13 +206,13 @@ IFC ファイル生成数 & 21 件 \\
 \subsection{対象とする橋梁形式}
 
 
-本 MVP では、以下の橋梁形式を対象とする：
+以下の橋梁形式を対象とする：
 
 
 \begin{itemize}
   \item 橋梁タイプ：鋼プレートガーダー橋（Steel Plate Girder Bridge）
   \item 床版形式：RC 床版合成桁（Reinforced Concrete Deck Composite Girder）
-  \item 構造形式：単純桁または連続桁（MVP では単純桁を想定）
+  \item 構造形式：単純桁または連続桁（本研究 では単純桁を想定）
   \par
 \end{itemize}
 
@@ -743,7 +742,7 @@ Designer は設計値だけでなく、適用した設計ルールを明示的�
 
 
 
-\subsubsection{DesignRuleCategory}
+\paragraph{DesignRuleCategory}
 
 
 \begin{itemize}
@@ -925,7 +924,7 @@ ifcopenshell ライブラリを使用して IFC ファイルを生成する。
 
 
 
-\subsubsection{IFC エンティティ}
+\paragraph{IFC エンティティ}
 
 
 \begin{itemize}
@@ -962,14 +961,14 @@ ifcopenshell ライブラリを使用して IFC ファイルを生成する。
 
 \clearpage
 
-\section{実行実績と出力例}
+\section{出力例}
 
 
 
 \subsection{実行実績の概要}
 
 
-本システムは既に複数回の設計生成を実行しており、以下の実績がある：
+複数回の設計生成を実行している：
 
 
 【生成済み設計 JSON】（data/generated\_simple\_bridge\_json/）
@@ -989,21 +988,11 @@ ifcopenshell ライブラリを使用して IFC ファイルを生成する。
 \end{itemize}
 
 
-\subsubsection{実行日時の例}
-
-\begin{itemize}
-  \item 2025年12月8日 ～ 2026年1月6日にかけて継続的にテスト・改善
-  \item 最新実行：2026年1月6日（design\_L50\_B10\_20260106\_163611）
-  \par
-  \par
-\end{itemize}
-
-
 \subsection{設計出力例（BridgeDesign JSON）}
 
 
 
-\subsubsection{実行条件}
+\paragraph{実行条件}
 
 \begin{itemize}
   \item 橋長 L = 50 m
@@ -1084,7 +1073,7 @@ ifcopenshell ライブラリを使用して IFC ファイルを生成する。
 
 
 
-\subsubsection{マルチクエリ RAG 検索の実行結果}
+\paragraph{マルチクエリ RAG 検索の実行結果}
 
 
 1 回の設計生成で 25 件の参考文献チャンクを取得（代表例）：

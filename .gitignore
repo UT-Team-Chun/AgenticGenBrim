@@ -25,3 +25,4 @@ rag_index/
 .env
 
 workspace/
+.DS_Store

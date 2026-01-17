@@ -54,7 +54,10 @@ from src.bridge_json_to_ifc.ifc_utils_new.components.DefComponent import (
 )
 
 # DefPanel.pyの関数をインポート
-from src.bridge_json_to_ifc.ifc_utils_new.components.DefPanel import Check_break_mainpanle, Devide_Coord_FLG_mainpanel_break
+from src.bridge_json_to_ifc.ifc_utils_new.components.DefPanel import (
+    Check_break_mainpanle,
+    Devide_Coord_FLG_mainpanel_break,
+)
 
 # DefStiffener.pyの関数をインポート
 from src.bridge_json_to_ifc.ifc_utils_new.components.DefStiffener import (
@@ -112,7 +115,11 @@ from src.bridge_json_to_ifc.ifc_utils_new.components.DefBracing import (
 )
 
 # DefPanel.pyの関数をインポート（横桁関連はDefPanel.pyに移動済み）
-from src.bridge_json_to_ifc.ifc_utils_new.components.DefPanel import Calculate_Yokogeta, Extend_Yokoketa_Face, Extend_Yokoketa_Face_FLG
+from src.bridge_json_to_ifc.ifc_utils_new.components.DefPanel import (
+    Calculate_Yokogeta,
+    Extend_Yokoketa_Face,
+    Extend_Yokoketa_Face_FLG,
+)
 
 # DefMainPanel.pyの関数をインポート
 from src.bridge_json_to_ifc.ifc_utils_new.core.DefMainPanel import (

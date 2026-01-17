@@ -9,12 +9,10 @@ from typing import Any, Sequence
 
 import fire
 
-from src.bridge_agentic_generate.config import get_app_config
-from src.bridge_agentic_generate.logger_config import get_logger
+from src.bridge_agentic_generate.config import app_config
+from src.bridge_agentic_generate.logger_config import logger
 from src.bridge_json_to_ifc.ifc_utils import DefIFC
 from src.bridge_json_to_ifc.models import DetailedBridgeJson, Partition
-
-logger = get_logger(__name__)
 
 type Point2D = Sequence[float]
 type Point3D = DefIFC.Point3D
@@ -28,7 +26,6 @@ EXPERIMENT_DIR_NAME = "experiment"
 DEFAULT_INPUT_FILENAME = "provisional_bridge.json"
 DEFAULT_OUTPUT_FILENAME = "provisional_bridge.ifc"
 
-app_config = get_app_config()
 experiment_dir = app_config.data_dir / EXPERIMENT_DIR_NAME
 DEFAULT_INPUT_JSON = experiment_dir / DEFAULT_INPUT_FILENAME
 DEFAULT_OUTPUT_IFC = experiment_dir / DEFAULT_OUTPUT_FILENAME

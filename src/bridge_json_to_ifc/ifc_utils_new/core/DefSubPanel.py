@@ -6,9 +6,17 @@
 from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
 from src.bridge_json_to_ifc.ifc_utils_new.io import DefStrings
 from src.bridge_json_to_ifc.ifc_utils_new.utils import DefBridgeUtils
-from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import Load_Coordinate_Panel, Calculate_Extend_Coord, Find_number_block_MainPanel
+from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import (
+    Load_Coordinate_Panel,
+    Calculate_Extend_Coord,
+    Find_number_block_MainPanel,
+)
 from src.bridge_json_to_ifc.ifc_utils_new.components.DefComponent import Draw_Corner, Draw_Solid_CutOut
-from src.bridge_json_to_ifc.ifc_utils_new.components.DefStiffener import Calculate_Vstiff_Subpanel, Calculate_SPL_SubPanel, Calculate_SPL_Rib
+from src.bridge_json_to_ifc.ifc_utils_new.components.DefStiffener import (
+    Calculate_Vstiff_Subpanel,
+    Calculate_SPL_SubPanel,
+    Calculate_SPL_Rib,
+)
 import numpy as np
 import pandas as pd
 

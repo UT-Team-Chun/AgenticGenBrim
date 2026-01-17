@@ -3072,7 +3072,11 @@ def Calculate_Point_Taikeikou(
     # 対傾構のPointは線形名のリストなので、各線形上の指定セクション（デフォルトは"C1"）を使用
     # 指定セクションがない場合は最初の点（"S1"）を使用
     # 接続点をWebパネルの端に調整するため、Webパネルの座標を使用（Data_Panelが利用可能な場合）
-    from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import Load_Coordinate_Point, Load_Coordinate_PolLine, Load_Coordinate_Panel
+    from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import (
+        Load_Coordinate_Point,
+        Load_Coordinate_PolLine,
+        Load_Coordinate_Panel,
+    )
     import numpy as np
 
     # Webパネルの座標を取得して接続点を計算（Data_Panelが利用可能な場合）

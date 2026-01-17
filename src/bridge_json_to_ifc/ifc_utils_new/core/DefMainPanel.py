@@ -6,8 +6,15 @@
 from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
 from src.bridge_json_to_ifc.ifc_utils_new.io import DefStrings
 from src.bridge_json_to_ifc.ifc_utils_new.utils import DefBridgeUtils
-from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import Load_Coordinate_Panel, Calculate_Extend, Calculate_Extend_Coord
-from src.bridge_json_to_ifc.ifc_utils_new.components.DefPanel import Check_break_mainpanle, Devide_Coord_FLG_mainpanel_break
+from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import (
+    Load_Coordinate_Panel,
+    Calculate_Extend,
+    Calculate_Extend_Coord,
+)
+from src.bridge_json_to_ifc.ifc_utils_new.components.DefPanel import (
+    Check_break_mainpanle,
+    Devide_Coord_FLG_mainpanel_break,
+)
 from src.bridge_json_to_ifc.ifc_utils_new.components.DefComponent import Draw_Corner
 import numpy as np
 import copy

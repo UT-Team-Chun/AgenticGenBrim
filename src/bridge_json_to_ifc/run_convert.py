@@ -8,21 +8,16 @@ from pathlib import Path
 
 import fire
 
-from src.bridge_agentic_generate.config import get_app_config
+from src.bridge_agentic_generate.config import app_config
 from src.bridge_agentic_generate.designer.models import BridgeDesign
-from src.bridge_agentic_generate.logger_config import get_logger
+from src.bridge_agentic_generate.logger_config import logger
 from src.bridge_json_to_ifc.convert_detailed_json_to_ifc import build_ifc_from_spec
 from src.bridge_json_to_ifc.convert_simple_to_detailed_json import convert_simple_to_detailed, save_detailed_json
-
-logger = get_logger(__name__)
 
 
 class FileSuffixes(StrEnum):
     DETAILED = "_detailed.json"
     IFC = ".ifc"
-
-
-app_config = get_app_config()
 
 
 def convert(

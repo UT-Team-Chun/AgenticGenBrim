@@ -10,9 +10,7 @@ import ifcopenshell
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
-from src.bridge_agentic_generate.logger_config import get_logger
-
-logger = get_logger(__name__)
+from src.bridge_agentic_generate.logger_config import logger
 
 type Point2D = Sequence[float]
 type Point3D = Sequence[float]

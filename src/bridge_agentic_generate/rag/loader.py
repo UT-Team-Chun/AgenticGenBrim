@@ -9,9 +9,9 @@ from typing import Sequence
 import numpy as np
 from openai import OpenAI
 
-from src.bridge_agentic_generate.config import get_app_config
+from src.bridge_agentic_generate.config import app_config
 from src.bridge_agentic_generate.llm_client import get_llm_client
-from src.bridge_agentic_generate.logger_config import get_logger
+from src.bridge_agentic_generate.logger_config import logger
 from src.bridge_agentic_generate.rag.embedding_config import (
     EmbeddingModel,
     FileNamesUsedForRag,
@@ -19,8 +19,6 @@ from src.bridge_agentic_generate.rag.embedding_config import (
     IndexFilenames,
     get_embedding_config,
 )
-
-logger = get_logger(__name__)
 
 DEFAULT_MAX_CHARS_PER_CHUNK: int = 800
 PAGE_MARKER_PATTERN: re.Pattern[str] = re.compile(r"\[Page\s+(\d+)\]")
@@ -156,7 +154,6 @@ def build_corpus() -> None:
     入力: data/extracted_by_pdfplumber 配下の TXT ファイル。
     出力: rag_index/pdfplumber 配下に meta.jsonl と embeddings.npy を保存。
     """
-    app_config = get_app_config()
     embedding_config = get_embedding_config()
     client = get_llm_client()
     # 出力先を rag_index/pdfplumber に変更

@@ -8,7 +8,7 @@ from pathlib import Path
 import fire
 
 from src.bridge_agentic_generate.designer.models import BridgeDesign
-from src.bridge_agentic_generate.logger_config import get_logger
+from src.bridge_agentic_generate.logger_config import logger
 from src.bridge_json_to_ifc.models import (
     Crossbeams,
     DeckGeometry,
@@ -17,8 +17,6 @@ from src.bridge_json_to_ifc.models import (
     GirdersGeometry,
     Partition,
 )
-
-logger = get_logger(__name__)
 
 
 def convert_simple_to_detailed(design: BridgeDesign) -> DetailedBridgeJson:

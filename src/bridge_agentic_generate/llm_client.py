@@ -8,11 +8,8 @@ from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel
 
-from src.bridge_agentic_generate.config import get_app_config
-from src.bridge_agentic_generate.logger_config import get_logger
-
-logger = get_logger(__name__)
-
+from src.bridge_agentic_generate.config import app_config
+from src.bridge_agentic_generate.logger_config import logger
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -31,7 +28,6 @@ def get_llm_client() -> OpenAI:
     Returns:
         OpenAI: 認証済みクライアント。
     """
-    app_config = get_app_config()
     load_dotenv(app_config.env_file)
     logger.debug("Loaded environment variables from %s", app_config.env_file)
     return OpenAI()

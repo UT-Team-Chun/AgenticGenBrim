@@ -9,7 +9,7 @@ import numpy as np
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr
 
-from src.bridge_agentic_generate.config import get_app_config
+from src.bridge_agentic_generate.config import app_config
 
 NUMERIC_STABILITY_EPSILON: float = 1e-8
 EMBEDDING_DIMENSION: int = 1536
@@ -170,5 +170,4 @@ def get_embedding_config() -> EmbeddingConfig:
     Returns:
         EmbeddingConfig: モデル名・次元数・バッチサイズ・インデックス保存先。
     """
-    app_config = get_app_config()
     return EmbeddingConfig(index_dir=app_config.rag_index_dir_plumber)

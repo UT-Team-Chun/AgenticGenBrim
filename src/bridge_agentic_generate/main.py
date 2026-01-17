@@ -6,16 +6,14 @@ from datetime import datetime
 from typing import Sequence
 
 # from fire import Fire
-from src.bridge_agentic_generate.config import get_app_config
+from src.bridge_agentic_generate.config import app_config
 from src.bridge_agentic_generate.designer.models import DesignerInput
 from src.bridge_agentic_generate.designer.services import generate_design_with_rag_log
 from src.bridge_agentic_generate.judge.models import JudgeInput
 from src.bridge_agentic_generate.judge.services import judge_design
 from src.bridge_agentic_generate.llm_client import LlmModel
-from src.bridge_agentic_generate.logger_config import get_logger
+from src.bridge_agentic_generate.logger_config import logger
 from src.bridge_agentic_generate.rag.embedding_config import TOP_K
-
-logger = get_logger(__name__)
 
 DEFAULT_BRIDGE_LENGTHS_M: Sequence[float] = (30.0, 40.0, 50.0, 60.0, 70.0)
 DEFAULT_TOTAL_WIDTH_M: float = 10.0
@@ -61,7 +59,6 @@ def run_single_case(
         top_k: RAG で取得するチャンク数。
         judge_enabled: True の場合、Judge も実行する。
     """
-    app_config = get_app_config()
     simple_json_dir = app_config.generated_simple_bridge_json_dir
     simple_json_dir.mkdir(parents=True, exist_ok=True)
     raglog_json_dir = app_config.generated_bridge_raglog_json_dir

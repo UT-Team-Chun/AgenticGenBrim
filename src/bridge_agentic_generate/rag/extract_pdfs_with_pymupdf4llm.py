@@ -4,11 +4,9 @@ from pathlib import Path
 
 import pymupdf4llm
 
-from src.bridge_agentic_generate.config import get_app_config
-from src.bridge_agentic_generate.logger_config import get_logger
+from src.bridge_agentic_generate.config import app_config
+from src.bridge_agentic_generate.logger_config import logger
 from src.bridge_agentic_generate.rag.embedding_config import FileNamesUsedForRag
-
-logger = get_logger(__name__)
 
 
 def extract_text_from_pdf(pdf_path: Path) -> str:
@@ -28,8 +26,6 @@ def extract_text_from_pdf(pdf_path: Path) -> str:
 
 
 def main(target_filename: str | None = None) -> None:
-    app_config = get_app_config()
-
     pdf_root = app_config.data_dir
     txt_root = pdf_root / "extracted_by_pymupdf4llm"
     txt_root.mkdir(parents=True, exist_ok=True)

@@ -8,13 +8,10 @@ from src.bridge_agentic_generate.designer.models import (
 )
 from src.bridge_agentic_generate.designer.prompts import build_designer_prompt
 from src.bridge_agentic_generate.llm_client import LlmModel, call_llm_with_structured_output, get_llm_client
-from src.bridge_agentic_generate.logger_config import get_logger
 from src.bridge_agentic_generate.rag.search import (
     SearchResult,
     search_text,
 )
-
-logger = get_logger(__name__)
 
 # RAG 検索で使用するクエリ
 DEFAULT_RAG_QUERY: str = "プレートガーダー 桁 床版 厚さ 桁高 腹板 フランジ"

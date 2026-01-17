@@ -9,9 +9,6 @@
 """
 
 import json
-import os
-import sys
-from typing import Dict, List, Any, Optional
 
 
 class JSONBuilder:
@@ -49,7 +46,7 @@ class JSONBuilder:
         else:
             return input(f"{prompt}: ").strip()
 
-    def input_int(self, prompt: str, default: Optional[int] = None) -> int:
+    def input_int(self, prompt: str, default: int | None = None) -> int:
         """整数入力を取得"""
         while True:
             if default is not None:
@@ -64,7 +61,7 @@ class JSONBuilder:
             except ValueError:
                 print("  エラー: 整数を入力してください")
 
-    def input_float(self, prompt: str, default: Optional[float] = None) -> float:
+    def input_float(self, prompt: str, default: float | None = None) -> float:
         """浮動小数点入力を取得"""
         while True:
             if default is not None:
@@ -110,7 +107,7 @@ class JSONBuilder:
         if existing_count == 0:
             return True  # データがない場合はそのまま続行
 
-        print(f"\n【既存データの確認】")
+        print("\n【既存データの確認】")
         print(f"既存の{section_name}データが {existing_count} 件あります。")
         print("  1. 追加モード（既存データに追加）")
         print("  2. クリア＆新規作成（既存データを削除して最初から）")
@@ -119,7 +116,7 @@ class JSONBuilder:
         while True:
             choice = input("選択してください [1/2/3, デフォルト: 1]: ").strip()
             if not choice or choice == "1":
-                print(f"  → 追加モードで続行します")
+                print("  → 追加モードで続行します")
                 return True
             elif choice == "2":
                 if isinstance(self.data.get(section_key), list):
@@ -129,7 +126,7 @@ class JSONBuilder:
                 print(f"  → {section_name}データをクリアしました")
                 return True
             elif choice == "3":
-                print(f"  → 戻ります")
+                print("  → 戻ります")
                 return False
             else:
                 print("  エラー: 1, 2, または 3 を入力してください")
@@ -453,7 +450,7 @@ class JSONBuilder:
 
         return break_data
 
-    def handle_existing_name_for_bearing(self, name: str, girder: str, section: str, data_list: list) -> str:
+    def handle_existing_name_for_bearing(self, name: str, girder: str, section: str, data_list: list) -> str | None:
         """
         支承専用の既存名前処理
         同じ桁・同じセクション（G3, E1）に対して末尾に番号を追加する
@@ -528,7 +525,9 @@ class JSONBuilder:
             else:
                 print("  エラー: 1, 2, または 3 を入力してください")
 
-    def handle_existing_name_for_lateral_bracing(self, name: str, girder1: str, girder2: str, data_list: list) -> str:
+    def handle_existing_name_for_lateral_bracing(
+        self, name: str, girder1: str, girder2: str, data_list: list
+    ) -> str | None:
         """
         横構専用の既存名前処理
         同じ桁の組み合わせ（G1-G2）に対して番号をインクリメントする
@@ -610,7 +609,9 @@ class JSONBuilder:
             else:
                 print("  エラー: 1, 2, または 3 を入力してください")
 
-    def handle_existing_name(self, name: str, item_type: str, data_list: list, name_pattern: str = None) -> str:
+    def handle_existing_name(
+        self, name: str, item_type: str, data_list: list, name_pattern: str | None = None
+    ) -> str | None:
         """
         既存の名前が存在する場合の処理
 
@@ -788,7 +789,7 @@ class JSONBuilder:
                 try:
                     num_girders = int(line_input.lower().replace("girder", "").strip())
                     if num_girders < 1 or num_girders > 30:
-                        print(f"  警告: 桁数は1-30の範囲で指定してください")
+                        print("  警告: 桁数は1-30の範囲で指定してください")
                         continue
 
                     print(f"\n  {num_girders}桁橋の線形を自動生成します...")
@@ -857,8 +858,8 @@ class JSONBuilder:
                         y_base = self.input_float("  Y座標の基準値 (mm, 0でOK, 各桁で自動調整されます)", 0.0)
                         z = self.input_float("  Z座標 (mm, 上フランジ用の例: 10000)", 10000.0)
                         print(f"    ※ この点は橋軸方向X={x}の位置、高さZ={z}を表します")
-                        print(f"    ※ Y座標は後で各桁の位置に応じて自動調整されます")
-                        print(f"    ※ 下フランジ用のZ座標は、後で桁の高さを設定して自動調整されます")
+                        print("    ※ Y座標は後で各桁の位置に応じて自動調整されます")
+                        print("    ※ 下フランジ用のZ座標は、後で桁の高さを設定して自動調整されます")
 
                         point_data = {"name": point_name, "x": x, "y_base": y_base, "z": z}
 
@@ -954,7 +955,7 @@ class JSONBuilder:
                             generated_count += 1
 
                     print(f"\n✓ {num_girders}桁橋の線形を{generated_count}本自動生成しました")
-                    print(f"  生成された線形: TG*L, TG*, TG*R, BG*L, BG*, BG*R (各桁)")
+                    print("  生成された線形: TG*L, TG*, TG*R, BG*L, BG*, BG*R (各桁)")
 
                     if not self.input_yes_no("さらに線形を追加しますか？", False):
                         break
@@ -1110,7 +1111,7 @@ class JSONBuilder:
                 try:
                     num_girders = int(panel_input.lower().replace("girder", "").strip())
                     if num_girders < 1 or num_girders > 30:
-                        print(f"  警告: 桁数は1-30の範囲で指定してください")
+                        print("  警告: 桁数は1-30の範囲で指定してください")
                         continue
 
                     print(f"\n  {num_girders}桁橋のパネルを自動生成します...")
@@ -1156,10 +1157,10 @@ class JSONBuilder:
                         ("LF", "下フランジ", 16.0, 16.0, True),
                     ]:
                         print(f"\n  {type_name} ({panel_type}) の材料情報:")
-                        thick1 = self.input_float(f"    Thick1 (mm)", default_thick1)
-                        thick2 = self.input_float(f"    Thick2 (mm)", default_thick2)
-                        mat = self.input_str(f"    材料 (例: SM400A)", "SM400A")
-                        split_thickness = self.input_yes_no(f"    厚さ方向分割 (SplitThickness)", default_split)
+                        thick1 = self.input_float("    Thick1 (mm)", default_thick1)
+                        thick2 = self.input_float("    Thick2 (mm)", default_thick2)
+                        mat = self.input_str("    材料 (例: SM400A)", "SM400A")
+                        split_thickness = self.input_yes_no("    厚さ方向分割 (SplitThickness)", default_split)
                         materials[panel_type] = {
                             "Thick1": thick1,
                             "Thick2": thick2,
@@ -1271,7 +1272,7 @@ class JSONBuilder:
                             generated_count += 1
 
                     print(f"\n✓ {num_girders}桁橋のパネルを{generated_count}個自動生成しました")
-                    print(f"  生成されたパネル: 各桁について UF, W, LF")
+                    print("  生成されたパネル: 各桁について UF, W, LF")
 
                     if not self.input_yes_no("さらにパネルを追加しますか？", False):
                         break
@@ -1435,7 +1436,7 @@ class JSONBuilder:
                                     print("  警告: 無効な形式です。スキップします")
 
                         print("\n【拡張設定（上書き）】")
-                        extend_str = self.input_str(f"拡張 (例: 0,0,0 または Enterでスキップ)", "")
+                        extend_str = self.input_str("拡張 (例: 0,0,0 または Enterでスキップ)", "")
                         if extend_str:
                             try:
                                 extends = [int(x.strip()) for x in extend_str.split(",")]
@@ -1811,8 +1812,8 @@ class JSONBuilder:
             else:
                 # 従来の等分割
                 print(f"\n【レイヤー{i}の分割設定（等分割）】")
-                break_x = self.input_int(f"X方向分割数", 4)
-                break_y = self.input_int(f"Y方向分割数", 3)
+                break_x = self.input_int("X方向分割数", 4)
+                break_y = self.input_int("Y方向分割数", 3)
                 layer_breaks.append({"X": break_x, "Y": break_y})
 
         # 各レイヤーのZ方向オフセットを計算

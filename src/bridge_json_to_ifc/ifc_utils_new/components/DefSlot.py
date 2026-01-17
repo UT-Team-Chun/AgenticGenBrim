@@ -3,11 +3,10 @@
 スロット（切り欠き）生成関連関数
 """
 
+
 from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
 from src.bridge_json_to_ifc.ifc_utils_new.io import DefStrings
 from src.bridge_json_to_ifc.ifc_utils_new.utils import DefBridgeUtils
-import numpy as np
-import pandas as pd
 
 # グローバル変数: ログファイル出力関数（DefBridge.pyから設定される）
 log_print_func = None

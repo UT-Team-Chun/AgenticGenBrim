@@ -3,11 +3,11 @@
 damage_info.jsonに記載された損傷要素間の距離をすべて計算して表示
 """
 
+import argparse
+import json
+import math
 import os
 import sys
-import json
-import argparse
-import math
 from itertools import combinations
 
 # ifcopenshellのインポート
@@ -71,8 +71,8 @@ def get_element_centroid(ifc_file, element_name):
                 vertices = np.array(vertices)
                 centroid = np.mean(vertices, axis=0)
                 return tuple(centroid)
-    except Exception as e:
-        print(f"  注意: 形状処理失敗、手動で座標変換を試みます")
+    except Exception:
+        print("  注意: 形状処理失敗、手動で座標変換を試みます")
 
     # 方法2: 形状定義のPositionとObjectPlacementの両方を考慮した変換
     try:
@@ -101,7 +101,7 @@ def get_element_centroid(ifc_file, element_name):
 
                         # グローバル座標に変換
                         global_center = total_matrix @ local_center
-                        print(f"  (形状+配置の変換により取得)")
+                        print("  (形状+配置の変換により取得)")
                         return tuple(global_center[:3])
     except Exception as e:
         print(f"  注意: 手動座標変換失敗: {e}")
@@ -112,7 +112,7 @@ def get_element_centroid(ifc_file, element_name):
             coords = extract_coords_from_representation(target_element.Representation)
             if coords is not None and len(coords) > 0:
                 centroid = np.mean(coords, axis=0)
-                print(f"  (ローカル座標から取得 - 不正確な可能性)")
+                print("  (ローカル座標から取得 - 不正確な可能性)")
                 return tuple(centroid)
     except Exception as e:
         print(f"  警告: 座標抽出に失敗: {e}")
@@ -238,7 +238,7 @@ def extract_local_coords_from_representation(representation):
                             if len(coord) == 2:
                                 coord.append(0.0)
                             coords.append(coord)
-    except Exception as e:
+    except Exception:
         pass
 
     return np.array(coords) if coords else None
@@ -439,7 +439,7 @@ def main():
     # IFCファイルを読み込み
     print("IFCファイルを読み込み中...")
     ifc_file = ifcopenshell.open(ifc_path)
-    print(f"読み込み完了")
+    print("読み込み完了")
     print()
 
     # 各要素の重心を計算
@@ -466,7 +466,7 @@ def main():
                     f"  範囲: X=[{min_p[0]:.1f}, {max_p[0]:.1f}], Y=[{min_p[1]:.1f}, {max_p[1]:.1f}], Z=[{min_p[2]:.1f}, {max_p[2]:.1f}]"
                 )
         else:
-            print(f"  警告: 要素が見つかりませんでした")
+            print("  警告: 要素が見つかりませんでした")
 
     # すべての組み合わせの距離を計算
     print()

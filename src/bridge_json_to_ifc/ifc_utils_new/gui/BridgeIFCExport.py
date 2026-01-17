@@ -1,10 +1,11 @@
-import tkinter as tk
-from tkinter import filedialog, messagebox
-from PIL import Image, ImageTk
-import threading
-import time
 import os
 import sys
+import threading
+import time
+import tkinter as tk
+from tkinter import filedialog, messagebox
+
+from PIL import Image, ImageTk
 
 
 class RedirectOutputToText:
@@ -238,7 +239,7 @@ class FileSelectorApp:
             self.log_message(
                 "Export completed successfully.", is_traceback=True, color="#32CD32"
             )  # メッセージの色を緑に変更
-        except Exception as e:
+        except Exception:
             import traceback
 
             # 詳細なエラー情報を記録するため、トレースバックを取得

@@ -3,34 +3,29 @@
 対傾構（Yokokou）・横構（Taikeikou）生成関連関数
 """
 
-from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
-from src.bridge_json_to_ifc.ifc_utils_new.io import DefStrings
-from src.bridge_json_to_ifc.ifc_utils_new.utils import DefBridgeUtils
-import numpy as np
-import pandas as pd
-from math import pi, cos
-import ifcopenshell
-
-# DefBridgeUtils.pyの関数をインポート
-from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import (
-    Load_Coordinate_Panel,
-    Load_Coordinate_Point,
-    Load_Coordinate_PolLine,
-    Combined_Sort_Coord_And_NameSec,
-    Calculate_Extend_Coord,
-)
-
-# DefStiffener.pyの関数は循環依存を避けるため、関数内で遅延インポートします
-# from src.bridge_json_to_ifc.ifc_utils_new.components.DefStiffener import Devide_Pitch_Vstiff
-
-# DefGusset.pyの関数をインポート
-from src.bridge_json_to_ifc.ifc_utils_new.components.DefGusset import Calculate_edge_Guss_Constant
-
 # mathモジュールをインポート（math.isnan用）
 import math
 
+import numpy as np
+
+# DefStiffener.pyの関数は循環依存を避けるため、関数内で遅延インポートします
+# from src.bridge_json_to_ifc.ifc_utils_new.components.DefStiffener import Devide_Pitch_Vstiff
+# DefGusset.pyの関数をインポート
+from src.bridge_json_to_ifc.ifc_utils_new.components.DefGusset import Calculate_edge_Guss_Constant
+
 # DefSlot.pyの関数をインポート
 from src.bridge_json_to_ifc.ifc_utils_new.components.DefSlot import Draw_3Dsolid_Slot
+from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
+from src.bridge_json_to_ifc.ifc_utils_new.io import DefStrings
+
+# DefBridgeUtils.pyの関数をインポート
+from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import (
+    Calculate_Extend_Coord,
+    Combined_Sort_Coord_And_NameSec,
+    Load_Coordinate_Panel,
+    Load_Coordinate_Point,
+    Load_Coordinate_PolLine,
+)
 
 # グローバル変数: ログファイル出力関数（DefBridge.pyから設定される）
 log_print_func = None
@@ -57,11 +52,10 @@ def Find_number_block_MainPanel_Have_Vstiff(Senkei_data, Data_MainPanel, Sec_Sub
     Returns:
         ブロック番号（文字列）
     """
-    from src.bridge_json_to_ifc.ifc_utils_new.core import DefMath
-    from src.bridge_json_to_ifc.ifc_utils_new.io import DefStrings
-
     # 循環依存を避けるため、関数内で遅延インポート
     from src.bridge_json_to_ifc.ifc_utils_new.components.DefStiffener import Devide_Pitch_Vstiff
+    from src.bridge_json_to_ifc.ifc_utils_new.core import DefMath
+    from src.bridge_json_to_ifc.ifc_utils_new.io import DefStrings
 
     stt_exit = False
     number_block = ""
@@ -120,19 +114,19 @@ def Calculate_Yokokou(
         ifc_file, bridge_span, geom_context = ifc_all
         name_yokokou, type_yokokou, girder_yokokou, point_yokokou, shape_yokokou, guss_yokokou = infor_yokokou
 
-        _log_print(f"    [Yokokou] 座標点の計算を開始")
+        _log_print("    [Yokokou] 座標点の計算を開始")
         arCoordPoint_Yokokou = Calculate_Point_Yokokou(
             Senkei_data, MainPanel_data, type_yokokou, girder_yokokou, point_yokokou
         )
 
         if len(arCoordPoint_Yokokou) == 0:
-            _log_print(f"    [Yokokou] 警告: 座標点が0個です。形状の生成をスキップします。")
+            _log_print("    [Yokokou] 警告: 座標点が0個です。形状の生成をスキップします。")
             return
 
-        _log_print(f"    [Yokokou] 形状の生成を開始")
+        _log_print("    [Yokokou] 形状の生成を開始")
         Draw_Shape_Yokokou(ifc_all, arCoordPoint_Yokokou, shape_yokokou, type_yokokou, name_yokokou, girder_yokokou)
 
-        _log_print(f"    [Yokokou] ガセットの生成を開始")
+        _log_print("    [Yokokou] ガセットの生成を開始")
         Draw_Guss_Yokokou(
             ifc_all,
             Senkei_data,
@@ -380,7 +374,7 @@ def Draw_Shape_Yokokou(
                     ]
                     _log_print(f"    [Shape] point_shapeが2点のみのため、中間点を計算: {pplan_shape}")
                 else:
-                    _log_print(f"    [Shape] エラー: pbs_shapeまたはpbe_shapeがNoneです")
+                    _log_print("    [Shape] エラー: pbs_shapeまたはpbe_shapeがNoneです")
                     continue
         elif type_yokokou[0] == "CL" or type_yokokou[0] == "CR":
             namepoint = point_shape[0]
@@ -462,7 +456,7 @@ def Draw_Shape_Yokokou(
             if arCoor_profile is None:
                 _log_print(f"    [Shape] エラー: 形状名 '{infor_shape[1]}' がprofile2D_shapCTのリストに存在しません。")
                 _log_print(
-                    f"    [Shape] 利用可能な形状: 95x152x8x8, 118x176x8x8, 119x177x9x9, 118x178x10x8, 142x200x8x8, 144x204x12x10, 165x251x10x10"
+                    "    [Shape] 利用可能な形状: 95x152x8x8, 118x176x8x8, 119x177x9x9, 118x178x10x8, 142x200x8x8, 144x204x12x10, 165x251x10x10"
                 )
                 continue
 
@@ -1236,7 +1230,7 @@ def Draw_3DSlot_For_Guss_Yokokou(
                             p2_guss,
                             p3_guss,
                         )
-                        if not solid_slot is None:
+                        if solid_slot is not None:
                             stt = True
                             break
 
@@ -1915,7 +1909,7 @@ def Calculate_Taikeikou(ifc_all, Data_Panel, Senkei_data, number_mainblock, info
         if len(number_mainblock) > 0:
             number_mainblock = number_mainblock[0]
         else:
-            _log_print(f"    [Taikeikou] 警告: ブロック番号が見つかりません。デフォルト値 '1' を使用します。")
+            _log_print("    [Taikeikou] 警告: ブロック番号が見つかりません。デフォルト値 '1' を使用します。")
             number_mainblock = "1"
     # 数値の場合は文字列に変換
     elif not isinstance(number_mainblock, str):
@@ -2852,7 +2846,7 @@ def Calculate_Taikeikou(ifc_all, Data_Panel, Senkei_data, number_mainblock, info
                 shape_name = f"{name_taikeikou}_G{girder1_num}_G{girder2_num}_C1_L{size_shape}"
                 DefIFC.Add_shape_representation_in_Beam(ifc_file, bridge_span, shape_representation, shape_name)
     else:
-        _log_print(f"    [Taikeikou] 警告: shape_taikeikouが空またはNoneです。")
+        _log_print("    [Taikeikou] 警告: shape_taikeikouが空またはNoneです。")
 
     # -------------------Guss（ガセットプレート）-------------------------------------------------------------------
     if guss_taikeikou:
@@ -3072,12 +3066,10 @@ def Calculate_Point_Taikeikou(
     # 対傾構のPointは線形名のリストなので、各線形上の指定セクション（デフォルトは"C1"）を使用
     # 指定セクションがない場合は最初の点（"S1"）を使用
     # 接続点をWebパネルの端に調整するため、Webパネルの座標を使用（Data_Panelが利用可能な場合）
+
     from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import (
-        Load_Coordinate_Point,
-        Load_Coordinate_PolLine,
         Load_Coordinate_Panel,
     )
-    import numpy as np
 
     # Webパネルの座標を取得して接続点を計算（Data_Panelが利用可能な場合）
     web1_coords = None
@@ -4362,24 +4354,24 @@ def Calculate_Yokokou_Structural(ifc_all, Senkei_data, MainPanel_data, infor_yok
         _log_print(f"    [Yokokou_Structural] 位置: {position_type}, 桁リスト: {girder_list}, 断面: {section_name}")
 
         # 座標点の計算
-        _log_print(f"    [Yokokou_Structural] 座標点の計算を開始")
+        _log_print("    [Yokokou_Structural] 座標点の計算を開始")
         arCoordPoint_Yokokou_Structural = Calculate_Point_Yokokou_Structural(
             Senkei_data, MainPanel_data, girder_list, position_type, section_name, z_offset
         )
 
         if len(arCoordPoint_Yokokou_Structural) == 0:
-            _log_print(f"    [Yokokou_Structural] 警告: 座標点が0個です。形状の生成をスキップします。")
+            _log_print("    [Yokokou_Structural] 警告: 座標点が0個です。形状の生成をスキップします。")
             return
 
-        _log_print(f"    [Yokokou_Structural] トラス構造の生成を開始")
+        _log_print("    [Yokokou_Structural] トラス構造の生成を開始")
         Draw_Truss_Yokokou_Structural(ifc_all, arCoordPoint_Yokokou_Structural, truss_info, hole_info)
 
         # ガセットの生成（必要に応じて）
         if guss_list:
-            _log_print(f"    [Yokokou_Structural] ガセットの生成を開始")
+            _log_print("    [Yokokou_Structural] ガセットの生成を開始")
             # TODO: ガセット生成の実装
         else:
-            _log_print(f"    [Yokokou_Structural] ガセットは定義されていません")
+            _log_print("    [Yokokou_Structural] ガセットは定義されていません")
 
     except Exception as e:
         import traceback
@@ -4555,7 +4547,7 @@ def Draw_Truss_Yokokou_Structural(ifc_all, arCoordPoint_Yokokou_Structural, trus
     # 各桁のS1点とE1点を使用して水平部材を生成
     horizontal_info = truss_info.get("Horizontal", {})
     if horizontal_info:
-        _log_print(f"    [Yokokou_Structural Truss] 水平部材の生成を開始")
+        _log_print("    [Yokokou_Structural Truss] 水平部材の生成を開始")
         infor_horizontal = horizontal_info.get("Infor", [])
         pitch_horizontal = horizontal_info.get("Pitch", [0, "X", 0])
 
@@ -4664,12 +4656,12 @@ def Draw_Truss_Yokokou_Structural(ifc_all, arCoordPoint_Yokokou_Structural, trus
                 pbe_shape = girder_e1_points[i + 1]
                 create_horizontal_member(pbs_shape, pbe_shape, f"Yokokou_Structural-Horizontal-E1-{i + 1}")
 
-            _log_print(f"    [Yokokou_Structural Truss] 水平部材の生成完了")
+            _log_print("    [Yokokou_Structural Truss] 水平部材の生成完了")
 
     # 斜め部材（対角材）の生成
     diagonal_info = truss_info.get("Diagonal", {})
     if diagonal_info:
-        _log_print(f"    [Yokokou_Structural Truss] 斜め部材の生成を開始")
+        _log_print("    [Yokokou_Structural Truss] 斜め部材の生成を開始")
         infor_diagonal = diagonal_info.get("Infor", [])
         pattern_diagonal = diagonal_info.get("Pattern", "X")  # "X" パターン（交差型）
         pitch_diagonal = diagonal_info.get("Pitch", [0, "X", 0])
@@ -4829,7 +4821,7 @@ def Draw_Truss_Yokokou_Structural(ifc_all, arCoordPoint_Yokokou_Structural, trus
 
             # より複雑なトラスパターン（例：K型、N型など）は将来の拡張として実装可能
 
-    _log_print(f"    [Yokokou_Structural Truss] トラス構造の生成完了")
+    _log_print("    [Yokokou_Structural Truss] トラス構造の生成完了")
 
 
 # -----------------------------Yokokou_LateralBracing（横構）--------------------------------------------
@@ -4878,7 +4870,7 @@ def Calculate_Yokokou_LateralBracing(ifc_all, Senkei_data, MainPanel_data, infor
         )
 
         if start_point is None or end_point is None:
-            _log_print(f"    [Yokokou_LB] エラー: Start/Endのいずれかの点が取得できなかったため処理を中断します。")
+            _log_print("    [Yokokou_LB] エラー: Start/Endのいずれかの点が取得できなかったため処理を中断します。")
             return
 
         member_dict = {
@@ -4917,7 +4909,7 @@ def Calculate_Yokokou_LateralBracing(ifc_all, Senkei_data, MainPanel_data, infor
         _create_bracing_member(ifc_all, member_dict, start_point, end_point, member_name, use_pitch_shape=False)
 
         if guss_list:
-            _log_print(f"    [Yokokou_LB] ガセット定義が存在します（未実装）")
+            _log_print("    [Yokokou_LB] ガセット定義が存在します（未実装）")
     except Exception as e:
         import traceback
 
@@ -4953,7 +4945,6 @@ def _get_lateral_brace_point(point_info, level_lb, Senkei_data, MainPanel_data, 
 
     # 方法1: Load_Coordinate_Pointを使用してSenkeiのPoint配列から直接取得を試みる
     # これにより、D4などの独自Section名がSenkeiに定義されていれば使用可能
-    from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import Load_Coordinate_Point
 
     if line_name:
         p_direct = Load_Coordinate_Point(Senkei_data, line_name, section_name)
@@ -5283,7 +5274,6 @@ def _get_point_by_x_coordinate(Senkei_data, line_name, target_x):
     Returns:
         座標点 [X, Y, Z]、見つからない場合はNone
     """
-    from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import Load_Coordinate_PolLine
 
     coord_line = Load_Coordinate_PolLine(Senkei_data, line_name)
     if not coord_line or len(coord_line) == 0:

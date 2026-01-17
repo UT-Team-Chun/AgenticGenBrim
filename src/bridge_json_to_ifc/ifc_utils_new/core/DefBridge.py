@@ -4,145 +4,69 @@ ExcelまたはJSONファイルから鋼橋の3Dモデルを読み込み、IFC形
 パネル、リブ、補剛材、ボルト、穴などの橋梁部材を生成する
 """
 
-from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
-from src.bridge_json_to_ifc.ifc_utils_new.io import DefJson, DefStrings
-from src.bridge_json_to_ifc.ifc_utils_new.utils import DefBridgeUtils
 import json
-import re
 import os
-import copy
-import math
-from math import pi, cos
+
 import numpy as np
 import pandas as pd
-from colorama import init, Fore, Style
-import ifcopenshell
 
-# DefBridgeUtils.pyの関数をインポート
-from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import (
-    Calculate_Line,
-    Load_Coordinate_Panel,
-    Calculate_Extend,
-    Calculate_Extend_Coord,
-    Calculate_Coord_Face,
-    Devide_Pitch_Polyline,
-    Combined_Sort_Coord_And_NameSec,
-    Load_Coordinate_Point,
-    Load_Coordinate_PolLine,
-    Calculate_points_Sub_Panel,
-    Find_number_block_MainPanel,
-    Find_number_block_MainPanel_Have_Vstiff,
-    # 座標延長関数
-    Extend_Dia_Number,
-    Extend_Dia_Face,
-    Extend_FLG,
-    Calculate_Coord_FLG,
+# DefBracing.pyの関数をインポート
+from src.bridge_json_to_ifc.ifc_utils_new.components.DefBracing import (
+    Calculate_Taikeikou,
+    Calculate_Yokokou,
+    Calculate_Yokokou_LateralBracing,
+    Calculate_Yokokou_Structural,
 )
 
 # DefComponent.pyの関数をインポート
 from src.bridge_json_to_ifc.ifc_utils_new.components.DefComponent import (
-    Calculate_Shouban,
+    Calculate_ATM,
     Calculate_Bearing,
     Calculate_Guardrail,
+    Calculate_Shouban,
+    Calculate_Stud,
     Draw_Corner,
     Draw_Solid_CutOut,
-    Draw_Stiff_CutOut,
-    Calculate_ATM,
-    Calculate_Stud,
-    Draw_Solid_Hole,
-    Draw_Solid_LongHole,
 )
 
 # DefPanel.pyの関数をインポート
+# DefPanel.pyの関数をインポート（横桁関連はDefPanel.pyに移動済み）
 from src.bridge_json_to_ifc.ifc_utils_new.components.DefPanel import (
+    Calculate_Yokogeta,
     Check_break_mainpanle,
-    Devide_Coord_FLG_mainpanel_break,
 )
 
 # DefStiffener.pyの関数をインポート
 from src.bridge_json_to_ifc.ifc_utils_new.components.DefStiffener import (
-    Draw_3DSolid_Vstiff,
-    Devide_Pitch_Vstiff,
-    Extend_Vstiff_Auto_Face_FLG,
-    Devide_Coord_LRib,
-    Calculate_X_SPL_Pitch,
-    Draw_3DSolid_Vstiff_Taikeikou,
-    Calculate_Vstiff_Subpanel,
-    Calculate_SPL_SubPanel,
-    Draw_3DSolid_SPL,
-    Draw_Solid_Hole_SPL,
-    Draw_Solid_Bolt_SPL,
-    Calculate_SPL_Rib,
     Calculate_Hstiff,
-    Calculate_Vstiff,
     Calculate_LRib,
     Calculate_SPL,
+    Calculate_Vstiff,
+    Devide_Coord_LRib,
+    Devide_Pitch_Vstiff,
 )
-
-# DefSlot.pyの関数をインポート
-from src.bridge_json_to_ifc.ifc_utils_new.components.DefSlot import (
-    Draw_3DSolid_Slot_WebSection,
-    Draw_Slot_HStiff,
-    Draw_Slot_LRib,
-    Draw_3Dsolid_Slot,
-)
-
-# DefBracing.pyの関数をインポート
-from src.bridge_json_to_ifc.ifc_utils_new.components.DefBracing import (
-    Calculate_Yokokou,
-    Calculate_Taikeikou,
-    Calculate_Yokokou_Structural,
-    Calculate_Yokokou_LateralBracing,
-    Draw_Guss_Yokokou,
-    Draw_3DSlot_For_Guss_Yokokou,
-    Draw_3DSlot_follow_VStiff_MainPanel_For_Guss,
-    Draw_Shape_Yokokou,
-    Calculate_Point_Cross_Yokokou,
-    Calculate_Point_Taikeikou,
-    # 対傾構関連
-    Calculate_Shape_Taikeikou_For_Yokokou,
-    Draw_3DSlot_follow_Stiff_Taikeikou_For_Guss,
-    Calculate_Point_Vstiff_Taikeikou,
-    Calculate_Length_Bolt_Taikeikou,
-    Caculate_Coord_Hole_Taikeikou,
-    Draw_3DSolid_Bolt_Taikeikou,
-    # 横構関連
-    Calculate_PointMod_Guss_follow_Yokokou,
-    Draw_3DSolid_Bolt_Yokokou,
-    Caculate_Coord_Hole_Yokokou,
-    Calculate_DistModX_Shape,
-    Calculate_Pse_Shape,
-)
-
-# DefPanel.pyの関数をインポート（横桁関連はDefPanel.pyに移動済み）
-from src.bridge_json_to_ifc.ifc_utils_new.components.DefPanel import (
-    Calculate_Yokogeta,
-    Extend_Yokoketa_Face,
-    Extend_Yokoketa_Face_FLG,
-)
+from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
 
 # DefMainPanel.pyの関数をインポート
 from src.bridge_json_to_ifc.ifc_utils_new.core.DefMainPanel import (
-    Draw_solid_Web_mainpanel_break_FLG,
     Draw_solid_FLG_mainpanel_break,
-    get_non_duplicate_indices,
-    apply_indices_to_coord_lines,
-    remove_consecutive_duplicate_points,
+    Draw_solid_Web_mainpanel_break_FLG,
 )
 
 # DefSubPanel.pyの関数をインポート
-from src.bridge_json_to_ifc.ifc_utils_new.core.DefSubPanel import Calculate_Part_SubPanel, Calculate_FLG_Subpanel
+from src.bridge_json_to_ifc.ifc_utils_new.core.DefSubPanel import Calculate_Part_SubPanel
+from src.bridge_json_to_ifc.ifc_utils_new.io import DefJson, DefStrings
+from src.bridge_json_to_ifc.ifc_utils_new.utils import DefBridgeUtils
 
-# DefGusset.pyの関数をインポート
-from src.bridge_json_to_ifc.ifc_utils_new.components.DefGusset import (
-    Draw_3DSolid_Guss,
-    Calculate_edge_Guss_Constant,
-    Calculate_edge_Guss_P,
-    Calculate_Face_Guss_follow_Yokokou,
-    Calculate_Face_Base_Guss_follow_Yokokou,
-    Calculate_Face_Base_Guss_follow_Taikeikou,
-    Calculate_Face_Base_Guss_follow_SubPanel,
-    Calculate_PointFLG_Subpanel_for_Guss_Yokokou,
+# DefBridgeUtils.pyの関数をインポート
+from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import (
+    Calculate_Extend,
+    Calculate_Line,
+    Calculate_points_Sub_Panel,
+    Combined_Sort_Coord_And_NameSec,
+    Devide_Pitch_Polyline,
+    Find_number_block_MainPanel,
+    Load_Coordinate_Panel,
 )
 
 # グローバル変数: ログファイル出力関数
@@ -284,7 +208,7 @@ def _setup_logging(location, debug_mode):
 
         # 他モジュールのログ関数も設定
         DefBridgeUtils.log_print_func = log_print
-        from src.bridge_json_to_ifc.ifc_utils_new.components import DefPanel, DefBracing, DefComponent
+        from src.bridge_json_to_ifc.ifc_utils_new.components import DefBracing, DefComponent, DefPanel
 
         DefPanel.log_print_func = log_print
         DefBracing.log_print_func = log_print
@@ -294,7 +218,7 @@ def _setup_logging(location, debug_mode):
         # デバッグモードオフ：ログ関数を無効化
         log_print_func = None
         DefBridgeUtils.log_print_func = None
-        from src.bridge_json_to_ifc.ifc_utils_new.components import DefPanel, DefBracing, DefComponent
+        from src.bridge_json_to_ifc.ifc_utils_new.components import DefBracing, DefComponent, DefPanel
 
         DefPanel.log_print_func = None
         DefBracing.log_print_func = None

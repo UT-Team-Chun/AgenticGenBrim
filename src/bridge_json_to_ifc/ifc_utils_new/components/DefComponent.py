@@ -3,11 +3,11 @@
 承板、コーナーカット、切り欠き、アンカーボルト、スタッド、穴などの部材生成
 """
 
-from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
-from src.bridge_json_to_ifc.ifc_utils_new.io import DefStrings
-from src.bridge_json_to_ifc.ifc_utils_new.utils import DefBridgeUtils
 import numpy as np
 import pandas as pd
+
+from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
+from src.bridge_json_to_ifc.ifc_utils_new.utils import DefBridgeUtils
 
 # グローバル変数: ログファイル出力関数（DefBridge.pyから設定される）
 log_print_func = None
@@ -284,7 +284,7 @@ def Calculate_Shouban(ifc_all, Senkei_data, MainPanel_data, infor_shouban):
             flange_thickness = thick1 + thick2
             break
 
-    _log_print(f"    [Shouban DEBUG] 上フランジパネル情報:")
+    _log_print("    [Shouban DEBUG] 上フランジパネル情報:")
     if uf_panel:
         uf_name = uf_panel.get("Name", "")
         uf_line = uf_panel.get("Line", [])
@@ -297,10 +297,10 @@ def Calculate_Shouban(ifc_all, Senkei_data, MainPanel_data, infor_shouban):
             f"    [Shouban DEBUG]   拡張情報: E1={uf_expand.get('E1', 0)}, E2={uf_expand.get('E2', 0)}, E3={uf_expand.get('E3', 0)}, E4={uf_expand.get('E4', 0)}"
         )
     else:
-        _log_print(f"    [Shouban DEBUG]   警告: 上フランジパネルが見つかりませんでした")
+        _log_print("    [Shouban DEBUG]   警告: 上フランジパネルが見つかりませんでした")
 
     # 床版の座標を取得（上フランジのラインから）
-    _log_print(f"    [Shouban DEBUG] 床版座標取得:")
+    _log_print("    [Shouban DEBUG] 床版座標取得:")
     _log_print(f"    [Shouban DEBUG]   床版の線形: {line_shouban}")
     _log_print(f"    [Shouban DEBUG]   断面範囲: {names_range}")
     Coord_Shouban_bottom = DefBridgeUtils.Load_Coordinate_Panel(Senkei_data, line_shouban, names_range)
@@ -366,7 +366,7 @@ def Calculate_Shouban(ifc_all, Senkei_data, MainPanel_data, infor_shouban):
     # deck_thicknessはinfor_shoubanから取得済み（デフォルト200mm）
 
     if not Coord_Shouban_bottom or len(Coord_Shouban_bottom) < 4:
-        _log_print(f"    [Shouban] 警告: 床版の座標データが取得できませんでした。")
+        _log_print("    [Shouban] 警告: 床版の座標データが取得できませんでした。")
         return
 
     # オーバーハングを適用した座標を計算
@@ -375,9 +375,9 @@ def Calculate_Shouban(ifc_all, Senkei_data, MainPanel_data, infor_shouban):
 
     # 最初のポリライン（左端、例：TG1L）の点を順番に取得
     first_polyline = Coord_Shouban_bottom[0]
-    _log_print(f"    [Shouban DEBUG] base_points計算開始:")
+    _log_print("    [Shouban DEBUG] base_points計算開始:")
     _log_print(f"    [Shouban DEBUG]   最初のポリラインの点の数: {len(first_polyline)}")
-    _log_print(f"    [Shouban DEBUG]   Coord_Shouban_bottomは既に上フランジ上面位置を表しています")
+    _log_print("    [Shouban DEBUG]   Coord_Shouban_bottomは既に上フランジ上面位置を表しています")
     for point in first_polyline:
         z_original = point[2]
         # Coord_Shouban_bottomは既に上フランジ上面位置を表しているため、flange_thicknessを追加しない
@@ -410,13 +410,13 @@ def Calculate_Shouban(ifc_all, Senkei_data, MainPanel_data, infor_shouban):
             base_points.append([point[0], point[1], z_original])
 
     if len(base_points) < 4:
-        _log_print(f"    [Shouban] 警告: 床版の基本座標が不足しています。")
+        _log_print("    [Shouban] 警告: 床版の基本座標が不足しています。")
         return
 
     # base_pointsのZ座標範囲を確認
     z_min = min(p[2] for p in base_points)
     z_max = max(p[2] for p in base_points)
-    _log_print(f"    [Shouban DEBUG] base_points計算完了:")
+    _log_print("    [Shouban DEBUG] base_points計算完了:")
     _log_print(f"    [Shouban DEBUG]   base_points数: {len(base_points)}")
     _log_print(f"    [Shouban DEBUG]   Z座標範囲: {z_min:.2f}mm ～ {z_max:.2f}mm")
     _log_print(f"    [Shouban DEBUG]   床版の下面Z座標（期待値）: {z_min:.2f}mm")
@@ -438,7 +438,7 @@ def Calculate_Shouban(ifc_all, Senkei_data, MainPanel_data, infor_shouban):
     x_positions = _calculate_x_break_positions(break_x, x_min, x_max, Senkei_data, sec_shouban)
     y_positions = _calculate_y_break_positions(break_y, y_min, y_max, Senkei_data, MainPanel_data)
 
-    _log_print(f"    [Shouban DEBUG] 分割位置:")
+    _log_print("    [Shouban DEBUG] 分割位置:")
     _log_print(f"    [Shouban DEBUG]   X方向: {len(x_positions) - 1}分割 = {x_positions}")
     _log_print(f"    [Shouban DEBUG]   Y方向: {len(y_positions) - 1}分割 = {y_positions}")
 
@@ -452,7 +452,7 @@ def Calculate_Shouban(ifc_all, Senkei_data, MainPanel_data, infor_shouban):
         z_deck_bottom = z_base + flange_thickness + z_offset
         z_deck_top = z_base + flange_thickness + z_offset + deck_thickness
 
-        _log_print(f"    [Shouban DEBUG] 床版位置計算:")
+        _log_print("    [Shouban DEBUG] 床版位置計算:")
         _log_print(f"    [Shouban DEBUG]   z_base (上フランジ上面): {z_base:.2f}mm")
         _log_print(f"    [Shouban DEBUG]   flange_thickness: {flange_thickness}mm")
         _log_print(f"    [Shouban DEBUG]   z_offset: {z_offset}mm")
@@ -513,7 +513,7 @@ def Calculate_Shouban(ifc_all, Senkei_data, MainPanel_data, infor_shouban):
         z_deck_bottom = z_base + flange_thickness + z_offset
         segment_thickness = deck_thickness / break_thick
 
-        _log_print(f"    [Shouban DEBUG] 床版位置計算（通常分割）:")
+        _log_print("    [Shouban DEBUG] 床版位置計算（通常分割）:")
         _log_print(f"    [Shouban DEBUG]   z_base (上フランジ上面): {z_base:.2f}mm")
         _log_print(f"    [Shouban DEBUG]   flange_thickness: {flange_thickness}mm")
         _log_print(f"    [Shouban DEBUG]   z_offset: {z_offset}mm")
@@ -1686,7 +1686,7 @@ def Calculate_Guardrail(ifc_all, Senkei_data, MainPanel_data, infor_guardrail):
                 Coord_Shouban_bottom = Coord_Shouban_top
 
     if not Coord_Shouban_bottom or len(Coord_Shouban_bottom) < 4:
-        _log_print(f"    [Guardrail] 警告: 床版の座標データが取得できませんでした。")
+        _log_print("    [Guardrail] 警告: 床版の座標データが取得できませんでした。")
         return
 
     deck_thickness = 200.0  # 床版の厚み（mm）
@@ -1760,7 +1760,7 @@ def _create_guardrail_along_polyline(
         break_info: 分割情報（False=分割しない、数値=等分割数、配列=分割長さの配列）
     """
     if not polyline or len(polyline) < 2:
-        _log_print(f"    [Guardrail] 警告: ポリラインの点が不足しています。")
+        _log_print("    [Guardrail] 警告: ポリラインの点が不足しています。")
         return
 
     # 分割しない場合（break_infoがFalseまたはNone）

@@ -3,22 +3,20 @@
 サブパネル（ダイアフラム等）の座標計算と生成関数
 """
 
-from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
-from src.bridge_json_to_ifc.ifc_utils_new.io import DefStrings
-from src.bridge_json_to_ifc.ifc_utils_new.utils import DefBridgeUtils
-from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import (
-    Load_Coordinate_Panel,
-    Calculate_Extend_Coord,
-    Find_number_block_MainPanel,
-)
-from src.bridge_json_to_ifc.ifc_utils_new.components.DefComponent import Draw_Corner, Draw_Solid_CutOut
-from src.bridge_json_to_ifc.ifc_utils_new.components.DefStiffener import (
-    Calculate_Vstiff_Subpanel,
-    Calculate_SPL_SubPanel,
-    Calculate_SPL_Rib,
-)
 import numpy as np
 import pandas as pd
+
+from src.bridge_json_to_ifc.ifc_utils_new.components.DefComponent import Draw_Corner, Draw_Solid_CutOut
+from src.bridge_json_to_ifc.ifc_utils_new.components.DefStiffener import (
+    Calculate_SPL_Rib,
+    Calculate_SPL_SubPanel,
+    Calculate_Vstiff_Subpanel,
+)
+from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
+from src.bridge_json_to_ifc.ifc_utils_new.io import DefStrings
+from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import (
+    Find_number_block_MainPanel,
+)
 
 # グローバル変数: ログファイル出力関数
 log_print_func = None
@@ -70,12 +68,12 @@ def Calculate_Part_SubPanel(
     """
     # 遅延インポート（循環依存回避）
     from src.bridge_json_to_ifc.ifc_utils_new.core.DefBridge import (
-        Extend_Yokoketa_Face,
-        Extend_Yokoketa_Face_FLG,
-        Extend_Dia_Face,
-        Extend_Dia_Number,
         Calculate_FLG_Subpanel,
         Draw_3DSolid_Slot_WebSection,
+        Extend_Dia_Face,
+        Extend_Dia_Number,
+        Extend_Yokoketa_Face,
+        Extend_Yokoketa_Face_FLG,
     )
 
     ifc_file, bridge_span, geom_context = ifc_all
@@ -807,7 +805,7 @@ def Calculate_FLG_Subpanel(
         side_export: 出力側面指定
     """
     # 遅延インポート
-    from src.bridge_json_to_ifc.ifc_utils_new.core.DefBridge import Extend_FLG, Calculate_Coord_FLG
+    from src.bridge_json_to_ifc.ifc_utils_new.core.DefBridge import Calculate_Coord_FLG, Extend_FLG
 
     ifc_file, bridge_span, geom_context = ifc_all
 

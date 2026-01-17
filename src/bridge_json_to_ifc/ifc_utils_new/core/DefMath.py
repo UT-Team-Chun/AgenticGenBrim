@@ -3,9 +3,9 @@
 3D座標計算、ベクトル演算、幾何学的変換などの関数群
 """
 
-import numpy as np
 import math
-import re
+
+import numpy as np
 
 
 def point_per_line(point1_mod, point1_line, point2_line):

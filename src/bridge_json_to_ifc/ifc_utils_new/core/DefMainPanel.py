@@ -3,21 +3,19 @@
 主桁パネル（Web/UF/LF）のブレーク処理と描画関数
 """
 
-from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
-from src.bridge_json_to_ifc.ifc_utils_new.io import DefStrings
-from src.bridge_json_to_ifc.ifc_utils_new.utils import DefBridgeUtils
-from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import (
-    Load_Coordinate_Panel,
-    Calculate_Extend,
-    Calculate_Extend_Coord,
-)
+import numpy as np
+
+from src.bridge_json_to_ifc.ifc_utils_new.components.DefComponent import Draw_Corner
 from src.bridge_json_to_ifc.ifc_utils_new.components.DefPanel import (
     Check_break_mainpanle,
     Devide_Coord_FLG_mainpanel_break,
 )
-from src.bridge_json_to_ifc.ifc_utils_new.components.DefComponent import Draw_Corner
-import numpy as np
-import copy
+from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
+from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import (
+    Calculate_Extend,
+    Calculate_Extend_Coord,
+    Load_Coordinate_Panel,
+)
 
 # グローバル変数: ログファイル出力関数
 log_print_func = None
@@ -202,7 +200,7 @@ def Draw_solid_Web_mainpanel_break_FLG(ifc_all, MainPanel_data, Senkei_data, nam
         )
 
         if ar_pos != ar_pos_flange:
-            _log_print(f"  [WEB BREAK DEBUG] 警告: Webパネルとフランジで分割位置が異なります")
+            _log_print("  [WEB BREAK DEBUG] 警告: Webパネルとフランジで分割位置が異なります")
 
         # 各分割位置での交点を計算
         for i in range(0, len(ar_pos) - 1):

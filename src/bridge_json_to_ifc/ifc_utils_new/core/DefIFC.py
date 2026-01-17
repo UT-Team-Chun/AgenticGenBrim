@@ -3,13 +3,13 @@ IFCモデル生成のためのモジュール
 鋼橋の3DモデルをIFC形式で出力するための関数群
 """
 
-import ifcopenshell
-import ifcopenshell.api
-import uuid
-import numpy as np
-import ifcopenshell.geom
-from src.bridge_json_to_ifc.ifc_utils_new.core import DefMath
 import math
+import uuid
+
+import ifcopenshell
+import numpy as np
+
+from src.bridge_json_to_ifc.ifc_utils_new.core import DefMath
 
 # 生成された要素名を記録するグローバルリスト
 _generated_element_names = []
@@ -421,7 +421,7 @@ def Create_brep_from_box_points(ifc_file, arCoordB, arCoordT):
         f"      [BREP DEBUG] Create_brep_from_box_points開始: arCoordBの数={len(arCoordB)}, arCoordTの数={len(arCoordT)}"
     )
     if len(arCoordB) == 0 or len(arCoordT) == 0:
-        _log_print(f"      [BREP DEBUG] 警告: 座標配列が空です")
+        _log_print("      [BREP DEBUG] 警告: 座標配列が空です")
         return None
     if len(arCoordB) != len(arCoordT):
         _log_print(f"      [BREP DEBUG] 警告: 座標配列の数が一致しません (B:{len(arCoordB)}, T:{len(arCoordT)})")
@@ -476,7 +476,7 @@ def Create_brep_from_box_points(ifc_file, arCoordB, arCoordT):
                 face_indices.append(face1)
 
     if len(face_indices) == 0:
-        _log_print(f"      [BREP DEBUG] 警告: 面が作成されませんでした")
+        _log_print("      [BREP DEBUG] 警告: 面が作成されませんでした")
         return None
 
     _log_print(f"      [BREP DEBUG] 面の数: {len(face_indices)}")
@@ -499,7 +499,7 @@ def Add_shape_representation_in_Beam(
     ifc_file, bridge_span, shape_representation, NameBeam, object_type=None, pset_name=None, properties=None
 ):
     # 形状表現をBeam（梁）エンティティとして追加し、橋梁スパンに配置する
-    import uuid
+
     import ifcopenshell.api
 
     NameBeam_str = NameBeam
@@ -658,7 +658,7 @@ def Add_shape_representation_in_Beam(
                 _log_print(f"    [DAMAGE DEBUG] プロパティ辞書: {damage_properties}")
 
                 # 損傷情報用のプロパティセットを作成
-                _log_print(f"    [DAMAGE DEBUG] プロパティセット作成開始: name='Pset_DamageInformation'")
+                _log_print("    [DAMAGE DEBUG] プロパティセット作成開始: name='Pset_DamageInformation'")
                 pset_damage = ifcopenshell.api.run(
                     "pset.add_pset", ifc_file, product=beam, name="Pset_DamageInformation"
                 )

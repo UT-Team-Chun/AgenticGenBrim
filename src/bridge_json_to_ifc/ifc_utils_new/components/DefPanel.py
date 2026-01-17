@@ -3,17 +3,16 @@
 メインパネルとサブパネルの生成、ブレーク処理、I形横桁生成など
 """
 
-from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
-from src.bridge_json_to_ifc.ifc_utils_new.io import DefStrings
-from src.bridge_json_to_ifc.ifc_utils_new.utils import DefBridgeUtils
-from src.bridge_json_to_ifc.ifc_utils_new.components import DefComponent
-import numpy as np
-import pandas as pd
 import copy
 import math
 
+import numpy as np
+
+from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath
+from src.bridge_json_to_ifc.ifc_utils_new.io import DefStrings
+
 # DefBridgeUtils.pyの関数をインポート
-from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import Load_Coordinate_Panel, Calculate_Extend_Coord
+from src.bridge_json_to_ifc.ifc_utils_new.utils.DefBridgeUtils import Calculate_Extend_Coord, Load_Coordinate_Panel
 
 # グローバル変数: ログファイル出力関数（DefBridge.pyから設定される）
 log_print_func = None
@@ -988,7 +987,7 @@ def Calculate_Yokogeta(ifc_all, Senkei_data, MainPanel_data, infor_yokogeta):
         _log_print(f"    [Yokogeta] 桁: {girder_list}, 断面: {section}, 基準: {reference}, 高さ: {height}")
 
         if len(girder_list) != 2:
-            _log_print(f"    [Yokogeta] エラー: 桁リストは2つの桁を指定してください")
+            _log_print("    [Yokogeta] エラー: 桁リストは2つの桁を指定してください")
             return
 
         girder1, girder2 = girder_list
@@ -998,7 +997,7 @@ def Calculate_Yokogeta(ifc_all, Senkei_data, MainPanel_data, infor_yokogeta):
         p2_top, p2_bottom = _get_girder_web_position(Senkei_data, MainPanel_data, girder2, section)
 
         if p1_top is None or p2_top is None:
-            _log_print(f"    [Yokogeta] エラー: 主桁の座標が取得できません")
+            _log_print("    [Yokogeta] エラー: 主桁の座標が取得できません")
             return
 
         _log_print(f"    [Yokogeta] G1上: {p1_top}, G1下: {p1_bottom}")

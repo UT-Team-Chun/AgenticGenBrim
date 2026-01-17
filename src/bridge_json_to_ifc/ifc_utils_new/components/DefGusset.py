@@ -3,7 +3,6 @@
 ガセット（補強板）生成関連関数
 """
 
-
 import numpy as np
 
 from src.bridge_json_to_ifc.ifc_utils_new.core import DefIFC, DefMath

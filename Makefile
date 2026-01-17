@@ -1,7 +1,7 @@
 PYTHON := uv run python
 RUFF := uv run ruff
 
-.PHONY: fmt fix lint
+.PHONY: fmt fix lint rm-unused-imports
 
 # コード整形だけ
 fmt:
@@ -15,3 +15,7 @@ fix:
 # Lint だけ（CI 相当）
 lint:
 	$(RUFF) check src
+
+# 未使用インポートを削除
+rm-unused-imports:
+	$(RUFF) check src --fix --select=F401

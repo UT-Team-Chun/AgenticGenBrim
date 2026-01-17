@@ -26,12 +26,12 @@ class RunResult(BaseModel):
 
     Attributes:
         design_json (str): 生成された BridgeDesign JSON のパス。
-        detailed_json (str): 生成された詳細 JSON のパス。
+        senkei_json (str): 生成された SenkeiSpec JSON のパス。
         ifc (str): 生成された IFC ファイルのパス。
     """
 
     design_json: str
-    detailed_json: str
+    senkei_json: str
     ifc: str
 
 
@@ -114,7 +114,7 @@ def run(
     model_name: str | LlmModel = LlmModel.GPT_5_MINI,
     top_k: int = TOP_K,
     judge_enabled: bool = DEFAULT_JUDGE_ENABLED,
-    detailed_json_path: str | None = None,
+    senkei_json_path: str | None = None,
     ifc_output_path: str | None = None,
 ) -> RunResult:
     """BridgeDesign 生成から IFC 出力までを一度に実行する。
@@ -125,7 +125,7 @@ def run(
         model_name (str | LlmModel, optional): 使用する LLM モデル名。デフォルトは LlmModel.GPT_5_MINI。
         top_k (int, optional): RAG 検索時の取得件数。デフォルトは TOP_K。
         judge_enabled (bool, optional): Judge エージェントによる評価を行うかどうか。デフォルトは DEFAULT_JUDGE_ENABLED。
-        detailed_json_path (str | None, optional): 詳細 JSON の出力パス。指定しない場合は自動生成される。
+        senkei_json_path (str | None, optional): SenkeiSpec JSON の出力パス。指定しない場合は自動生成される。
         ifc_output_path (str | None, optional): IFC ファイルの出力パス。指定しない場合は自動生成される。
 
     Returns:
@@ -140,21 +140,21 @@ def run(
             judge_enabled=judge_enabled,
         )
     )
-    detailed_path = (
-        Path(detailed_json_path)
-        if detailed_json_path is not None
-        else app_config.generated_detailed_bridge_json_dir / f"{design_path.stem}{FileSuffixes.DETAILED}"
+    senkei_path = (
+        Path(senkei_json_path)
+        if senkei_json_path is not None
+        else app_config.generated_senkei_json_dir / f"{design_path.stem}{FileSuffixes.SENKEI}"
     )
     ifc_path = (
         Path(ifc_output_path)
         if ifc_output_path is not None
         else app_config.generated_ifc_dir / f"{design_path.stem}{FileSuffixes.IFC}"
     )
-    bridge_convert(str(design_path), str(detailed_path), str(ifc_path))
+    bridge_convert(str(design_path), str(senkei_path), str(ifc_path))
 
-    logger.info("Detailed JSON: %s", detailed_path)
+    logger.info("Senkei JSON: %s", senkei_path)
     logger.info("IFC: %s", ifc_path)
-    return RunResult(design_json=str(design_path), detailed_json=str(detailed_path), ifc=str(ifc_path))
+    return RunResult(design_json=str(design_path), senkei_json=str(senkei_path), ifc=str(ifc_path))
 
 
 if __name__ == "__main__":

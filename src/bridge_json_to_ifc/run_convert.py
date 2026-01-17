@@ -11,27 +11,40 @@ import fire
 from src.bridge_agentic_generate.config import app_config
 from src.bridge_agentic_generate.designer.models import BridgeDesign
 from src.bridge_agentic_generate.logger_config import logger
-from src.bridge_json_to_ifc.convert_detailed_json_to_ifc import build_ifc_from_spec
-from src.bridge_json_to_ifc.convert_simple_to_detailed_json import convert_simple_to_detailed, save_detailed_json
+from src.bridge_json_to_ifc.convert_senkei_json_to_ifc import convert_senkei_to_ifc
+from src.bridge_json_to_ifc.convert_simple_to_senkei_json import convert_simple_to_senkei
+from src.bridge_json_to_ifc.senkei_models import SenkeiSpec
 
 
 class FileSuffixes(StrEnum):
-    DETAILED = "_detailed.json"
+    SENKEI = "_senkei.json"
     IFC = ".ifc"
+
+
+def save_senkei_json(senkei_spec: SenkeiSpec, output_path: Path) -> None:
+    """SenkeiSpec を JSON ファイルに保存する。
+
+    Args:
+        senkei_spec: 保存する SenkeiSpec オブジェクト。
+        output_path: 出力先のファイルパス。
+    """
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    json_output = senkei_spec.model_dump_json(by_alias=True, indent=4, exclude_none=True)
+    output_path.write_text(json_output, encoding="utf-8")
 
 
 def convert(
     bridge_design_path: str,
-    detailed_json_path: str | None = None,
+    senkei_json_path: str | None = None,
     ifc_output_path: str | None = None,
 ) -> None:
-    """BridgeDesign JSON を詳細 JSON に変換し、IFC を出力する。
+    """BridgeDesign JSON を SenkeiSpec JSON に変換し、IFC を出力する。
 
     Args:
         bridge_design_path:
             Designer が生成した BridgeDesign JSON パス（デフォルト想定は data/generated_simple_bridge_json）
-        detailed_json_path:
-            中間の詳細 JSON 出力パス（省略時は data/generated_detailed_bridge_json/<stem>_detailed.json）
+        senkei_json_path:
+            中間の SenkeiSpec JSON 出力パス（省略時は data/generated_senkei_json/<stem>_senkei.json）
         ifc_output_path:
             IFC 出力パス（省略時は data/generated_ifc/<stem>.ifc）
     """
@@ -41,10 +54,10 @@ def convert(
 
     if not design_file.exists():
         raise FileNotFoundError(f"BridgeDesign JSON が見つかりません: {design_file}")
-    detailed_file = (
-        Path(detailed_json_path)
-        if detailed_json_path is not None
-        else app_config.generated_detailed_bridge_json_dir / f"{design_file.stem}{FileSuffixes.DETAILED}"
+    senkei_file = (
+        Path(senkei_json_path)
+        if senkei_json_path is not None
+        else app_config.generated_senkei_json_dir / f"{design_file.stem}{FileSuffixes.SENKEI}"
     )
     ifc_file = (
         Path(ifc_output_path)
@@ -56,12 +69,12 @@ def convert(
         raw_data = json.load(file)
 
     design = BridgeDesign.model_validate(raw_data)
-    detailed = convert_simple_to_detailed(design)
-    save_detailed_json(detailed, detailed_file)
-    build_ifc_from_spec(detailed, ifc_file)
+    senkei = convert_simple_to_senkei(design)
+    save_senkei_json(senkei, senkei_file)
+    convert_senkei_to_ifc(senkei_file, ifc_file)
 
     logger.info("BridgeDesign: %s", bridge_design_path)
-    logger.info("Detailed JSON: %s", detailed_file)
+    logger.info("Senkei JSON: %s", senkei_file)
     logger.info("IFC: %s", ifc_file)
 
 

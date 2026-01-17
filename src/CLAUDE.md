@@ -26,7 +26,7 @@ src/
 │   ├── main.py                     # Designer + Judge 実行
 │   ├── config.py                   # パス定義
 │   ├── llm_client.py               # Responses API ラッパー
-│   ├── logger_config.py            # 共通ロガー（get_logger）
+│   ├── logger_config.py            # 共通ロガー
 │   ├── designer/                   # 設計生成エージェント
 │   │   ├── models.py               # BridgeDesign等のPydanticモデル
 │   │   ├── prompts.py              # LLMプロンプト

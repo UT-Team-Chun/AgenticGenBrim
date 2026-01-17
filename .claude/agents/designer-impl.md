@@ -11,7 +11,6 @@ color: green
 
 - `src/bridge_agentic_generate/designer/`
 - `src/bridge_agentic_generate/rag/`
-- `src/bridge_agentic_generate/extractor/`
 - `src/bridge_agentic_generate/judge/`
 
 ## コーディング規約

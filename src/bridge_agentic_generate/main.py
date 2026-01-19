@@ -118,6 +118,7 @@ def run_with_repair_loop(
     inputs = DesignerInput(bridge_length_m=bridge_length_m, total_width_m=total_width_m)
     result = generate_design_with_rag_log(inputs=inputs, top_k=top_k, model_name=model_name)
     design = result.design
+    rag_log = result.rag_log
 
     logger.info(
         "run_with_repair_loop: 初期設計生成完了 L=%.0fm, B=%.0fm",
@@ -154,6 +155,7 @@ def run_with_repair_loop(
                 iterations=iterations,
                 final_design=design,
                 final_report=report,
+                rag_log=rag_log,
             )
 
         # 不合格かつ PatchPlan が空の場合は ValueError（サービス層で送出済み）
@@ -193,6 +195,7 @@ def run_with_repair_loop(
             iterations=iterations,
             final_design=design,
             final_report=final_report,
+            rag_log=rag_log,
         )
 
     logger.warning(
@@ -206,6 +209,7 @@ def run_with_repair_loop(
         iterations=iterations,
         final_design=design,
         final_report=final_report,
+        rag_log=rag_log,
     )
 
 
@@ -279,8 +283,10 @@ class CLI:
         # 結果を保存
         simple_json_dir = app_config.generated_simple_bridge_json_dir
         judge_json_dir = app_config.generated_judge_json_dir
+        raglog_json_dir = app_config.generated_bridge_raglog_json_dir
         simple_json_dir.mkdir(parents=True, exist_ok=True)
         judge_json_dir.mkdir(parents=True, exist_ok=True)
+        raglog_json_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_name = f"design_L{int(bridge_length_m)}_B{int(total_width_m)}_{timestamp}"
@@ -310,6 +316,14 @@ class CLI:
             encoding="utf-8",
         )
         logger.info("Saved final design to %s", final_design_path)
+
+        # RAG ログを保存
+        raglog_path = raglog_json_dir / f"{base_name}_design_log.json"
+        raglog_path.write_text(
+            loop_result.rag_log.model_dump_json(indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        logger.info("Saved RAG log to %s", raglog_path)
 
         logger.info(
             "Final result: converged=%s, pass_fail=%s, max_util=%.3f, governing=%s",

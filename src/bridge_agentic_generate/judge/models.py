@@ -9,7 +9,7 @@ from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
-from src.bridge_agentic_generate.designer.models import BridgeDesign
+from src.bridge_agentic_generate.designer.models import BridgeDesign, DesignerRagLog
 
 # =============================================================================
 # 入力モデル
@@ -270,9 +270,11 @@ class RepairLoopResult(BaseModel):
         iterations: 各イテレーションの結果リスト
         final_design: 最終設計
         final_report: 最終照査結果
+        rag_log: 初期設計生成時の RAG ログ
     """
 
     converged: bool = Field(..., description="収束したかどうか")
     iterations: list[RepairIteration] = Field(..., description="各イテレーションの結果")
     final_design: BridgeDesign = Field(..., description="最終設計")
     final_report: JudgeReport = Field(..., description="最終照査結果")
+    rag_log: DesignerRagLog = Field(..., description="初期設計生成時の RAG ログ")

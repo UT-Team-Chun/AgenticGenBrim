@@ -241,3 +241,38 @@ class RepairContext(BaseModel):
         default="1. 安全: すべての util ≤ 1.0。2. 施工性: 急激な変更を避ける。3. 鋼重最小: 同等なら軽い案。",
         description="修正の優先順位",
     )
+
+
+# =============================================================================
+# RepairLoop 結果モデル
+# =============================================================================
+
+
+class RepairIteration(BaseModel):
+    """修正ループの1イテレーション結果。
+
+    Attributes:
+        iteration: イテレーション番号（0から開始、0は初期設計）
+        design: このイテレーション時点の BridgeDesign
+        report: このイテレーションの JudgeReport（照査結果）
+    """
+
+    iteration: int = Field(..., description="イテレーション番号（0から開始）")
+    design: BridgeDesign = Field(..., description="この時点の設計")
+    report: JudgeReport = Field(..., description="照査結果")
+
+
+class RepairLoopResult(BaseModel):
+    """修正ループの全体結果。
+
+    Attributes:
+        converged: 収束したかどうか（pass_fail=True に到達したか）
+        iterations: 各イテレーションの結果リスト
+        final_design: 最終設計
+        final_report: 最終照査結果
+    """
+
+    converged: bool = Field(..., description="収束したかどうか")
+    iterations: list[RepairIteration] = Field(..., description="各イテレーションの結果")
+    final_design: BridgeDesign = Field(..., description="最終設計")
+    final_report: JudgeReport = Field(..., description="最終照査結果")

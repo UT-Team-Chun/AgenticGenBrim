@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import time
+from datetime import datetime
 from pathlib import Path
 
 from fire import Fire
 from pydantic import BaseModel
 
 from src.bridge_agentic_generate.config import app_config
+from src.bridge_agentic_generate.judge.models import RepairLoopResult
 from src.bridge_agentic_generate.llm_client import LlmModel
 from src.bridge_agentic_generate.logger_config import logger
-from src.bridge_agentic_generate.main import run_single_case
+from src.bridge_agentic_generate.main import run_single_case, run_with_repair_loop
 from src.bridge_agentic_generate.rag.embedding_config import TOP_K
 from src.bridge_json_to_ifc.run_convert import FileSuffixes
 from src.bridge_json_to_ifc.run_convert import convert as bridge_convert
@@ -19,6 +21,7 @@ from src.bridge_json_to_ifc.run_convert import convert as bridge_convert
 DEFAULT_BRIDGE_LENGTH_M = 30.0
 DEFAULT_TOTAL_WIDTH_M = 10.0
 DEFAULT_JUDGE_ENABLED = True
+DEFAULT_MAX_ITERATIONS = 5
 
 
 class RunResult(BaseModel):
@@ -33,6 +36,32 @@ class RunResult(BaseModel):
     design_json: str
     senkei_json: str
     ifc: str
+
+
+class RunWithRepairResult(BaseModel):
+    """run_with_repair の結果モデル。
+
+    Attributes:
+        converged: 収束したかどうか
+        num_iterations: 実行されたイテレーション数
+        iteration_design_jsons: 各イテレーションの設計JSONパスのリスト
+        iteration_judge_jsons: 各イテレーションの照査結果JSONパスのリスト
+        iteration_senkei_jsons: 各イテレーションの SenkeiSpec JSON パスのリスト
+        iteration_ifcs: 各イテレーションの IFC パスのリスト
+        final_design_json: 最終設計のJSONパス
+        final_senkei_json: 最終設計の SenkeiSpec JSON のパス
+        final_ifc: 最終設計の IFC ファイルのパス
+    """
+
+    converged: bool
+    num_iterations: int
+    iteration_design_jsons: list[str]
+    iteration_judge_jsons: list[str]
+    iteration_senkei_jsons: list[str]
+    iteration_ifcs: list[str]
+    final_design_json: str
+    final_senkei_json: str
+    final_ifc: str
 
 
 def _coerce_model(model_name: str | LlmModel) -> LlmModel:
@@ -157,5 +186,212 @@ def run(
     return RunResult(design_json=str(design_path), senkei_json=str(senkei_path), ifc=str(ifc_path))
 
 
+class _SavedIterationPaths(BaseModel):
+    """_save_repair_loop_results の戻り値。"""
+
+    design_jsons: list[str]
+    judge_jsons: list[str]
+    senkei_jsons: list[str]
+    ifcs: list[str]
+    final_design_json: str
+    final_senkei_json: str
+    final_ifc: str
+
+
+def _save_repair_loop_results(
+    loop_result: RepairLoopResult,
+    base_name: str,
+) -> _SavedIterationPaths:
+    """修正ループの結果を保存し、各イテレーションの IFC も生成する。
+
+    Args:
+        loop_result: 修正ループの結果
+        base_name: ファイル名のベース部分
+
+    Returns:
+        _SavedIterationPaths: 保存されたファイルパスの情報
+    """
+    simple_json_dir = app_config.generated_simple_bridge_json_dir
+    judge_json_dir = app_config.generated_judge_json_dir
+    senkei_json_dir = app_config.generated_senkei_json_dir
+    ifc_dir = app_config.generated_ifc_dir
+
+    simple_json_dir.mkdir(parents=True, exist_ok=True)
+    judge_json_dir.mkdir(parents=True, exist_ok=True)
+    senkei_json_dir.mkdir(parents=True, exist_ok=True)
+    ifc_dir.mkdir(parents=True, exist_ok=True)
+
+    iteration_design_paths: list[str] = []
+    iteration_judge_paths: list[str] = []
+    iteration_senkei_paths: list[str] = []
+    iteration_ifc_paths: list[str] = []
+
+    # 各イテレーションの結果を保存
+    for iteration in loop_result.iterations:
+        iter_suffix = f"_iter{iteration.iteration}"
+        design_path = simple_json_dir / f"{base_name}{iter_suffix}.json"
+        judge_path = judge_json_dir / f"{base_name}{iter_suffix}_judge.json"
+        senkei_path = senkei_json_dir / f"{base_name}{iter_suffix}{FileSuffixes.SENKEI}"
+        ifc_path = ifc_dir / f"{base_name}{iter_suffix}{FileSuffixes.IFC}"
+
+        # Design JSON を保存
+        design_path.write_text(
+            iteration.design.model_dump_json(indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        # Judge JSON を保存
+        judge_path.write_text(
+            iteration.report.model_dump_json(indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        # IFC に変換
+        bridge_convert(str(design_path), str(senkei_path), str(ifc_path))
+
+        iteration_design_paths.append(str(design_path))
+        iteration_judge_paths.append(str(judge_path))
+        iteration_senkei_paths.append(str(senkei_path))
+        iteration_ifc_paths.append(str(ifc_path))
+
+        logger.info("Saved iteration %d design to %s", iteration.iteration, design_path)
+        logger.info("Saved iteration %d judge to %s", iteration.iteration, judge_path)
+        logger.info("Saved iteration %d IFC to %s", iteration.iteration, ifc_path)
+
+    # 最終設計を保存
+    final_design_path = simple_json_dir / f"{base_name}_final.json"
+    final_senkei_path = senkei_json_dir / f"{base_name}_final{FileSuffixes.SENKEI}"
+    final_ifc_path = ifc_dir / f"{base_name}_final{FileSuffixes.IFC}"
+
+    final_design_path.write_text(
+        loop_result.final_design.model_dump_json(indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    bridge_convert(str(final_design_path), str(final_senkei_path), str(final_ifc_path))
+
+    logger.info("Saved final design to %s", final_design_path)
+    logger.info("Saved final IFC to %s", final_ifc_path)
+
+    return _SavedIterationPaths(
+        design_jsons=iteration_design_paths,
+        judge_jsons=iteration_judge_paths,
+        senkei_jsons=iteration_senkei_paths,
+        ifcs=iteration_ifc_paths,
+        final_design_json=str(final_design_path),
+        final_senkei_json=str(final_senkei_path),
+        final_ifc=str(final_ifc_path),
+    )
+
+
+def run_with_repair(
+    bridge_length_m: float = DEFAULT_BRIDGE_LENGTH_M,
+    total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
+    model_name: str | LlmModel = LlmModel.GPT_5_MINI,
+    top_k: int = TOP_K,
+    max_iterations: int = DEFAULT_MAX_ITERATIONS,
+) -> RunWithRepairResult:
+    """Designer → Judge → 修正ループを実行し、途中経過をすべて保存してIFCまで出力する。
+
+    各イテレーションの design, judge, senkei, ifc をすべて保存し、
+    最終設計の IFC も生成する。
+
+    Args:
+        bridge_length_m: 橋長 (m)。デフォルトは DEFAULT_BRIDGE_LENGTH_M。
+        total_width_m: 全幅員 (m)。デフォルトは DEFAULT_TOTAL_WIDTH_M。
+        model_name: 使用する LLM モデル名。デフォルトは LlmModel.GPT_5_MINI。
+        top_k: RAG 検索時の取得件数。デフォルトは TOP_K。
+        max_iterations: 最大反復回数。デフォルトは DEFAULT_MAX_ITERATIONS。
+
+    Returns:
+        RunWithRepairResult: 実行結果（途中経過のパスを含む）
+    """
+    # 修正ループを実行
+    loop_result = run_with_repair_loop(
+        bridge_length_m=bridge_length_m,
+        total_width_m=total_width_m,
+        model_name=_coerce_model(model_name),
+        top_k=top_k,
+        max_iterations=max_iterations,
+    )
+
+    # ファイル名のベース部分を生成
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    base_name = f"design_L{int(bridge_length_m)}_B{int(total_width_m)}_{timestamp}"
+
+    # 途中経過を保存（各イテレーションの IFC も生成）
+    saved_paths = _save_repair_loop_results(
+        loop_result=loop_result,
+        base_name=base_name,
+    )
+
+    logger.info(
+        "Final result: converged=%s, pass_fail=%s, max_util=%.3f, governing=%s",
+        loop_result.converged,
+        loop_result.final_report.pass_fail,
+        loop_result.final_report.utilization.max_util,
+        loop_result.final_report.utilization.governing_check,
+    )
+
+    return RunWithRepairResult(
+        converged=loop_result.converged,
+        num_iterations=len(loop_result.iterations),
+        iteration_design_jsons=saved_paths.design_jsons,
+        iteration_judge_jsons=saved_paths.judge_jsons,
+        iteration_senkei_jsons=saved_paths.senkei_jsons,
+        iteration_ifcs=saved_paths.ifcs,
+        final_design_json=saved_paths.final_design_json,
+        final_senkei_json=saved_paths.final_senkei_json,
+        final_ifc=saved_paths.final_ifc,
+    )
+
+
+class CLI:
+    """統合CLI（Designer → Judge → IFC）。
+
+    Usage:
+        # Designer → IFC（Judge 1回のみ）
+        uv run python -m src.main run --bridge_length_m=50 --total_width_m=10
+
+        # Designer → Judge → 修正ループ → IFC（途中経過をすべて保存）
+        uv run python -m src.main run_with_repair --bridge_length_m=50 --total_width_m=10
+    """
+
+    def run(
+        self,
+        bridge_length_m: float = DEFAULT_BRIDGE_LENGTH_M,
+        total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
+        model_name: str = "gpt-5-mini",
+        top_k: int = TOP_K,
+        judge_enabled: bool = DEFAULT_JUDGE_ENABLED,
+        senkei_json_path: str | None = None,
+        ifc_output_path: str | None = None,
+    ) -> RunResult:
+        """Designer → (任意で Judge) → IFC を実行する。"""
+        return run(
+            bridge_length_m=bridge_length_m,
+            total_width_m=total_width_m,
+            model_name=model_name,
+            top_k=top_k,
+            judge_enabled=judge_enabled,
+            senkei_json_path=senkei_json_path,
+            ifc_output_path=ifc_output_path,
+        )
+
+    def run_with_repair(
+        self,
+        bridge_length_m: float = DEFAULT_BRIDGE_LENGTH_M,
+        total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
+        model_name: str = "gpt-5-mini",
+        top_k: int = TOP_K,
+        max_iterations: int = DEFAULT_MAX_ITERATIONS,
+    ) -> RunWithRepairResult:
+        """Designer → Judge → 修正ループ → IFC を実行する（各イテレーションの IFC も生成）。"""
+        return run_with_repair(
+            bridge_length_m=bridge_length_m,
+            total_width_m=total_width_m,
+            model_name=model_name,
+            top_k=top_k,
+            max_iterations=max_iterations,
+        )
+
+
 if __name__ == "__main__":
-    Fire(run)
+    Fire(CLI)

@@ -8,9 +8,13 @@ from typing import Sequence
 import fire
 
 from src.bridge_agentic_generate.config import app_config
-from src.bridge_agentic_generate.designer.models import BridgeDesign, DesignerInput
+from src.bridge_agentic_generate.designer.models import DesignerInput
 from src.bridge_agentic_generate.designer.services import generate_design_with_rag_log
-from src.bridge_agentic_generate.judge.models import JudgeInput, JudgeReport
+from src.bridge_agentic_generate.judge.models import (
+    JudgeInput,
+    RepairIteration,
+    RepairLoopResult,
+)
 from src.bridge_agentic_generate.judge.services import apply_patch_plan, judge_v1
 from src.bridge_agentic_generate.llm_client import LlmModel
 from src.bridge_agentic_generate.logger_config import logger
@@ -19,7 +23,6 @@ from src.bridge_agentic_generate.rag.embedding_config import TOP_K
 DEFAULT_BRIDGE_LENGTH_M: float = 50.0
 DEFAULT_BRIDGE_LENGTHS_M: Sequence[float] = (30.0, 40.0, 50.0, 60.0, 70.0)
 DEFAULT_TOTAL_WIDTH_M: float = 10.0
-DEFAULT_MODEL_NAME: str = "gpt-5-mini"
 DEFAULT_MAX_ITERATIONS: int = 5
 
 
@@ -95,8 +98,8 @@ def run_with_repair_loop(
     total_width_m: float,
     model_name: LlmModel = LlmModel.GPT_5_MINI,
     top_k: int = TOP_K,
-    max_iterations: int = 5,
-) -> tuple[BridgeDesign, JudgeReport]:
+    max_iterations: int = DEFAULT_MAX_ITERATIONS,
+) -> RepairLoopResult:
     """Designer → Judge → (必要なら修正) のループを実行する。
 
     Args:
@@ -107,11 +110,10 @@ def run_with_repair_loop(
         max_iterations: 最大反復回数
 
     Returns:
-        (最終 BridgeDesign, 最終 JudgeReport) のタプル
-
-    Raises:
-        RuntimeError: max_iterations 回の修正で収束しなかった場合
+        RepairLoopResult: 全イテレーションの結果を含む結果オブジェクト
     """
+    iterations: list[RepairIteration] = []
+
     # 1. 初期設計を生成
     inputs = DesignerInput(bridge_length_m=bridge_length_m, total_width_m=total_width_m)
     result = generate_design_with_rag_log(inputs=inputs, top_k=top_k, model_name=model_name)
@@ -131,6 +133,15 @@ def run_with_repair_loop(
         judge_input = JudgeInput(bridge_design=design)
         report = judge_v1(judge_input, model=model_name)
 
+        # イテレーション結果を記録
+        iterations.append(
+            RepairIteration(
+                iteration=iteration,
+                design=design.model_copy(deep=True),
+                report=report,
+            )
+        )
+
         # 合格なら終了
         if report.pass_fail:
             logger.info(
@@ -138,7 +149,12 @@ def run_with_repair_loop(
                 report.utilization.max_util,
                 iteration + 1,
             )
-            return design, report
+            return RepairLoopResult(
+                converged=True,
+                iterations=iterations,
+                final_design=design,
+                final_report=report,
+            )
 
         # 不合格かつ PatchPlan が空の場合は ValueError（サービス層で送出済み）
         # ここに到達する場合は patch_plan.actions が空でないことが保証されている
@@ -161,14 +177,35 @@ def run_with_repair_loop(
     judge_input = JudgeInput(bridge_design=design)
     final_report = judge_v1(judge_input, model=model_name)
 
+    # 最終イテレーション結果を記録
+    iterations.append(
+        RepairIteration(
+            iteration=max_iterations,
+            design=design.model_copy(deep=True),
+            report=final_report,
+        )
+    )
+
     if final_report.pass_fail:
         logger.info("run_with_repair_loop: 最終照査で合格")
-        return design, final_report
+        return RepairLoopResult(
+            converged=True,
+            iterations=iterations,
+            final_design=design,
+            final_report=final_report,
+        )
 
-    raise RuntimeError(
-        f"run_with_repair_loop: {max_iterations} 回の修正で収束しませんでした。"
-        f" max_util={final_report.utilization.max_util:.3f},"
-        f" governing_check={final_report.utilization.governing_check}"
+    logger.warning(
+        "run_with_repair_loop: %d 回の修正で収束しませんでした。 max_util=%.3f, governing_check=%s",
+        max_iterations,
+        final_report.utilization.max_util,
+        final_report.utilization.governing_check,
+    )
+    return RepairLoopResult(
+        converged=False,
+        iterations=iterations,
+        final_design=design,
+        final_report=final_report,
     )
 
 
@@ -193,7 +230,7 @@ class CLI:
         self,
         bridge_length_m: float = DEFAULT_BRIDGE_LENGTH_M,
         total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
-        model_name: str = DEFAULT_MODEL_NAME,
+        model_name: LlmModel = LlmModel.GPT_5_MINI,
         top_k: int = TOP_K,
         judge: bool = False,
     ) -> None:
@@ -218,7 +255,7 @@ class CLI:
         self,
         bridge_length_m: float = DEFAULT_BRIDGE_LENGTH_M,
         total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
-        model_name: str = DEFAULT_MODEL_NAME,
+        model_name: LlmModel = LlmModel.GPT_5_MINI,
         top_k: int = TOP_K,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
     ) -> None:
@@ -231,7 +268,7 @@ class CLI:
             top_k: RAG で取得するチャンク数
             max_iterations: 最大反復回数
         """
-        design, report = run_with_repair_loop(
+        loop_result = run_with_repair_loop(
             bridge_length_m=bridge_length_m,
             total_width_m=total_width_m,
             model_name=LlmModel(model_name),
@@ -241,24 +278,50 @@ class CLI:
 
         # 結果を保存
         simple_json_dir = app_config.generated_simple_bridge_json_dir
+        judge_json_dir = app_config.generated_judge_json_dir
         simple_json_dir.mkdir(parents=True, exist_ok=True)
+        judge_json_dir.mkdir(parents=True, exist_ok=True)
 
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         base_name = f"design_L{int(bridge_length_m)}_B{int(total_width_m)}_{timestamp}"
-        design_path = simple_json_dir / f"{base_name}.json"
-        design_path.write_text(design.model_dump_json(indent=2, ensure_ascii=False), encoding="utf-8")
 
-        logger.info("Saved final design to %s", design_path)
+        # 各イテレーションの結果を保存
+        for iteration in loop_result.iterations:
+            iter_suffix = f"_iter{iteration.iteration}"
+            design_path = simple_json_dir / f"{base_name}{iter_suffix}.json"
+            judge_path = judge_json_dir / f"{base_name}{iter_suffix}_judge.json"
+
+            design_path.write_text(
+                iteration.design.model_dump_json(indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            judge_path.write_text(
+                iteration.report.model_dump_json(indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
+            logger.info("Saved iteration %d design to %s", iteration.iteration, design_path)
+            logger.info("Saved iteration %d judge to %s", iteration.iteration, judge_path)
+
+        # 最終設計を保存
+        final_design_path = simple_json_dir / f"{base_name}_final.json"
+        final_design_path.write_text(
+            loop_result.final_design.model_dump_json(indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+        logger.info("Saved final design to %s", final_design_path)
+
         logger.info(
-            "Final result: pass_fail=%s, max_util=%.3f, governing=%s",
-            report.pass_fail,
-            report.utilization.max_util,
-            report.utilization.governing_check,
+            "Final result: converged=%s, pass_fail=%s, max_util=%.3f, governing=%s",
+            loop_result.converged,
+            loop_result.final_report.pass_fail,
+            loop_result.final_report.utilization.max_util,
+            loop_result.final_report.utilization.governing_check,
         )
 
     def batch(
         self,
-        model_name: str = DEFAULT_MODEL_NAME,
+        model_name: LlmModel = LlmModel.GPT_5_MINI,
         total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
         top_k: int = TOP_K,
     ) -> None:

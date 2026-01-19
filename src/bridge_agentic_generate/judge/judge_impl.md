@@ -6,16 +6,36 @@ BridgeDesign と活荷重条件（p_live_equiv）を入力として、道路橋�
 
 ---
 
-## Phase 構成
+## 実装スコープ
 
-| Phase | 内容 | 依存関係 |
-|-------|------|----------|
-| 1 | モデル定義（Pydantic） | なし |
-| 2 | util 計算ロジック（決定論的） | Phase 1 |
-| 3 | JudgeReport 生成 | Phase 2 |
-| 4 | PatchPlan 生成（LLM 連携） | Phase 3 |
-| 5 | Designer 連携ループ | Phase 4 |
-| 6 | テスト | Phase 1-5 |
+**第一弾: Phase 3 まで先行実装**（PatchPlan 生成は後続フェーズ）
+
+| Phase | 内容 | 依存関係 | 今回の対象 |
+|-------|------|----------|-----------|
+| 1 | モデル定義（Pydantic） | なし | ✅ |
+| 2 | util 計算ロジック（決定論的） | Phase 1 | ✅ |
+| 3 | JudgeReport 生成 | Phase 2 | ✅ |
+| 4 | PatchPlan 生成（LLM 連携） | Phase 3 | ❌（後続）|
+| 5 | Designer 連携ループ | Phase 4 | ❌（後続）|
+| 6 | テスト | Phase 1-3 | ✅ |
+
+---
+
+## 材料定数（道路橋示方書準拠）
+
+| 項目 | 値 | 単位 | 備考 |
+|------|-----|------|------|
+| E（ヤング率） | 200000 | N/mm² | |
+| fy（降伏点） | 315 | N/mm² | SM490相当 |
+| γ_steel | 77e-6 | N/mm³ | 77 kN/m³ |
+| γ_concrete | 24.5e-6 | N/mm³ | 24.5 kN/m³(鉄筋コンクリートの想定) |
+
+---
+
+## 決定事項
+
+- **LLMモデル**: gpt-5-mini
+- **num_panels が None の場合**: bridge_length / panel_length から自動算出
 
 ---
 

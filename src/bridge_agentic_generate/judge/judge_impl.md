@@ -8,16 +8,14 @@ BridgeDesign と活荷重条件（p_live_equiv）を入力として、道路橋�
 
 ## 実装スコープ
 
-**第一弾: Phase 3 まで先行実装**（PatchPlan 生成は後続フェーズ）
-
-| Phase | 内容 | 依存関係 | 今回の対象 |
-|-------|------|----------|-----------|
-| 1 | モデル定義（Pydantic） | なし | ✅ |
-| 2 | util 計算ロジック（決定論的） | Phase 1 | ✅ |
-| 3 | JudgeReport 生成 | Phase 2 | ✅ |
-| 4 | PatchPlan 生成（LLM 連携） | Phase 3 | ❌（後続）|
-| 5 | Designer 連携ループ | Phase 4 | ❌（後続）|
-| 6 | テスト | Phase 1-3 | ✅ |
+| Phase | 内容 | 依存関係 | 状態 |
+|-------|------|----------|------|
+| 1 | モデル定義（Pydantic） | なし | ✅ 完了 |
+| 2 | util 計算ロジック（決定論的） | Phase 1 | ✅ 完了 |
+| 3 | JudgeReport 生成 | Phase 2 | ✅ 完了 |
+| 4 | PatchPlan 生成（LLM 連携） | Phase 3 | ✅ 完了 |
+| 5 | Designer 連携ループ | Phase 4 | ❌ 未実装 |
+| 6 | テスト | Phase 1-4 | ✅ 完了 |
 
 ---
 
@@ -533,13 +531,52 @@ def test_generate_patch_plan_with_mock():
 
 ## 完了条件（Definition of Done）
 
-- [ ] Phase 1: models.py が v1 仕様に更新されている
-- [ ] Phase 2: 全 util 計算関数が実装されている
-- [ ] Phase 3: `judge_design(input) -> JudgeReport` が動作する
-- [ ] Phase 4: LLM による PatchPlan 生成が動作する
+- [x] Phase 1: models.py が v1 仕様に更新されている
+- [x] Phase 2: 全 util 計算関数が実装されている
+- [x] Phase 3: `judge_v1(input) -> JudgeReport` が動作する
+- [x] Phase 4: LLM による PatchPlan 生成が動作する
 - [ ] Phase 5: Designer-Judge ループが動作する
-- [ ] Phase 6: 単体・統合テストが通る
-- [ ] `make fmt && make lint` がエラーなし
+- [x] Phase 6: 単体・統合テストが通る（12件）
+- [x] `make fmt && make lint` がエラーなし
+
+---
+
+## 実装済みファイル
+
+| ファイル | 内容 |
+|----------|------|
+| `models.py` | JudgeInput, JudgeReport, Utilization, Diagnostics, PatchPlan, RepairContext 等 |
+| `services.py` | `judge_v1()`, 断面計算, 死荷重計算, 活荷重計算, 各util計算 |
+| `prompts.py` | `generate_patch_plan()`, システム/ユーザープロンプト構築 |
+| `__init__.py` | モジュールエクスポート |
+| `tests/judge/test_services.py` | 単体テスト・統合テスト（12件） |
+| `scripts/run_judge_sample.py` | サンプル実行スクリプト（LLMモック版） |
+
+---
+
+## 使い方
+
+```python
+from src.bridge_agentic_generate.judge import JudgeInput, judge_v1
+from src.bridge_agentic_generate.designer.models import BridgeDesign
+
+# BridgeDesign を準備
+bridge_design = BridgeDesign.model_validate(design_dict)
+
+# 照査実行
+judge_input = JudgeInput(bridge_design=bridge_design)
+report = judge_v1(judge_input)
+
+# 結果確認
+print(f"合否: {report.pass_fail}")
+print(f"max_util: {report.utilization.max_util}")
+print(f"支配項目: {report.utilization.governing_check}")
+```
+
+サンプル実行:
+```bash
+uv run python scripts/run_judge_sample.py
+```
 
 ---
 

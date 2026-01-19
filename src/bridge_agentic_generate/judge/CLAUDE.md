@@ -29,31 +29,66 @@ class JudgeParams(BaseModel):
 class MaterialsSteel(BaseModel):
     E: float           # N/mm²
     fy: float          # N/mm²
-    unit_weight: float # kN/m³ (or N/mm³ どちらでも可。統一する)
+    unit_weight: float # N/mm³（※入力時に kN/m³ から変換済み前提）
 
 class MaterialsConcrete(BaseModel):
-    unit_weight: float # kN/m³
+    unit_weight: float # N/mm³（※入力時に kN/m³ から変換済み前提）
+
+class LoadInput(BaseModel):
+    p_live_equiv: float = 12.0  # kN/m² 等価活荷重（デフォルト12、感度解析で6〜12を振る）
 
 class LoadEffects(BaseModel):
+    """Judge 内部で計算される活荷重断面力"""
     M_live_max: float  # N·mm
     V_live_max: float  # N
 
-class DeckInfo(BaseModel):
-    thickness: float                       # mm
-    required_thickness: float | None = None # mm (Designer が計算済みなら入る)
-
 class JudgeInput(BaseModel):
     bridge_design: BridgeDesign  # 既存スキーマを参照
-    load_effects: LoadEffects
+    load_input: LoadInput        # p_live_equiv を含む
     materials_steel: MaterialsSteel
     materials_concrete: MaterialsConcrete
-    judge_params: JudgeParams
-    deck: DeckInfo
+    judge_params: JudgeParams = Field(default_factory=JudgeParams)
 ```
 
 > **注:** BridgeDesign は既存の構造化スキーマを使う（dimensions/sections/components が入ってるやつ）。
 
-### 1.2 出力：JudgeReport + PatchPlan
+### 1.3 活荷重の内部計算
+
+ユーザーは `p_live_equiv`（kN/m²）を入力し、Judge が BridgeDesign の寸法から主桁1本あたりの `M_live_max`, `V_live_max` を内部生成する。
+
+```python
+# 受け持ち幅
+b_tr_m = (total_width_mm / 1000) / num_girders  # m
+
+# 等価線荷重
+w_live_kN_m = p_live_equiv * b_tr_m  # kN/m
+
+# 橋長
+L_m = bridge_length_mm / 1000  # m
+
+# 単純桁の最大断面力
+M_live_max_kN_m = w_live_kN_m * L_m**2 / 8  # kN·m
+V_live_max_kN = w_live_kN_m * L_m / 2       # kN
+
+# 単位変換: kN·m → N·mm, kN → N
+M_live_max = M_live_max_kN_m * 1e6  # N·mm
+V_live_max = V_live_max_kN * 1e3    # N
+```
+
+**p_live_equiv のデフォルト値:**
+- デフォルト: 12 kN/m²（せん断側の方が大きいので保守的）
+- 感度解析: 6〜12 kN/m² を振る
+
+> **注意: v1 の活荷重モデルは簡略化**
+>
+> 本来の L荷重は p1・p2（等分布荷重と集中荷重）、載荷幅（主車線 5.5m 等）、載荷長 D、車線配置ルール込みで複雑な載荷条件を持つ。
+> v1 ではこれを「等価面圧 1 本（p_live_equiv）」に潰しているため、**「道示どおり厳密」ではなく「道示の代表値に基づく概略指標」** として扱う。
+> 詳細設計段階では別途厳密な活荷重計算が必要。
+
+> alpha_bend, alpha_shear は v1の簡略パラメータであり、許容応力度法で用いられる鋼材降伏点に対する安全率（概ね 1.6〜1.7）を、σ_allow = α*fy の形に置き換えたものとする。
+v1では安全率 1.7 を想定し、1/1.7 ≈ 0.59 を丸めて α = 0.60 をデフォルトとする。
+
+### 1.4 出力：JudgeReport + PatchPlan
 
 ```python
 class GoverningCheck(StrEnum):
@@ -61,7 +96,6 @@ class GoverningCheck(StrEnum):
     BEND = "bend"
     SHEAR = "shear"
     DEFLECTION = "deflection"
-    CROSSBEAM_LAYOUT = "crossbeam_layout"
 
 class Utilization(BaseModel):
     deck: float
@@ -78,7 +112,8 @@ class Diagnostics(BaseModel):
     V_dead: float
     M_total: float
     V_total: float
-    I_steel: float
+    ybar: float
+    I: float
     y_top: float
     y_bottom: float
     sigma_top: float
@@ -89,10 +124,25 @@ class Diagnostics(BaseModel):
     sigma_allow: float
     tau_allow: float
     crossbeam_layout_ok: bool
-    layout_violations: list[str] = []
+
+class PatchActionOp(StrEnum):
+    INCREASE_WEB_HEIGHT = "increase_web_height"
+    INCREASE_WEB_THICKNESS = "increase_web_thickness"
+    INCREASE_TOP_FLANGE_THICKNESS = "increase_top_flange_thickness"
+    INCREASE_BOTTOM_FLANGE_THICKNESS = "increase_bottom_flange_thickness"
+    INCREASE_TOP_FLANGE_WIDTH = "increase_top_flange_width"
+    INCREASE_BOTTOM_FLANGE_WIDTH = "increase_bottom_flange_width"
+    SET_DECK_THICKNESS_TO_REQUIRED = "set_deck_thickness_to_required"
+    FIX_CROSSBEAM_LAYOUT = "fix_crossbeam_layout"
+
+class PatchAction(BaseModel):
+    op: PatchActionOp
+    path: str          # 例: "sections.girder_standard.web_height"
+    delta_mm: float    # 変更量（mm）。set_deck_thickness_to_required等では0でも可
+    reason: str        # 変更理由
 
 class PatchPlan(BaseModel):
-    actions: list[dict]  # path + op + delta で OK（後で厳密化）
+    actions: list[PatchAction]
 
 class JudgeReport(BaseModel):
     pass_fail: bool
@@ -117,19 +167,23 @@ class JudgeReport(BaseModel):
 | M_* | N·mm |
 | V_* | N |
 
-`unit_weight`（kN/m³）は N/mm³ へ変換して使うか、全体を m 系にして最後に N·mm へ戻す。
-→ 実装でバグりやすいので、どちらかに固定してドキュメント化すること。
+`unit_weight` は **N/mm³** で統一する。入力側で kN/m³ → N/mm³ に変換済みとする。
 
-**おすすめ:** `unit_weight_kN_m3` → `N/mm³` に変換
+**変換式:**
 
 ```
 1 kN/m³ = 1000 N / (1e9 mm³) = 1e-6 N/mm³
 ```
 
+> **例:** 鋼 78.5 kN/m³ → 78.5e-6 N/mm³、コンクリート 25 kN/m³ → 25e-6 N/mm³
+
 ### 2.2 受け持ち幅（v1 固定）
 
 ```
-b_tr = total_width / num_girders（mm）
+girder_spacing = BridgeDesign.dimensions.girder_spacing (mm)
+b_tr = girder_spacing（mm）
+
+deck_thickness = BridgeDesign.components.deck.thickness（mm）
 
 床版体積/長さ（1mm 長） = deck_thickness × b_tr（mm²）
 
@@ -155,6 +209,8 @@ w_steel (N/mm) = gamma_s (N/mm³) × A (mm²)
 ### 2.4 死荷重断面力（単純桁・等分布）
 
 ```
+bridge_length = BridgeDesign.dimensions.bridge_length_mm (mm)
+
 w_dead = w_deck + w_steel（N/mm）
 L = bridge_length（mm）
 
@@ -174,6 +230,8 @@ V_dead = w_dead × L / 2（N）
 ```
 全高：H = top_flange_thickness + web_height + bottom_flange_thickness
 ```
+`web_height` は腹板高さ（フランジ間距離）。フランジ板厚を含まない。
+簡略的に、合成桁としての床版の剛性寄与を無視する。
 
 ### 2.6 合計断面力
 
@@ -181,6 +239,7 @@ V_dead = w_dead × L / 2（N）
 M_total = M_dead + M_live_max
 V_total = V_dead + V_live_max
 ```
+M_live_max, V_live_max は「代表主桁（1本）に生じる最大断面力（活荷重分）」を入力する（橋全体系ではない）。
 
 ### 2.7 応力度
 
@@ -211,6 +270,11 @@ util_shear = |tau_avg| / tau_allow
 
 ### 2.9 たわみ（M から等価等分布に換算）
 
+> **v1 前提:** 活荷重の載荷形状（集中荷重・移動荷重・車線配置等）をモデル化しないため、
+> M_total を等価等分布荷重 w_eq に換算して評価する近似とする。
+> 本たわみ util は厳密なたわみ照査ではなく、概略設計段階のスクリーニング指標である。
+> deflection util は「主桁1本あたりの死荷重＋活荷重の合計作用（M_dead + M_live_max）から等価等分布換算して得た概略たわみ」を L/600 と比較する。
+
 ```
 w_eq        = 8 × M_total / L²（N/mm）
 delta       = 5 × w_eq × L⁴ / (384 × E × I)（mm）
@@ -219,23 +283,27 @@ util_defl   = delta / delta_allow
 ```
 
 ### 2.10 床版厚 util
-
-- `required_thickness` が入力にあるならそれを使う
-- ない場合は v1 では `util_deck = 0` とせず、**1.0 扱い（=未評価）** にするか、例外にする
-
-> **おすすめ:** `required_thickness is None` なら `util_deck = 1.0` で `layout_violations` に「required_thickness missing」を入れる（ループが止まらない）
+`BridgeDesign.components.deck.thickness` から床版厚を取得する。
+道路橋示方書の式は `L_support` が **m単位** で入力される前提。内部の `girder_spacing` は **mm** なので変換が必要。
 
 ```
-util_deck = required / provided
+provided_mm = BridgeDesign.components.deck.thickness
+L_support_m = girder_spacing_mm / 1000
+required_mm = max(30 * L_support_m + 110, 160)
+util_deck   = required_mm / provided_mm
 ```
 
 ### 2.11 横桁配置チェック（v1）
+
+`panel_length` と `num_panels` は `BridgeDesign.dimensions` から取得する：
+- `panel_length = dimensions.crossbeam_spacing`（mm）
+- `num_panels = dimensions.num_panels`
 
 ```
 crossbeam_layout_ok = (abs(panel_length × num_panels - bridge_length) <= tol)
 ```
 
-- `tol` は 1mm 程度
+- `tol = 1.0` (mm)
 - 追加で `panel_length <= 20000` もチェック
 - NG なら `governing_check = "crossbeam_layout"` として `pass_fail = False`
 
@@ -243,25 +311,107 @@ crossbeam_layout_ok = (abs(panel_length × num_panels - bridge_length) <= tol)
 
 ## 3. PatchPlan（修正提案ロジック）
 
-`governing_check` に応じた修正：
+### 3.1 方針（v1の重要設計）
 
-| governing_check | 修正内容 |
-|-----------------|----------|
-| `deflection` | `sections.girder_standard.web_height += 100` |
-| `bend` | `top_flange_thickness += 2`（or bottom 優先でも良いが固定化） |
-| `shear` | `web_thickness += 2` |
-| `deck` | `deck.thickness += 10` |
-| `crossbeam_layout` | `dimensions.num_panels` を `round(L/panel_length)` に合わせる or `panel_length = L/num_panels` に修正（どちらか固定） |
+- 照査（util計算・合否判定）は**決定論的**に行う（同じ入力なら同じ結果）
+- 修正案（どのパラメータをどれだけ動かすか）の選択は **LLM** に行わせる
+- ただし LLM の自由度を暴れさせないため、許される修正操作を限定し、操作の範囲（刻み）も固定する
 
-Patch は「path」「delta」「reason」を dict で入れる：
+**優先順位**（固定）：
+
+1. **安全**: すべての util ≤ 1.0
+2. **施工性**: 急激な変更を避ける（変更量と変更箇所を最小化）
+3. **鋼重最小**: 同等なら軽い案
+
+### 3.2 AllowedActions（v1で許可する修正操作）
+
+LLMが提案できる操作は以下のみ。
+
+#### 主桁（girder_standard）
+
+| 操作名 | 許容値 |
+|--------|--------|
+| `increase_web_height` | Δh ∈ {+100, +200, +300} mm |
+| `increase_web_thickness` | Δtw ∈ {+2, +4} mm |
+| `increase_top_flange_thickness` | Δtt ∈ {+2, +4, +6} mm |
+| `increase_bottom_flange_thickness` | Δtb ∈ {+2, +4, +6} mm |
+| `increase_top_flange_width` | Δbt ∈ {+50, +100} mm |
+| `increase_bottom_flange_width` | Δbb ∈ {+50, +100} mm |
+
+#### 床版（deck）
+
+| 操作名 | 説明 |
+|--------|------|
+| `set_deck_thickness_to_required` | thickness := required_thickness（Judgeが計算した値） |
+
+#### 横桁配置（dimensions）
+
+| 操作名 | 説明 |
+|--------|------|
+| `fix_crossbeam_layout` | num_panels := round(L / panel_length) または panel_length := L / num_panels |
+
+- v1では どちらか一方に固定する（推奨：num_panels を変更して整合させる）
+- `panel_length <= 20000 mm` を満たす方向のみ許可
+
+### 3.3 RepairContext（LLMへ渡す入力）
+
+Judgeは util 計算後、LLMに渡すための RepairContext を組み立てる。
+
+**含める情報**（最低限）：
+
+| フィールド | 内容 |
+|------------|------|
+| `utilization` | deck/bend/shear/deflection の util|
+| `crossbeam_layout_ok` | 横桁配置の整合性（bool） |
+| `governing_check` | max_util の支配項目 |
+| `diagnostics` | 主要中間量（M_total, V_total, I, y_top/y_bottom, sigma_top/bottom, tau_avg, delta 等） |
+| `current_design` | 対象パラメータ（web_height, web_thickness, flange_width/thickness, deck_thickness, panel_length, num_panels） |
+| `allowed_actions` | 3.2の操作一式（操作名＋可能なΔ） |
+| `priorities` | 安全>施工性>鋼重（固定文言で良い） |
+
+### 3.4 LLMの出力（PatchPlan）
+
+LLMは RepairContext を入力として、以下の制約を満たす PatchPlan を返す：
+
+- actions は**最大3手**まで
+- 急激な変更を避ける（例：最初は +100mm を優先し、必要なら次ループで追加）
+- 支配 util を確実に下げる意図が説明されている
+- 許可された操作以外は禁止
+
+**PatchPlan のフォーマット**（v1）：
 
 ```json
 {
-  "path": "sections.girder_standard.web_height",
-  "delta_mm": 100,
-  "reason": "util_deflection governs"
+  "actions": [
+    {
+      "op": "increase_web_height",
+      "path": "sections.girder_standard.web_height",
+      "delta_mm": 100,
+      "reason": "util_deflection が支配的。桁高増はたわみと曲げの両方を改善しやすい。急激変更回避のため+100mmから開始。"
+    }
+  ]
 }
 ```
+
+### 3.5 ループ内の責務分担（重要）
+
+| 担当 | ステップ | 内容 |
+|------|----------|------|
+| **Judge**（決定論） | 1 | util計算・合否判定・governing_check決定 |
+| | 2 | RepairContext作成 |
+| **LLM**（判断） | 3 | RepairContextを見て PatchPlan（actions）を選ぶ |
+| **Designer**（適用） | 4 | PatchPlan を BridgeDesign に反映（スキーマに沿って更新） |
+| **Judge**（再照査） | 5 | 更新案を再度評価し、収束 or 次のPatchPlan生成 |
+
+> **注:** JudgeがBridgeDesignを直接書き換えない。修正の適用はDesigner側の責務とする（ログと責務が明確になるため）。
+
+### 3.6 フォールバック（LLMが変な提案をした場合）
+
+| ケース | 対処 |
+|--------|------|
+| LLMが許可されていない操作を出した場合 | Judgeは無効として差し戻し（allowed_actionsの範囲内に再提案を要求） |
+| `pass_fail = False` かつ actions が空の場合 | **エラーとして処理を中断**（`ValueError` を送出し、呼び出し元で対処させる） |
+| `pass_fail = True` かつ actions が空の場合 | **正常終了**（修正不要のため空で問題なし） |
 
 ---
 
@@ -297,5 +447,4 @@ Patch は「path」「delta」「reason」を dict で入れる：
 ## 6. 注意点（落とし穴）
 
 - 単位の統一（kN/m³ → N/mm³ 変換）でバグりやすい
-- `M_live_max` の符号（正負）は一旦 `abs()` で util を計算してよい（v1 は最大値入力前提）
-- `deck required_thickness` が未入力の時の扱いは固定する（止めない）
+- `M_live_max`, `V_live_max` は正の最大値（gt=0）を入力する前提（符号は扱わない）

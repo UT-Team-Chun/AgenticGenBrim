@@ -7,7 +7,12 @@ from __future__ import annotations
 
 import math
 
-from src.bridge_agentic_generate.designer.models import BridgeDesign, GirderSection
+from src.bridge_agentic_generate.designer.models import (
+    BridgeDesign,
+    Components,
+    GirderSection,
+    Sections,
+)
 from src.bridge_agentic_generate.judge.models import (
     AllowedActionSpec,
     CurrentDesignValues,
@@ -478,4 +483,96 @@ def _build_repair_context(
         current_design=current_design,
         allowed_actions=ALLOWED_ACTIONS,
         deck_thickness_required=deck_thickness_required,
+    )
+
+
+# =============================================================================
+# PatchPlan 適用
+# =============================================================================
+
+
+def apply_patch_plan(
+    design: BridgeDesign,
+    patch_plan: PatchPlan,
+    deck_thickness_required: float | None = None,
+) -> BridgeDesign:
+    """PatchPlan を BridgeDesign に適用する。
+
+    Args:
+        design: 元の BridgeDesign
+        patch_plan: 適用する PatchPlan
+        deck_thickness_required: 必要床版厚 [mm]（SET_DECK_THICKNESS_TO_REQUIRED 用）
+
+    Returns:
+        修正後の新しい BridgeDesign
+    """
+    # 現在の値を取り出す
+    dims = design.dimensions
+    girder = design.sections.girder_standard
+    crossbeam = design.sections.crossbeam_standard
+    deck = design.components.deck
+
+    # 各アクションを適用
+    for action in patch_plan.actions:
+        op = action.op
+        delta = action.delta_mm
+
+        if op == PatchActionOp.INCREASE_WEB_HEIGHT:
+            girder = girder.model_copy(update={"web_height": girder.web_height + delta})
+            logger.info("apply_patch_plan: web_height += %.0f → %.0f", delta, girder.web_height)
+
+        elif op == PatchActionOp.INCREASE_WEB_THICKNESS:
+            girder = girder.model_copy(update={"web_thickness": girder.web_thickness + delta})
+            logger.info("apply_patch_plan: web_thickness += %.0f → %.0f", delta, girder.web_thickness)
+
+        elif op == PatchActionOp.INCREASE_TOP_FLANGE_THICKNESS:
+            girder = girder.model_copy(update={"top_flange_thickness": girder.top_flange_thickness + delta})
+            logger.info("apply_patch_plan: top_flange_thickness += %.0f → %.0f", delta, girder.top_flange_thickness)
+
+        elif op == PatchActionOp.INCREASE_BOTTOM_FLANGE_THICKNESS:
+            girder = girder.model_copy(update={"bottom_flange_thickness": girder.bottom_flange_thickness + delta})
+            logger.info(
+                "apply_patch_plan: bottom_flange_thickness += %.0f → %.0f", delta, girder.bottom_flange_thickness
+            )
+
+        elif op == PatchActionOp.INCREASE_TOP_FLANGE_WIDTH:
+            girder = girder.model_copy(update={"top_flange_width": girder.top_flange_width + delta})
+            logger.info("apply_patch_plan: top_flange_width += %.0f → %.0f", delta, girder.top_flange_width)
+
+        elif op == PatchActionOp.INCREASE_BOTTOM_FLANGE_WIDTH:
+            girder = girder.model_copy(update={"bottom_flange_width": girder.bottom_flange_width + delta})
+            logger.info("apply_patch_plan: bottom_flange_width += %.0f → %.0f", delta, girder.bottom_flange_width)
+
+        elif op == PatchActionOp.SET_DECK_THICKNESS_TO_REQUIRED:
+            if deck_thickness_required is None:
+                raise ValueError("deck_thickness_required が指定されていません")
+            deck = deck.model_copy(update={"thickness": deck_thickness_required})
+            logger.info("apply_patch_plan: deck.thickness = %.0f (required)", deck_thickness_required)
+
+        elif op == PatchActionOp.FIX_CROSSBEAM_LAYOUT:
+            # num_panels を調整する方式（仕様推奨）
+            new_num_panels = round(dims.bridge_length / dims.panel_length)
+            dims = dims.model_copy(update={"num_panels": new_num_panels})
+            logger.info(
+                "apply_patch_plan: num_panels = round(%.0f / %.0f) = %d",
+                dims.bridge_length,
+                dims.panel_length,
+                new_num_panels,
+            )
+
+        else:
+            logger.warning("apply_patch_plan: 未知の操作 %s をスキップ", op)
+
+    # 新しい BridgeDesign を構築
+    new_sections = Sections(
+        girder_standard=girder,
+        crossbeam_standard=crossbeam,
+    )
+    new_components = Components(
+        deck=deck,
+    )
+    return BridgeDesign(
+        dimensions=dims,
+        sections=new_sections,
+        components=new_components,
     )

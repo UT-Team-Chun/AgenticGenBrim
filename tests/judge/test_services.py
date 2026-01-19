@@ -27,6 +27,7 @@ from src.bridge_agentic_generate.judge.models import (
     PatchPlan,
 )
 from src.bridge_agentic_generate.judge.services import (
+    apply_patch_plan,
     calc_dead_load,
     calc_dead_load_effects,
     calc_girder_section_area,
@@ -564,3 +565,170 @@ class TestJudgeV1WithFixture:
         print(f"I: {diag.moment_of_inertia:.2e} mm⁴")
         print(f"sigma_allow: {diag.sigma_allow:.2f} N/mm²")
         print(f"delta: {diag.delta:.2f} mm (allow: {diag.delta_allow:.2f} mm)")
+
+
+# =============================================================================
+# 単体テスト: apply_patch_plan
+# =============================================================================
+
+
+class TestApplyPatchPlan:
+    """apply_patch_plan のテスト。"""
+
+    def test_apply_patch_plan_increase_web_height(self, sample_bridge_design: BridgeDesign) -> None:
+        """web_height の増加が正しく適用されること。"""
+        patch_plan = PatchPlan(
+            actions=[
+                PatchAction(
+                    op=PatchActionOp.INCREASE_WEB_HEIGHT,
+                    path="sections.girder_standard.web_height",
+                    delta_mm=100.0,
+                    reason="たわみ改善のため",
+                ),
+            ]
+        )
+
+        original_height = sample_bridge_design.sections.girder_standard.web_height
+        new_design = apply_patch_plan(sample_bridge_design, patch_plan)
+
+        assert new_design.sections.girder_standard.web_height == pytest.approx(original_height + 100.0)
+        # 他のフィールドは変更されていないこと
+        assert (
+            new_design.sections.girder_standard.web_thickness
+            == sample_bridge_design.sections.girder_standard.web_thickness
+        )
+
+    def test_apply_patch_plan_set_deck_thickness(self, sample_bridge_design: BridgeDesign) -> None:
+        """床版厚の設定が正しく適用されること。"""
+        patch_plan = PatchPlan(
+            actions=[
+                PatchAction(
+                    op=PatchActionOp.SET_DECK_THICKNESS_TO_REQUIRED,
+                    path="components.deck.thickness",
+                    delta_mm=0.0,
+                    reason="必要床版厚に設定",
+                ),
+            ]
+        )
+
+        required_thickness = 250.0
+        new_design = apply_patch_plan(sample_bridge_design, patch_plan, deck_thickness_required=required_thickness)
+
+        assert new_design.components.deck.thickness == pytest.approx(required_thickness)
+
+    def test_apply_patch_plan_set_deck_thickness_without_required_raises(
+        self, sample_bridge_design: BridgeDesign
+    ) -> None:
+        """deck_thickness_required が指定されていない場合にエラーが発生すること。"""
+        patch_plan = PatchPlan(
+            actions=[
+                PatchAction(
+                    op=PatchActionOp.SET_DECK_THICKNESS_TO_REQUIRED,
+                    path="components.deck.thickness",
+                    delta_mm=0.0,
+                    reason="必要床版厚に設定",
+                ),
+            ]
+        )
+
+        with pytest.raises(ValueError, match="deck_thickness_required"):
+            apply_patch_plan(sample_bridge_design, patch_plan)
+
+    def test_apply_patch_plan_fix_crossbeam_layout(self, sample_bridge_design: BridgeDesign) -> None:
+        """横桁配置修正が正しく適用されること。"""
+        # panel_length * num_panels != bridge_length になる設計を作成
+        bad_layout_design = BridgeDesign(
+            dimensions=Dimensions(
+                bridge_length=30000.0,
+                total_width=10000.0,
+                num_girders=4,
+                girder_spacing=2667.0,
+                panel_length=5000.0,
+                num_panels=5,  # 5 * 5000 = 25000 != 30000
+            ),
+            sections=sample_bridge_design.sections,
+            components=sample_bridge_design.components,
+        )
+
+        patch_plan = PatchPlan(
+            actions=[
+                PatchAction(
+                    op=PatchActionOp.FIX_CROSSBEAM_LAYOUT,
+                    path="dimensions.num_panels",
+                    delta_mm=0.0,
+                    reason="横桁配置を修正",
+                ),
+            ]
+        )
+
+        new_design = apply_patch_plan(bad_layout_design, patch_plan)
+
+        # num_panels = round(30000 / 5000) = 6
+        assert new_design.dimensions.num_panels == 6
+
+    def test_apply_patch_plan_multiple_actions(self, sample_bridge_design: BridgeDesign) -> None:
+        """複数アクションが正しく適用されること。"""
+        patch_plan = PatchPlan(
+            actions=[
+                PatchAction(
+                    op=PatchActionOp.INCREASE_WEB_HEIGHT,
+                    path="sections.girder_standard.web_height",
+                    delta_mm=200.0,
+                    reason="たわみ改善",
+                ),
+                PatchAction(
+                    op=PatchActionOp.INCREASE_TOP_FLANGE_THICKNESS,
+                    path="sections.girder_standard.top_flange_thickness",
+                    delta_mm=4.0,
+                    reason="曲げ改善",
+                ),
+                PatchAction(
+                    op=PatchActionOp.INCREASE_BOTTOM_FLANGE_WIDTH,
+                    path="sections.girder_standard.bottom_flange_width",
+                    delta_mm=50.0,
+                    reason="曲げ改善",
+                ),
+            ]
+        )
+
+        original = sample_bridge_design.sections.girder_standard
+        new_design = apply_patch_plan(sample_bridge_design, patch_plan)
+        new_girder = new_design.sections.girder_standard
+
+        assert new_girder.web_height == pytest.approx(original.web_height + 200.0)
+        assert new_girder.top_flange_thickness == pytest.approx(original.top_flange_thickness + 4.0)
+        assert new_girder.bottom_flange_width == pytest.approx(original.bottom_flange_width + 50.0)
+        # 変更されていないフィールド
+        assert new_girder.web_thickness == pytest.approx(original.web_thickness)
+        assert new_girder.top_flange_width == pytest.approx(original.top_flange_width)
+        assert new_girder.bottom_flange_thickness == pytest.approx(original.bottom_flange_thickness)
+
+    def test_apply_patch_plan_all_girder_operations(self, sample_bridge_design: BridgeDesign) -> None:
+        """すべての主桁操作が正しく適用されること。"""
+        patch_plan = PatchPlan(
+            actions=[
+                PatchAction(
+                    op=PatchActionOp.INCREASE_WEB_THICKNESS,
+                    path="sections.girder_standard.web_thickness",
+                    delta_mm=2.0,
+                    reason="せん断改善",
+                ),
+            ]
+        )
+
+        original = sample_bridge_design.sections.girder_standard.web_thickness
+        new_design = apply_patch_plan(sample_bridge_design, patch_plan)
+
+        assert new_design.sections.girder_standard.web_thickness == pytest.approx(original + 2.0)
+
+    def test_apply_patch_plan_empty_actions(self, sample_bridge_design: BridgeDesign) -> None:
+        """空のアクションリストの場合、設計が変更されないこと。"""
+        patch_plan = PatchPlan(actions=[])
+
+        new_design = apply_patch_plan(sample_bridge_design, patch_plan)
+
+        # 値は同じだが、別のインスタンス
+        assert (
+            new_design.sections.girder_standard.web_height == sample_bridge_design.sections.girder_standard.web_height
+        )
+        assert new_design.components.deck.thickness == sample_bridge_design.components.deck.thickness

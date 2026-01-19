@@ -23,7 +23,7 @@ RAG + OpenAI API で橋梁設計JSONを生成し、IFCに変換する。
 src/
 ├── main.py                         # 統合CLI（Designer→IFC）
 ├── bridge_agentic_generate/        # LLM橋梁設計生成
-│   ├── main.py                     # Designer + Judge 実行
+│   ├── main.py                     # Designer/Judge CLI（Fire）
 │   ├── config.py                   # パス定義
 │   ├── llm_client.py               # Responses API ラッパー
 │   ├── logger_config.py            # 共通ロガー
@@ -31,10 +31,10 @@ src/
 │   │   ├── models.py               # BridgeDesign等のPydanticモデル
 │   │   ├── prompts.py              # LLMプロンプト
 │   │   └── services.py             # 生成ロジック
-│   ├── judge/                      # 設計評価（現状ダミー）
-│   │   ├── models.py               # 評価モデル
-│   │   ├── prompts.py              # 評価プロンプト
-│   │   └── services.py             # 評価ロジック
+│   ├── judge/                      # 照査・修正提案
+│   │   ├── models.py               # JudgeInput/JudgeReport/PatchPlan等
+│   │   ├── prompts.py              # PatchPlan生成プロンプト
+│   │   └── services.py             # 照査計算・apply_patch_plan
 │   ├── rag/                        # RAG（検索拡張生成）
 │   │   ├── embedding_config.py     # FileNamesUsedForRag定義
 │   │   ├── loader.py               # チャンク化・埋め込み生成
@@ -90,7 +90,31 @@ results = search_text(query="主桁の最小板厚", top_k=5)
 - 道路橋示方書_鋼橋・鋼部材編.pdf
 
 #### judge/
-道路橋示方書に基づき設計結果を評価する予定（現状はダミー実装）。
+決定論的な照査計算（曲げ・せん断・たわみ・床版厚・横桁配置）を行い、不合格時は LLM で PatchPlan を生成。
+
+```python
+# 使用例
+from src.bridge_agentic_generate.judge.services import judge_v1, apply_patch_plan
+from src.bridge_agentic_generate.judge.models import JudgeInput
+
+judge_input = JudgeInput(bridge_design=design)
+report = judge_v1(judge_input)
+
+if not report.pass_fail:
+    # PatchPlan を適用して再照査
+    new_design = apply_patch_plan(
+        design=design,
+        patch_plan=report.patch_plan,
+        deck_thickness_required=report.diagnostics.deck_thickness_required,
+    )
+```
+
+**照査項目:**
+- 曲げ応力度 util（sigma / sigma_allow）
+- せん断応力度 util（tau / tau_allow）
+- たわみ util（delta / delta_allow）
+- 床版厚 util（required / provided）
+- 横桁配置チェック（panel_length * num_panels == bridge_length）
 
 ### bridge_json_to_ifc/
 
@@ -118,8 +142,25 @@ make fix
 # Lint のみ（CI相当）
 make lint
 
-# Designer 実行
-uv run python -m src.bridge_agentic_generate.main
+# Designer のみ（Judge なし）
+uv run python -m src.bridge_agentic_generate.main run \
+  --bridge_length_m 50 \
+  --total_width_m 10
+
+# Designer + Judge（1回照査のみ）
+uv run python -m src.bridge_agentic_generate.main run \
+  --bridge_length_m 50 \
+  --total_width_m 10 \
+  --judge
+
+# Designer + Judge + 修正ループ（合格するまで繰り返し）
+uv run python -m src.bridge_agentic_generate.main run_with_repair \
+  --bridge_length_m 50 \
+  --total_width_m 10 \
+  --max_iterations 5
+
+# バッチ実行（L=30,40,50,60,70m）
+uv run python -m src.bridge_agentic_generate.main batch
 
 # 統合CLI（Designer→IFC）
 uv run python -m src.main run \

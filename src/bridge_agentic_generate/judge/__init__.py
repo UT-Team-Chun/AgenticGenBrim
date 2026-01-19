@@ -20,7 +20,7 @@ from src.bridge_agentic_generate.judge.models import (
     RepairContext,
     Utilization,
 )
-from src.bridge_agentic_generate.judge.services import judge_v1
+from src.bridge_agentic_generate.judge.services import apply_patch_plan, judge_v1
 
 __all__ = [
     "AllowedActionSpec",
@@ -38,5 +38,6 @@ __all__ = [
     "PatchPlan",
     "RepairContext",
     "Utilization",
+    "apply_patch_plan",
     "judge_v1",
 ]

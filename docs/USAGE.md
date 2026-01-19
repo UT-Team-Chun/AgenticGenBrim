@@ -45,41 +45,49 @@ echo "OPENAI_API_KEY=sk-xxxxxxxx" > .env
 
 ## 生成・評価・IFC 出力
 
-- Designer 単体（既定: L=50m, B=10m, GPT-5-mini, top_k=5）。
+### Designer / Judge CLI
 
-  ```bash
-  uv run python -m src.bridge_agentic_generate.main
-  ```
+```bash
+# Designer のみ（Judge なし）
+uv run python -m src.bridge_agentic_generate.main run \
+  --bridge_length_m 50 \
+  --total_width_m 10
 
-  出力: `data/generated_simple_bridge_json/design_L{L}_B{B*10:02d}_{timestamp}.json` と
-  `data/generated_bridge_raglog_json/*_raglog.json`。
+# Designer + Judge（1回照査のみ）
+uv run python -m src.bridge_agentic_generate.main run \
+  --bridge_length_m 50 \
+  --total_width_m 10 \
+  --judge
 
-- JSON 生成だけ行う CLI（Fire）。戻り値は生成ファイルパス。
+# Designer + Judge + 修正ループ（合格するまで繰り返し）
+uv run python -m src.bridge_agentic_generate.main run_with_repair \
+  --bridge_length_m 50 \
+  --total_width_m 10 \
+  --max_iterations 5
 
-  ```bash
-  uv run python -m src.main generate \
-    --bridge_length_m 60 \
-    --total_width_m 11 \
-    --model_name gpt-5-mini \
-    --top_k 5 \
-    --judge_enabled false
-  ```
+# バッチ実行（L=30,40,50,60,70m）
+uv run python -m src.bridge_agentic_generate.main batch
+```
 
-- 生成 → IFC まで一括実行。
+出力:
+- `data/generated_simple_bridge_json/design_L{L}_B{B}_{timestamp}.json`
+- `data/generated_bridge_raglog_json/*_design_log.json`
 
-  ```bash
-  uv run python -m src.main run \
-    --bridge_length_m 50 \
-    --total_width_m 10 \
-    --model_name gpt-5-mini \
-    --ifc_output_path data/generated_ifc/sample.ifc
-  ```
+### 生成 → IFC 一括実行
 
-  - Designer の出力を詳細 JSON に変換 (`data/generated_detailed_bridge_json/…_detailed.json`)。
-  - ifcopenshell を用いて IFC を出力。
+```bash
+uv run python -m src.main run \
+  --bridge_length_m 50 \
+  --total_width_m 10 \
+  --model_name gpt-5-mini \
+  --ifc_output_path data/generated_ifc/sample.ifc
+```
 
-- 既存の BridgeDesign JSON を IFC 変換だけ行う。
+- Designer の出力を詳細 JSON に変換 (`data/generated_detailed_bridge_json/…_detailed.json`)。
+- ifcopenshell を用いて IFC を出力。
 
-  ```bash
-  uv run python -m src.bridge_json_to_ifc.run_convert data/generated_simple_bridge_json/<file>.json
-  ```
+### 既存 JSON を IFC 変換のみ
+
+```bash
+uv run python -m src.bridge_json_to_ifc.run_convert data/generated_simple_bridge_json/<file>.json
+```

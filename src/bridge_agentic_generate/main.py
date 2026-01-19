@@ -5,18 +5,22 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Sequence
 
-# from fire import Fire
+import fire
+
 from src.bridge_agentic_generate.config import app_config
-from src.bridge_agentic_generate.designer.models import DesignerInput
+from src.bridge_agentic_generate.designer.models import BridgeDesign, DesignerInput
 from src.bridge_agentic_generate.designer.services import generate_design_with_rag_log
-from src.bridge_agentic_generate.judge.models import JudgeInput
-from src.bridge_agentic_generate.judge.services import judge_design
+from src.bridge_agentic_generate.judge.models import JudgeInput, JudgeReport
+from src.bridge_agentic_generate.judge.services import apply_patch_plan, judge_v1
 from src.bridge_agentic_generate.llm_client import LlmModel
 from src.bridge_agentic_generate.logger_config import logger
 from src.bridge_agentic_generate.rag.embedding_config import TOP_K
 
+DEFAULT_BRIDGE_LENGTH_M: float = 50.0
 DEFAULT_BRIDGE_LENGTHS_M: Sequence[float] = (30.0, 40.0, 50.0, 60.0, 70.0)
 DEFAULT_TOTAL_WIDTH_M: float = 10.0
+DEFAULT_MODEL_NAME: str = "gpt-5-mini"
+DEFAULT_MAX_ITERATIONS: int = 5
 
 
 def run_batch(
@@ -81,20 +85,200 @@ def run_single_case(
     logger.info("Saved RAG log to %s", raglog_path)
 
     if judge_enabled:
-        judge_input = JudgeInput(
+        judge_input = JudgeInput(bridge_design=design)
+        report = judge_v1(judge_input)
+        logger.info("Judge result: pass_fail=%s, max_util=%.3f", report.pass_fail, report.utilization.max_util)
+
+
+def run_with_repair_loop(
+    bridge_length_m: float,
+    total_width_m: float,
+    model_name: LlmModel = LlmModel.GPT_5_MINI,
+    top_k: int = TOP_K,
+    max_iterations: int = 5,
+) -> tuple[BridgeDesign, JudgeReport]:
+    """Designer → Judge → (必要なら修正) のループを実行する。
+
+    Args:
+        bridge_length_m: 橋長 L [m]
+        total_width_m: 幅員 B [m]
+        model_name: 使用する LLM モデル名
+        top_k: RAG で取得するチャンク数
+        max_iterations: 最大反復回数
+
+    Returns:
+        (最終 BridgeDesign, 最終 JudgeReport) のタプル
+
+    Raises:
+        RuntimeError: max_iterations 回の修正で収束しなかった場合
+    """
+    # 1. 初期設計を生成
+    inputs = DesignerInput(bridge_length_m=bridge_length_m, total_width_m=total_width_m)
+    result = generate_design_with_rag_log(inputs=inputs, top_k=top_k, model_name=model_name)
+    design = result.design
+
+    logger.info(
+        "run_with_repair_loop: 初期設計生成完了 L=%.0fm, B=%.0fm",
+        bridge_length_m,
+        total_width_m,
+    )
+
+    # 2. Judge → 修正ループ
+    for iteration in range(max_iterations):
+        logger.info("run_with_repair_loop: イテレーション %d/%d", iteration + 1, max_iterations)
+
+        # 照査
+        judge_input = JudgeInput(bridge_design=design)
+        report = judge_v1(judge_input, model=model_name)
+
+        # 合格なら終了
+        if report.pass_fail:
+            logger.info(
+                "run_with_repair_loop: 合格（max_util=%.3f, iteration=%d）",
+                report.utilization.max_util,
+                iteration + 1,
+            )
+            return design, report
+
+        # 不合格かつ PatchPlan が空の場合は ValueError（サービス層で送出済み）
+        # ここに到達する場合は patch_plan.actions が空でないことが保証されている
+
+        # PatchPlan を適用
+        deck_thickness_required = report.diagnostics.deck_thickness_required
+        design = apply_patch_plan(
+            design=design,
+            patch_plan=report.patch_plan,
+            deck_thickness_required=deck_thickness_required,
+        )
+
+        logger.info(
+            "run_with_repair_loop: PatchPlan 適用完了（%d アクション）",
+            len(report.patch_plan.actions),
+        )
+
+    # 最大イテレーション後も収束しなかった場合
+    # 最後の照査結果を取得
+    judge_input = JudgeInput(bridge_design=design)
+    final_report = judge_v1(judge_input, model=model_name)
+
+    if final_report.pass_fail:
+        logger.info("run_with_repair_loop: 最終照査で合格")
+        return design, final_report
+
+    raise RuntimeError(
+        f"run_with_repair_loop: {max_iterations} 回の修正で収束しませんでした。"
+        f" max_util={final_report.utilization.max_util:.3f},"
+        f" governing_check={final_report.utilization.governing_check}"
+    )
+
+
+class CLI:
+    """Designer/Judge の CLI コマンド。
+
+    Usage:
+        # Designer のみ（Judge なし）
+        uv run python -m src.bridge_agentic_generate.main run --bridge_length_m=50 --total_width_m=10
+
+        # Designer + Judge（1回照査のみ）
+        uv run python -m src.bridge_agentic_generate.main run --bridge_length_m=50 --total_width_m=10 --judge
+
+        # Designer + Judge + 修正ループ（収束するまで繰り返し）
+        uv run python -m src.bridge_agentic_generate.main run_with_repair --bridge_length_m=50 --total_width_m=10
+
+        # バッチ実行
+        uv run python -m src.bridge_agentic_generate.main batch
+    """
+
+    def run(
+        self,
+        bridge_length_m: float = DEFAULT_BRIDGE_LENGTH_M,
+        total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
+        model_name: str = DEFAULT_MODEL_NAME,
+        top_k: int = TOP_K,
+        judge: bool = False,
+    ) -> None:
+        """単一ケースの Designer を実行する。
+
+        Args:
+            bridge_length_m: 橋長 L [m]
+            total_width_m: 幅員 B [m]
+            model_name: 使用する LLM モデル名
+            top_k: RAG で取得するチャンク数
+            judge: True の場合、Judge も実行する
+        """
+        run_single_case(
             bridge_length_m=bridge_length_m,
             total_width_m=total_width_m,
-            design=design,
+            model_name=LlmModel(model_name),
+            top_k=top_k,
+            judge_enabled=judge,
         )
-        result = judge_design(judge_input)
-        logger.info("Judge result: %s", result.model_dump())
+
+    def run_with_repair(
+        self,
+        bridge_length_m: float = DEFAULT_BRIDGE_LENGTH_M,
+        total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
+        model_name: str = DEFAULT_MODEL_NAME,
+        top_k: int = TOP_K,
+        max_iterations: int = DEFAULT_MAX_ITERATIONS,
+    ) -> None:
+        """Designer → Judge → 修正ループを実行する。
+
+        Args:
+            bridge_length_m: 橋長 L [m]
+            total_width_m: 幅員 B [m]
+            model_name: 使用する LLM モデル名
+            top_k: RAG で取得するチャンク数
+            max_iterations: 最大反復回数
+        """
+        design, report = run_with_repair_loop(
+            bridge_length_m=bridge_length_m,
+            total_width_m=total_width_m,
+            model_name=LlmModel(model_name),
+            top_k=top_k,
+            max_iterations=max_iterations,
+        )
+
+        # 結果を保存
+        simple_json_dir = app_config.generated_simple_bridge_json_dir
+        simple_json_dir.mkdir(parents=True, exist_ok=True)
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        base_name = f"design_L{int(bridge_length_m)}_B{int(total_width_m)}_{timestamp}"
+        design_path = simple_json_dir / f"{base_name}.json"
+        design_path.write_text(design.model_dump_json(indent=2, ensure_ascii=False), encoding="utf-8")
+
+        logger.info("Saved final design to %s", design_path)
+        logger.info(
+            "Final result: pass_fail=%s, max_util=%.3f, governing=%s",
+            report.pass_fail,
+            report.utilization.max_util,
+            report.utilization.governing_check,
+        )
+
+    def batch(
+        self,
+        model_name: str = DEFAULT_MODEL_NAME,
+        total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
+        top_k: int = TOP_K,
+    ) -> None:
+        """代表ケース（L=30,40,50,60,70m）をバッチ実行する。
+
+        Args:
+            model_name: 使用する LLM モデル名
+            total_width_m: 幅員 B [m]（全ケース共通）
+            top_k: RAG で取得するチャンク数
+        """
+        run_batch(
+            model_name=LlmModel(model_name),
+            total_width_m=total_width_m,
+            top_k=top_k,
+        )
 
 
 def main() -> None:
     """CLI エントリーポイント。"""
-    run_single_case(
-        bridge_length_m=50, total_width_m=10, model_name=LlmModel.GPT_5_MINI, top_k=TOP_K, judge_enabled=True
-    )
+    fire.Fire(CLI)
 
 
 if __name__ == "__main__":

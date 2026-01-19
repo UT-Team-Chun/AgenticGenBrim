@@ -15,8 +15,9 @@ AgenticGenBrim/
 ├── src/                              # ソースコード
 │   ├── main.py                       # 統合CLI（Fire）
 │   ├── bridge_agentic_generate/      # LLM橋梁設計生成
+│   │   ├── main.py                   # Designer/Judge CLI
 │   │   ├── designer/                 # 設計生成エージェント
-│   │   ├── judge/                    # 設計評価（現状ダミー）
+│   │   ├── judge/                    # 照査・修正提案（決定論計算+LLM）
 │   │   ├── rag/                      # RAG（検索拡張生成）
 │   │   └── extractor/                # 設計制約抽出（計画中）
 │   └── bridge_json_to_ifc/           # JSON→IFC変換
@@ -40,9 +41,10 @@ AgenticGenBrim/
 
 1. **RAG**: 道路橋示方書等の PDF をテキスト化・埋め込みし、設計時に参照する条文チャンクを検索
 2. **Designer**: 橋長 L・幅員 B を受け取り、RAG 文脈を踏まえた BridgeDesign（構造化 JSON）を生成
-3. **Judge**: 道路橋示方書に基づき設計結果を評価（現状ダミー）
-4. **Extractor**: RAG で得た条文を元に設計制約を構造化抽出（計画中）
-5. **IFC Export**: BridgeDesign → 詳細 JSON → IFC に変換し BrIM 環境に渡す
+3. **Judge**: 決定論的な照査計算（曲げ・せん断・たわみ・床版厚・横桁配置）を行い、不合格時は LLM で PatchPlan を生成
+4. **Designer-Judge ループ**: 不合格時に PatchPlan を適用し、合格するまで繰り返す修正ループ
+5. **Extractor**: RAG で得た条文を元に設計制約を構造化抽出（計画中）
+6. **IFC Export**: BridgeDesign → 詳細 JSON → IFC に変換し BrIM 環境に渡す
 
 ## 技術スタック
 
@@ -94,17 +96,28 @@ make lint         # Lint（CI相当）
 make fix          # Lint + 自動修正 + フォーマット
 ```
 
-### 設計生成（Designer）
+### 設計生成（Designer / Judge）
 
 ```bash
-# Designer 単体実行
-uv run python -m src.bridge_agentic_generate.main
+# Designer のみ（Judge なし）
+uv run python -m src.bridge_agentic_generate.main run \
+  --bridge_length_m 50 \
+  --total_width_m 10
 
-# JSON生成のみ
-uv run python -m src.main generate \
-  --bridge_length_m 60 \
-  --total_width_m 11 \
-  --model_name gpt-5-mini
+# Designer + Judge（1回照査のみ）
+uv run python -m src.bridge_agentic_generate.main run \
+  --bridge_length_m 50 \
+  --total_width_m 10 \
+  --judge
+
+# Designer + Judge + 修正ループ（合格するまで繰り返し）
+uv run python -m src.bridge_agentic_generate.main run_with_repair \
+  --bridge_length_m 50 \
+  --total_width_m 10 \
+  --max_iterations 5
+
+# バッチ実行（L=30,40,50,60,70m）
+uv run python -m src.bridge_agentic_generate.main batch
 
 # 生成 → IFC まで一括
 uv run python -m src.main run \

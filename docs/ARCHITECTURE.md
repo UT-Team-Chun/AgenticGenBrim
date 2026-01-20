@@ -76,14 +76,9 @@ src/
 
 決定論的な照査計算（曲げ・せん断・たわみ・床版厚・横桁配置）を行い、不合格時は LLM で PatchPlan を生成。
 
-- **決定論的照査**:
-  - 曲げ応力度 util: σ / (α × fy)
-  - せん断応力度 util: τ / (α × fy/√3)
-  - たわみ util: δ / (L / deflection_ratio)
-  - 床版厚 util: required / provided
-  - 横桁配置チェック
-- **PatchPlan**: 不合格時に LLM が修正操作（増厚・増高など）を提案
+- **入力**: JudgeInput（BridgeDesign + 荷重 + 材料 + パラメータ）
 - **出力**: JudgeReport（pass_fail, utilization, diagnostics, patch_plan）
+- **詳細**: [COMPONENT_JUDGE.md](COMPONENT_JUDGE.md) 参照
 
 ### Designer-Judge ループ
 

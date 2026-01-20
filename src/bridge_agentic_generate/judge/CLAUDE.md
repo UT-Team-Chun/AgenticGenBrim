@@ -27,32 +27,27 @@ class JudgeParams(BaseModel):
     deflection_ratio: float = 600.0
 
 class MaterialsSteel(BaseModel):
-    E: float           # N/mm²
-    fy: float          # N/mm²
-    unit_weight: float # N/mm³（※入力時に kN/m³ から変換済み前提）
+    E: float = 2.0e5       # N/mm²
+    fy: float = 235.0      # N/mm²
+    unit_weight: float = 78.5e-6  # N/mm³（78.5 kN/m³ = 78.5e-6 N/mm³）
 
 class MaterialsConcrete(BaseModel):
-    unit_weight: float # N/mm³（※入力時に kN/m³ から変換済み前提）
+    unit_weight: float = 25.0e-6  # N/mm³（25 kN/m³ = 25e-6 N/mm³）
 
 class LoadInput(BaseModel):
     p_live_equiv: float = 12.0  # kN/m² 等価活荷重（デフォルト12、感度解析で6〜12を振る）
 
-class LoadEffects(BaseModel):
-    """Judge 内部で計算される活荷重断面力"""
-    M_live_max: float  # N·mm
-    V_live_max: float  # N
-
 class JudgeInput(BaseModel):
     bridge_design: BridgeDesign  # 既存スキーマを参照
-    load_input: LoadInput        # p_live_equiv を含む
-    materials_steel: MaterialsSteel
-    materials_concrete: MaterialsConcrete
+    load_input: LoadInput = Field(default_factory=LoadInput)
+    materials_steel: MaterialsSteel = Field(default_factory=MaterialsSteel)
+    materials_concrete: MaterialsConcrete = Field(default_factory=MaterialsConcrete)
     judge_params: JudgeParams = Field(default_factory=JudgeParams)
 ```
 
 > **注:** BridgeDesign は既存の構造化スキーマを使う（dimensions/sections/components が入ってるやつ）。
 
-### 1.3 活荷重の内部計算
+### 1.2 活荷重の内部計算
 
 ユーザーは `p_live_equiv`（kN/m²）を入力し、Judge が BridgeDesign の寸法から主桁1本あたりの `M_live_max`, `V_live_max` を内部生成する。
 
@@ -88,7 +83,7 @@ V_live_max = V_live_max_kN * 1e3    # N
 > alpha_bend, alpha_shear は v1の簡略パラメータであり、許容応力度法で用いられる鋼材降伏点に対する安全率（概ね 1.6〜1.7）を、σ_allow = α*fy の形に置き換えたものとする。
 v1では安全率 1.7 を想定し、1/1.7 ≈ 0.59 を丸めて α = 0.60 をデフォルトとする。
 
-### 1.4 出力：JudgeReport + PatchPlan
+### 1.3 出力：JudgeReport + PatchPlan
 
 ```python
 class GoverningCheck(StrEnum):
@@ -96,6 +91,7 @@ class GoverningCheck(StrEnum):
     BEND = "bend"
     SHEAR = "shear"
     DEFLECTION = "deflection"
+    CROSSBEAM_LAYOUT = "crossbeam_layout"
 
 class Utilization(BaseModel):
     deck: float
@@ -106,24 +102,27 @@ class Utilization(BaseModel):
     governing_check: GoverningCheck
 
 class Diagnostics(BaseModel):
-    b_tr: float
-    w_dead: float
-    M_dead: float
-    V_dead: float
-    M_total: float
-    V_total: float
-    ybar: float
-    I: float
-    y_top: float
-    y_bottom: float
-    sigma_top: float
-    sigma_bottom: float
-    tau_avg: float
-    delta: float
-    delta_allow: float
-    sigma_allow: float
-    tau_allow: float
-    crossbeam_layout_ok: bool
+    b_tr: float                    # 受け持ち幅 [mm]
+    w_dead: float                  # 死荷重線荷重 [N/mm]
+    M_dead: float                  # 死荷重曲げモーメント [N·mm]
+    V_dead: float                  # 死荷重せん断力 [N]
+    M_live_max: float              # 活荷重最大曲げモーメント [N·mm]
+    V_live_max: float              # 活荷重最大せん断力 [N]
+    M_total: float                 # 合計曲げモーメント [N·mm]
+    V_total: float                 # 合計せん断力 [N]
+    ybar: float                    # 中立軸位置（下端基準）[mm]
+    moment_of_inertia: float       # 断面二次モーメント [mm⁴]
+    y_top: float                   # 上縁距離 [mm]
+    y_bottom: float                # 下縁距離 [mm]
+    sigma_top: float               # 上縁応力度 [N/mm²]
+    sigma_bottom: float            # 下縁応力度 [N/mm²]
+    tau_avg: float                 # 平均せん断応力度 [N/mm²]
+    delta: float                   # たわみ [mm]
+    delta_allow: float             # 許容たわみ [mm]
+    sigma_allow: float             # 許容曲げ応力度 [N/mm²]
+    tau_allow: float               # 許容せん断応力度 [N/mm²]
+    deck_thickness_required: float # 必要床版厚 [mm]
+    crossbeam_layout_ok: bool      # 横桁配置の整合性
 
 class PatchActionOp(StrEnum):
     INCREASE_WEB_HEIGHT = "increase_web_height"
@@ -142,13 +141,31 @@ class PatchAction(BaseModel):
     reason: str        # 変更理由
 
 class PatchPlan(BaseModel):
-    actions: list[PatchAction]
+    actions: list[PatchAction] = Field(default_factory=list)
 
 class JudgeReport(BaseModel):
     pass_fail: bool
     utilization: Utilization
     diagnostics: Diagnostics
     patch_plan: PatchPlan
+```
+
+### 1.4 修正ループ結果モデル
+
+```python
+class RepairIteration(BaseModel):
+    """修正ループの1イテレーション結果。"""
+    iteration: int       # イテレーション番号（0から開始、0は初期設計）
+    design: BridgeDesign # この時点の設計
+    report: JudgeReport  # 照査結果
+
+class RepairLoopResult(BaseModel):
+    """修正ループの全体結果。"""
+    converged: bool                     # 収束したかどうか（pass_fail=True に到達したか）
+    iterations: list[RepairIteration]   # 各イテレーションの結果
+    final_design: BridgeDesign          # 最終設計
+    final_report: JudgeReport           # 最終照査結果
+    rag_log: DesignerRagLog             # 初期設計生成時の RAG ログ
 ```
 
 ---
@@ -209,7 +226,7 @@ w_steel (N/mm) = gamma_s (N/mm³) × A (mm²)
 ### 2.4 死荷重断面力（単純桁・等分布）
 
 ```
-bridge_length = BridgeDesign.dimensions.bridge_length_mm (mm)
+bridge_length = BridgeDesign.dimensions.bridge_length (mm)
 
 w_dead = w_deck + w_steel（N/mm）
 L = bridge_length（mm）
@@ -223,7 +240,7 @@ V_dead = w_dead × L / 2（N）
 トップ・ウェブ・ボトムを矩形 3 つで合成して
 
 - 中立軸 `ybar`
-- `I`（平行軸の定理）
+- `moment_of_inertia`（平行軸の定理）
 - `y_top = (全高 - ybar)`
 - `y_bottom = ybar`
 
@@ -244,8 +261,8 @@ M_live_max, V_live_max は「代表主桁（1本）に生じる最大断面力�
 ### 2.7 応力度
 
 ```
-sigma_top    = M_total × y_top / I
-sigma_bottom = M_total × y_bottom / I
+sigma_top    = M_total × y_top / moment_of_inertia
+sigma_bottom = M_total × y_bottom / moment_of_inertia
 ```
 
 応力度制限（B 案）：
@@ -277,7 +294,7 @@ util_shear = |tau_avg| / tau_allow
 
 ```
 w_eq        = 8 × M_total / L²（N/mm）
-delta       = 5 × w_eq × L⁴ / (384 × E × I)（mm）
+delta       = 5 × w_eq × L⁴ / (384 × E × moment_of_inertia)（mm）
 delta_allow = L / deflection_ratio（mm）
 util_defl   = delta / delta_allow
 ```
@@ -296,7 +313,7 @@ util_deck   = required_mm / provided_mm
 ### 2.11 横桁配置チェック（v1）
 
 `panel_length` と `num_panels` は `BridgeDesign.dimensions` から取得する：
-- `panel_length = dimensions.crossbeam_spacing`（mm）
+- `panel_length = dimensions.panel_length`（mm）
 - `num_panels = dimensions.num_panels`
 
 ```
@@ -364,9 +381,10 @@ Judgeは util 計算後、LLMに渡すための RepairContext を組み立てる
 | `utilization` | deck/bend/shear/deflection の util|
 | `crossbeam_layout_ok` | 横桁配置の整合性（bool） |
 | `governing_check` | max_util の支配項目 |
-| `diagnostics` | 主要中間量（M_total, V_total, I, y_top/y_bottom, sigma_top/bottom, tau_avg, delta 等） |
+| `diagnostics` | 主要中間量（M_total, V_total, moment_of_inertia, y_top/y_bottom, sigma_top/bottom, tau_avg, delta 等） |
 | `current_design` | 対象パラメータ（web_height, web_thickness, flange_width/thickness, deck_thickness, panel_length, num_panels） |
 | `allowed_actions` | 3.2の操作一式（操作名＋可能なΔ） |
+| `deck_thickness_required` | 必要床版厚 [mm] |
 | `priorities` | 安全>施工性>鋼重（固定文言で良い） |
 
 ### 3.4 LLMの出力（PatchPlan）
@@ -415,17 +433,58 @@ LLMは RepairContext を入力として、以下の制約を満たす PatchPlan 
 
 ---
 
-## 4. テスト（必須）
+## 4. 主要関数
 
-### 4.1 単体テスト：断面計算
+### 4.1 judge_v1
 
-- 非対称 I 断面で `ybar`, `I` が妥当か（手計算値と比較）
+```python
+def judge_v1(judge_input: JudgeInput, model: LlmModel = LlmModel.GPT_5_MINI) -> JudgeReport:
+    """Judge v1 メイン関数。
 
-### 4.2 単体テスト：死荷重
+    決定論的に util を計算し、合否判定・PatchPlan 生成を行う。
+
+    Args:
+        judge_input: Judge 入力
+        model: PatchPlan 生成に使用する LLM モデル
+
+    Returns:
+        JudgeReport
+    """
+```
+
+### 4.2 apply_patch_plan
+
+```python
+def apply_patch_plan(
+    design: BridgeDesign,
+    patch_plan: PatchPlan,
+    deck_thickness_required: float | None = None,
+) -> BridgeDesign:
+    """PatchPlan を BridgeDesign に適用する。
+
+    Args:
+        design: 元の BridgeDesign
+        patch_plan: 適用する PatchPlan
+        deck_thickness_required: 必要床版厚 [mm]（SET_DECK_THICKNESS_TO_REQUIRED 用）
+
+    Returns:
+        修正後の新しい BridgeDesign
+    """
+```
+
+---
+
+## 5. テスト（必須）
+
+### 5.1 単体テスト：断面計算
+
+- 非対称 I 断面で `ybar`, `moment_of_inertia` が妥当か（手計算値と比較）
+
+### 5.2 単体テスト：死荷重
 
 - 既知の寸法で `w_dead`, `M_dead`, `V_dead` が式通りか
 
-### 4.3 統合テスト：既存設計値で 1 回回す
+### 5.3 統合テスト：既存設計値で 1 回回す
 
 この JSON（既にこのチャットで出たやつ）を fixture として流し、以下を確認する：
 
@@ -435,16 +494,16 @@ LLMは RepairContext を入力として、以下の制約を満たす PatchPlan 
 
 ---
 
-## 5. 完了条件（Definition of Done）
+## 6. 完了条件（Definition of Done）
 
-- [ ] `judge_v1(input: JudgeInput) -> JudgeReport` が実装されている
-- [ ] 単体テストが通る
-- [ ] fixture（既存設計値）で report が生成できる
-- [ ] 主要中間量（`w_dead`, `M_dead`, `I`, `sigma`, `delta`）が `diagnostics` に出て説明可能
+- [x] `judge_v1(input: JudgeInput, model: LlmModel) -> JudgeReport` が実装されている
+- [x] 単体テストが通る
+- [x] fixture（既存設計値）で report が生成できる
+- [x] 主要中間量（`w_dead`, `M_dead`, `moment_of_inertia`, `sigma`, `delta`）が `diagnostics` に出て説明可能
 
 ---
 
-## 6. 注意点（落とし穴）
+## 7. 注意点（落とし穴）
 
 - 単位の統一（kN/m³ → N/mm³ 変換）でバグりやすい
 - `M_live_max`, `V_live_max` は正の最大値（gt=0）を入力する前提（符号は扱わない）

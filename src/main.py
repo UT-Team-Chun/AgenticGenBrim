@@ -51,6 +51,7 @@ class RunWithRepairResult(BaseModel):
         final_design_json: 最終設計のJSONパス
         final_senkei_json: 最終設計の SenkeiSpec JSON のパス
         final_ifc: 最終設計の IFC ファイルのパス
+        raglog_json: RAG ログの JSON パス
     """
 
     converged: bool
@@ -62,6 +63,7 @@ class RunWithRepairResult(BaseModel):
     final_design_json: str
     final_senkei_json: str
     final_ifc: str
+    raglog_json: str
 
 
 def _coerce_model(model_name: str | LlmModel) -> LlmModel:
@@ -196,6 +198,7 @@ class _SavedIterationPaths(BaseModel):
     final_design_json: str
     final_senkei_json: str
     final_ifc: str
+    raglog_json: str
 
 
 def _save_repair_loop_results(
@@ -214,11 +217,13 @@ def _save_repair_loop_results(
     simple_json_dir = app_config.generated_simple_bridge_json_dir
     judge_json_dir = app_config.generated_judge_json_dir
     senkei_json_dir = app_config.generated_senkei_json_dir
+    raglog_json_dir = app_config.generated_bridge_raglog_json_dir
     ifc_dir = app_config.generated_ifc_dir
 
     simple_json_dir.mkdir(parents=True, exist_ok=True)
     judge_json_dir.mkdir(parents=True, exist_ok=True)
     senkei_json_dir.mkdir(parents=True, exist_ok=True)
+    raglog_json_dir.mkdir(parents=True, exist_ok=True)
     ifc_dir.mkdir(parents=True, exist_ok=True)
 
     iteration_design_paths: list[str] = []
@@ -270,6 +275,14 @@ def _save_repair_loop_results(
     logger.info("Saved final design to %s", final_design_path)
     logger.info("Saved final IFC to %s", final_ifc_path)
 
+    # RAG ログを保存
+    raglog_path = raglog_json_dir / f"{base_name}_design_log.json"
+    raglog_path.write_text(
+        loop_result.rag_log.model_dump_json(indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    logger.info("Saved RAG log to %s", raglog_path)
+
     return _SavedIterationPaths(
         design_jsons=iteration_design_paths,
         judge_jsons=iteration_judge_paths,
@@ -278,6 +291,7 @@ def _save_repair_loop_results(
         final_design_json=str(final_design_path),
         final_senkei_json=str(final_senkei_path),
         final_ifc=str(final_ifc_path),
+        raglog_json=str(raglog_path),
     )
 
 
@@ -340,6 +354,7 @@ def run_with_repair(
         final_design_json=saved_paths.final_design_json,
         final_senkei_json=saved_paths.final_senkei_json,
         final_ifc=saved_paths.final_ifc,
+        raglog_json=saved_paths.raglog_json,
     )
 
 

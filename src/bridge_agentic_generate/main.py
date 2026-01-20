@@ -223,11 +223,12 @@ class CLI:
         # Designer + Judge（1回照査のみ）
         uv run python -m src.bridge_agentic_generate.main run --bridge_length_m=50 --total_width_m=10 --judge
 
-        # Designer + Judge + 修正ループ（収束するまで繰り返し）
-        uv run python -m src.bridge_agentic_generate.main run_with_repair --bridge_length_m=50 --total_width_m=10
-
         # バッチ実行
         uv run python -m src.bridge_agentic_generate.main batch
+
+    Note:
+        修正ループ付き実行（run_with_repair）は src.main の統合 CLI を使用してください。
+        uv run python -m src.main run_with_repair --bridge_length_m=50 --total_width_m=10
     """
 
     def run(
@@ -253,84 +254,6 @@ class CLI:
             model_name=LlmModel(model_name),
             top_k=top_k,
             judge_enabled=judge,
-        )
-
-    def run_with_repair(
-        self,
-        bridge_length_m: float = DEFAULT_BRIDGE_LENGTH_M,
-        total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
-        model_name: LlmModel = LlmModel.GPT_5_MINI,
-        top_k: int = TOP_K,
-        max_iterations: int = DEFAULT_MAX_ITERATIONS,
-    ) -> None:
-        """Designer → Judge → 修正ループを実行する。
-
-        Args:
-            bridge_length_m: 橋長 L [m]
-            total_width_m: 幅員 B [m]
-            model_name: 使用する LLM モデル名
-            top_k: RAG で取得するチャンク数
-            max_iterations: 最大反復回数
-        """
-        loop_result = run_with_repair_loop(
-            bridge_length_m=bridge_length_m,
-            total_width_m=total_width_m,
-            model_name=LlmModel(model_name),
-            top_k=top_k,
-            max_iterations=max_iterations,
-        )
-
-        # 結果を保存
-        simple_json_dir = app_config.generated_simple_bridge_json_dir
-        judge_json_dir = app_config.generated_judge_json_dir
-        raglog_json_dir = app_config.generated_bridge_raglog_json_dir
-        simple_json_dir.mkdir(parents=True, exist_ok=True)
-        judge_json_dir.mkdir(parents=True, exist_ok=True)
-        raglog_json_dir.mkdir(parents=True, exist_ok=True)
-
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        base_name = f"design_L{int(bridge_length_m)}_B{int(total_width_m)}_{timestamp}"
-
-        # 各イテレーションの結果を保存
-        for iteration in loop_result.iterations:
-            iter_suffix = f"_iter{iteration.iteration}"
-            design_path = simple_json_dir / f"{base_name}{iter_suffix}.json"
-            judge_path = judge_json_dir / f"{base_name}{iter_suffix}_judge.json"
-
-            design_path.write_text(
-                iteration.design.model_dump_json(indent=2, ensure_ascii=False),
-                encoding="utf-8",
-            )
-            judge_path.write_text(
-                iteration.report.model_dump_json(indent=2, ensure_ascii=False),
-                encoding="utf-8",
-            )
-
-            logger.info("Saved iteration %d design to %s", iteration.iteration, design_path)
-            logger.info("Saved iteration %d judge to %s", iteration.iteration, judge_path)
-
-        # 最終設計を保存
-        final_design_path = simple_json_dir / f"{base_name}_final.json"
-        final_design_path.write_text(
-            loop_result.final_design.model_dump_json(indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        logger.info("Saved final design to %s", final_design_path)
-
-        # RAG ログを保存
-        raglog_path = raglog_json_dir / f"{base_name}_design_log.json"
-        raglog_path.write_text(
-            loop_result.rag_log.model_dump_json(indent=2, ensure_ascii=False),
-            encoding="utf-8",
-        )
-        logger.info("Saved RAG log to %s", raglog_path)
-
-        logger.info(
-            "Final result: converged=%s, pass_fail=%s, max_util=%.3f, governing=%s",
-            loop_result.converged,
-            loop_result.final_report.pass_fail,
-            loop_result.final_report.utilization.max_util,
-            loop_result.final_report.utilization.governing_check,
         )
 
     def batch(

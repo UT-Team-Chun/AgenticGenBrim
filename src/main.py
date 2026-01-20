@@ -358,7 +358,7 @@ class CLI:
         self,
         bridge_length_m: float = DEFAULT_BRIDGE_LENGTH_M,
         total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
-        model_name: str = "gpt-5-mini",
+        model_name: LlmModel = LlmModel.GPT_5_MINI,
         top_k: int = TOP_K,
         judge_enabled: bool = DEFAULT_JUDGE_ENABLED,
         senkei_json_path: str | None = None,
@@ -379,7 +379,7 @@ class CLI:
         self,
         bridge_length_m: float = DEFAULT_BRIDGE_LENGTH_M,
         total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
-        model_name: str = "gpt-5-mini",
+        model_name: LlmModel = LlmModel.GPT_5_MINI,
         top_k: int = TOP_K,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
     ) -> RunWithRepairResult:

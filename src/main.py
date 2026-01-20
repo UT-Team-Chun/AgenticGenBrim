@@ -18,7 +18,7 @@ from src.bridge_agentic_generate.rag.embedding_config import TOP_K
 from src.bridge_json_to_ifc.run_convert import FileSuffixes
 from src.bridge_json_to_ifc.run_convert import convert as bridge_convert
 
-DEFAULT_BRIDGE_LENGTH_M = 30.0
+DEFAULT_BRIDGE_LENGTH_M = 40.0
 DEFAULT_TOTAL_WIDTH_M = 10.0
 DEFAULT_JUDGE_ENABLED = True
 DEFAULT_MAX_ITERATIONS = 5

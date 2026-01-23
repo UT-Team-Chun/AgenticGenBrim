@@ -28,6 +28,7 @@ from src.bridge_agentic_generate.judge.models import (
 )
 from src.bridge_agentic_generate.judge.services import (
     apply_patch_plan,
+    calc_allowable_deflection,
     calc_dead_load,
     calc_dead_load_effects,
     calc_girder_section_area,
@@ -272,6 +273,38 @@ class TestDeckThickness:
         # 手計算:
         # max(30 * 1.0 + 110, 160) = max(140, 160) = 160 mm
         assert required == pytest.approx(160.0, rel=1e-6)
+
+
+# =============================================================================
+# 単体テスト: 許容たわみ計算
+# =============================================================================
+
+
+class TestAllowableDeflection:
+    """許容たわみ計算のテスト。"""
+
+    def test_boundary_10m(self) -> None:
+        """L=10m の境界値。"""
+        assert calc_allowable_deflection(10000) == pytest.approx(5.0)
+
+    def test_boundary_40m(self) -> None:
+        """L=40m の境界値。"""
+        assert calc_allowable_deflection(40000) == pytest.approx(80.0)
+
+    def test_case_under_10m(self) -> None:
+        """L < 10m のケース。"""
+        # L=5m: 5/2000 * 1000 = 2.5mm
+        assert calc_allowable_deflection(5000) == pytest.approx(2.5)
+
+    def test_case_between_10_and_40m(self) -> None:
+        """10m < L < 40m のケース。"""
+        # L=25m: 25²/20000 * 1000 = 31.25mm
+        assert calc_allowable_deflection(25000) == pytest.approx(31.25)
+
+    def test_case_over_40m(self) -> None:
+        """L > 40m のケース。"""
+        # L=50m: 50/500 * 1000 = 100mm
+        assert calc_allowable_deflection(50000) == pytest.approx(100.0)
 
 
 # =============================================================================

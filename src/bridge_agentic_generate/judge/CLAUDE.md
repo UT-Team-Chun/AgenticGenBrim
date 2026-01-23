@@ -24,7 +24,6 @@ BridgeDesign（床版・主桁・横桁）と活荷重断面力（M_live_max, V_
 class JudgeParams(BaseModel):
     alpha_bend: float = 0.6
     alpha_shear: float = 0.6
-    deflection_ratio: float = 600.0
 
 class MaterialsSteel(BaseModel):
     E: float = 2.0e5       # N/mm²
@@ -285,18 +284,31 @@ tau_allow  = alpha_shear × (fy / √3)
 util_shear = |tau_avg| / tau_allow
 ```
 
-### 2.9 たわみ（M から等価等分布に換算）
+### 2.9 たわみ（活荷重のみ・道路橋示方書準拠）
 
-> **v1 前提:** 活荷重の載荷形状（集中荷重・移動荷重・車線配置等）をモデル化しないため、
-> M_total を等価等分布荷重 w_eq に換算して評価する近似とする。
-> 本たわみ util は厳密なたわみ照査ではなく、概略設計段階のスクリーニング指標である。
-> deflection util は「主桁1本あたりの死荷重＋活荷重の合計作用（M_dead + M_live_max）から等価等分布換算して得た概略たわみ」を L/600 と比較する。
+> **v1.1 変更:** 使用限界状態のたわみ照査は活荷重のみで評価する。
+> 許容たわみは支間長に応じて 3 区分で計算する。
+
+#### 計算式
 
 ```
-w_eq        = 8 × M_total / L²（N/mm）
-delta       = 5 × w_eq × L⁴ / (384 × E × moment_of_inertia)（mm）
-delta_allow = L / deflection_ratio（mm）
-util_defl   = delta / delta_allow
+# 活荷重による等価等分布荷重
+w_eq_live = 8 × M_live_max / L²（N/mm）
+
+# たわみ
+delta = 5 × w_eq_live × L⁴ / (384 × E × I)（mm）
+
+# 許容たわみ（L は m 単位で計算）
+L_m = L / 1000
+
+if L_m ≤ 10:
+    delta_allow = L_m / 2000 × 1000（mm）
+elif L_m ≤ 40:
+    delta_allow = L_m² / 20000 × 1000（mm）
+else:
+    delta_allow = L_m / 500 × 1000（mm）
+
+util_deflection = delta / delta_allow
 ```
 
 ### 2.10 床版厚 util

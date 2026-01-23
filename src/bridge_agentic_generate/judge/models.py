@@ -17,17 +17,15 @@ from src.bridge_agentic_generate.designer.models import BridgeDesign, DesignerRa
 
 
 class JudgeParams(BaseModel):
-    """Judge の許容応力度・たわみ制限パラメータ。
+    """Judge の許容応力度パラメータ。
 
     Attributes:
         alpha_bend: 曲げ許容応力度係数。sigma_allow = alpha_bend * fy。
         alpha_shear: せん断許容応力度係数。tau_allow = alpha_shear * (fy / sqrt(3))。
-        deflection_ratio: たわみ制限比。delta_allow = L / deflection_ratio。
     """
 
     alpha_bend: float = Field(default=0.6, description="曲げ許容応力度係数")
     alpha_shear: float = Field(default=0.6, description="せん断許容応力度係数")
-    deflection_ratio: float = Field(default=600.0, description="たわみ制限比")
 
 
 class MaterialsSteel(BaseModel):

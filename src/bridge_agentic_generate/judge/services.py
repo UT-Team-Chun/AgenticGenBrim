@@ -235,6 +235,27 @@ def calc_required_deck_thickness(girder_spacing_mm: float) -> float:
     return max(30 * l_support_m + 110, 160)
 
 
+def calc_allowable_deflection(bridge_length_mm: float) -> float:
+    """許容たわみを計算する（道路橋示方書に基づく）。
+
+    Args:
+        bridge_length_mm: 橋長 [mm]
+
+    Returns:
+        許容たわみ [mm]
+    """
+    L_m = bridge_length_mm / 1000  # m に変換
+
+    if L_m <= 10:
+        delta_allow_m = L_m / 2000
+    elif L_m <= 40:
+        delta_allow_m = L_m**2 / 20000
+    else:
+        delta_allow_m = L_m / 500
+
+    return delta_allow_m * 1000  # mm に変換
+
+
 # =============================================================================
 # メイン照査関数
 # =============================================================================
@@ -319,11 +340,11 @@ def judge_v1(judge_input: JudgeInput, model: LlmModel = LlmModel.GPT_5_MINI) -> 
     util_shear = abs(tau_avg) / tau_allow
 
     # -------------------------------------------------------------------------
-    # 7. たわみ（等価等分布換算）
+    # 7. たわみ（活荷重のみ・道路橋示方書準拠）
     # -------------------------------------------------------------------------
-    w_eq = 8 * m_total / (dims.bridge_length**2)
-    delta = 5 * w_eq * dims.bridge_length**4 / (384 * steel.E * moment_of_inertia)
-    delta_allow = dims.bridge_length / params.deflection_ratio
+    w_eq_live = 8 * m_live_max / (dims.bridge_length**2)
+    delta = 5 * w_eq_live * dims.bridge_length**4 / (384 * steel.E * moment_of_inertia)
+    delta_allow = calc_allowable_deflection(dims.bridge_length)
     util_deflection = delta / delta_allow
 
     # -------------------------------------------------------------------------

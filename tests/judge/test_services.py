@@ -218,20 +218,17 @@ class TestLiveLoad:
     def test_calc_live_load_effects(self) -> None:
         """活荷重断面力が正しく計算されること。"""
         p_live = 12.0  # kN/m²
-        total_width = 10000.0  # mm
-        num_girders = 4
+        girder_spacing = 2667.0  # mm
         bridge_length = 30000.0  # mm
 
         m_live, v_live = calc_live_load_effects(
             p_live_equiv_kn_m2=p_live,
-            total_width_mm=total_width,
-            num_girders=num_girders,
+            girder_spacing_mm=girder_spacing,
             bridge_length_mm=bridge_length,
         )
 
         # 手計算:
-        # b_tr = (10000/1000) / 4 = 2.5 m
-        b_tr_m = (total_width / 1000) / num_girders
+        b_tr_m = girder_spacing / 1000
         # w_live = 12 * 2.5 = 30 kN/m
         w_live_kn_m = p_live * b_tr_m
         # L = 30 m

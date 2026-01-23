@@ -95,6 +95,10 @@ class DesignerRagLog(BaseModel):
         default_factory=list,
         description="適用した設計ルール一覧。",
     )
+    dependency_rules: list[DependencyRule] = Field(
+        default_factory=list,
+        description="部材間の依存関係ルール。",
+    )
 
 
 class DesignResult(BaseModel):
@@ -106,6 +110,10 @@ class DesignResult(BaseModel):
         default=None,
         description="今回の設計で使用したルール一覧（あれば）。",
     )
+    dependency_rules: list[DependencyRule] = Field(
+        default_factory=list,
+        description="部材間の依存関係ルール。PatchPlan 適用後の連動更新に使用。",
+    )
 
 
 class DesignRuleCategory(StrEnum):
@@ -114,6 +122,39 @@ class DesignRuleCategory(StrEnum):
     DECK = "deck"
     CROSSBEAM_SECTION = "crossbeam_section"
     OTHER = "other"
+
+
+class DependencyRule(BaseModel):
+    """部材間の依存関係を表す演算可能なルール。
+
+    主に「横桁高さは主桁高さの〇倍」といった連動関係を表現する。
+    PatchPlan 適用後に自動で連動させるために使用する。
+    """
+
+    rule_id: str = Field(
+        ...,
+        description='ルールID (例: "D1", "D2" などの連番)。',
+    )
+    target_field: str = Field(
+        ...,
+        description='更新対象のフィールドパス (例: "crossbeam.total_height")。',
+    )
+    source_field: str = Field(
+        ...,
+        description='参照元のフィールドパス (例: "girder.web_height")。',
+    )
+    factor: float = Field(
+        ...,
+        description="係数 (例: 0.8)。target = source × factor で計算される。",
+    )
+    source_hit_ranks: list[int] = Field(
+        default_factory=list,
+        description="該当する RAG ヒットの rank (1 始まり) の一覧。",
+    )
+    notes: str | None = Field(
+        default=None,
+        description='補足 (例: "示方書より横桁高さは主桁の80%程度")。省略可。',
+    )
 
 
 class DesignRule(BaseModel):
@@ -175,6 +216,7 @@ class DesignerOutput(BaseModel):
 
     - reasoning: 設計プロセス全体の思考・判断根拠
     - rules: 今回の設計で使用したルール一覧（簡易 Extractor 的）
+    - dependency_rules: 部材間の依存関係ルール（PatchPlan 連動用）
     - bridge_design: 既存の BridgeDesign モデル
     """
 
@@ -185,6 +227,10 @@ class DesignerOutput(BaseModel):
     rules: list[DesignRule] = Field(
         default_factory=list,
         description="今回の設計で利用した設計ルール一覧。",
+    )
+    dependency_rules: list[DependencyRule] = Field(
+        default_factory=list,
+        description="部材間の依存関係ルール。PatchPlan 適用後の連動更新に使用。",
     )
     bridge_design: BridgeDesign = Field(
         ...,

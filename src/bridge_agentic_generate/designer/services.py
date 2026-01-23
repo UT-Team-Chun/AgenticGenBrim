@@ -169,13 +169,15 @@ def generate_design_with_rag_log(
         text_format=DesignerOutput,
     )
 
-    # 6) ログに reasoning と rules を追加
+    # 6) ログに reasoning, rules, dependency_rules を追加
     rag_log.reasoning = designer_output.reasoning
     rag_log.rules = designer_output.rules
+    rag_log.dependency_rules = designer_output.dependency_rules
 
-    # 7) DesignResult に bridge_design + rules を詰めて返す
+    # 7) DesignResult に bridge_design + rules + dependency_rules を詰めて返す
     return DesignResult(
         design=designer_output.bridge_design,
         rag_log=rag_log,
         rules=designer_output.rules,
+        dependency_rules=designer_output.dependency_rules,
     )

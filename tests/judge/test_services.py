@@ -15,6 +15,7 @@ from src.bridge_agentic_generate.designer.models import (
     Components,
     CrossbeamSection,
     Deck,
+    DependencyRule,
     Dimensions,
     GirderSection,
     Sections,
@@ -27,6 +28,7 @@ from src.bridge_agentic_generate.judge.models import (
     PatchPlan,
 )
 from src.bridge_agentic_generate.judge.services import (
+    apply_dependency_rules,
     apply_patch_plan,
     calc_allowable_deflection,
     calc_dead_load,
@@ -762,3 +764,135 @@ class TestApplyPatchPlan:
             new_design.sections.girder_standard.web_height == sample_bridge_design.sections.girder_standard.web_height
         )
         assert new_design.components.deck.thickness == sample_bridge_design.components.deck.thickness
+
+
+# =============================================================================
+# 単体テスト: apply_dependency_rules
+# =============================================================================
+
+
+class TestApplyDependencyRules:
+    """apply_dependency_rules のテスト。"""
+
+    def test_apply_dependency_rules_crossbeam_total_height(self, sample_bridge_design: BridgeDesign) -> None:
+        """横桁 total_height が主桁 web_height × factor で更新されること。"""
+        dependency_rules = [
+            DependencyRule(
+                rule_id="D1",
+                target_field="crossbeam.total_height",
+                source_field="girder.web_height",
+                factor=0.8,
+                source_hit_ranks=[17],
+                notes="示方書より横桁高さは主桁の80%程度",
+            ),
+        ]
+
+        original_girder_web_height = sample_bridge_design.sections.girder_standard.web_height
+        expected_crossbeam_height = original_girder_web_height * 0.8
+
+        new_design = apply_dependency_rules(sample_bridge_design, dependency_rules)
+
+        # 横桁高さが更新されていること
+        assert new_design.sections.crossbeam_standard.total_height == pytest.approx(expected_crossbeam_height)
+        # 主桁は変更されていないこと
+        assert new_design.sections.girder_standard.web_height == pytest.approx(original_girder_web_height)
+        # 横桁の他のフィールドは変更されていないこと
+        assert (
+            new_design.sections.crossbeam_standard.web_thickness
+            == sample_bridge_design.sections.crossbeam_standard.web_thickness
+        )
+        assert (
+            new_design.sections.crossbeam_standard.flange_width
+            == sample_bridge_design.sections.crossbeam_standard.flange_width
+        )
+
+    def test_apply_dependency_rules_empty_rules(self, sample_bridge_design: BridgeDesign) -> None:
+        """空のルールリストの場合、設計が変更されないこと。"""
+        dependency_rules: list[DependencyRule] = []
+
+        new_design = apply_dependency_rules(sample_bridge_design, dependency_rules)
+
+        # 同じインスタンスが返されること
+        assert new_design is sample_bridge_design
+
+    def test_apply_dependency_rules_unsupported_rule(self, sample_bridge_design: BridgeDesign) -> None:
+        """サポートされていないルールの場合、設計が変更されないこと。"""
+        dependency_rules = [
+            DependencyRule(
+                rule_id="D1",
+                target_field="unknown.field",
+                source_field="girder.web_height",
+                factor=0.8,
+                source_hit_ranks=[],
+                notes="サポートされていないフィールド",
+            ),
+        ]
+
+        original_crossbeam_height = sample_bridge_design.sections.crossbeam_standard.total_height
+        new_design = apply_dependency_rules(sample_bridge_design, dependency_rules)
+
+        # 同じインスタンスが返されること
+        assert new_design is sample_bridge_design
+        # 横桁高さは変更されていないこと
+        assert new_design.sections.crossbeam_standard.total_height == pytest.approx(original_crossbeam_height)
+
+    def test_apply_dependency_rules_factor_1_0(self, sample_bridge_design: BridgeDesign) -> None:
+        """factor=1.0 の場合、横桁高さが主桁 web_height と同じになること。"""
+        dependency_rules = [
+            DependencyRule(
+                rule_id="D1",
+                target_field="crossbeam.total_height",
+                source_field="girder.web_height",
+                factor=1.0,
+                source_hit_ranks=[],
+                notes="横桁高さを主桁と同じにする",
+            ),
+        ]
+
+        original_girder_web_height = sample_bridge_design.sections.girder_standard.web_height
+
+        new_design = apply_dependency_rules(sample_bridge_design, dependency_rules)
+
+        assert new_design.sections.crossbeam_standard.total_height == pytest.approx(original_girder_web_height)
+
+    def test_apply_dependency_rules_with_patch_plan(self, sample_bridge_design: BridgeDesign) -> None:
+        """PatchPlan 適用後に依存関係ルールが正しく適用されること（統合テスト）。"""
+        # 1. PatchPlan で主桁 web_height を増加
+        patch_plan = PatchPlan(
+            actions=[
+                PatchAction(
+                    op=PatchActionOp.INCREASE_WEB_HEIGHT,
+                    path="sections.girder_standard.web_height",
+                    delta_mm=200.0,
+                    reason="たわみ改善",
+                ),
+            ]
+        )
+
+        # 2. 依存関係ルール
+        dependency_rules = [
+            DependencyRule(
+                rule_id="D1",
+                target_field="crossbeam.total_height",
+                source_field="girder.web_height",
+                factor=0.8,
+                source_hit_ranks=[17],
+                notes="示方書より横桁高さは主桁の80%程度",
+            ),
+        ]
+
+        # 3. PatchPlan 適用
+        original_girder_web_height = sample_bridge_design.sections.girder_standard.web_height
+        design_after_patch = apply_patch_plan(sample_bridge_design, patch_plan)
+
+        # 主桁 web_height が増加していること
+        assert design_after_patch.sections.girder_standard.web_height == pytest.approx(
+            original_girder_web_height + 200.0
+        )
+
+        # 4. 依存関係ルール適用
+        final_design = apply_dependency_rules(design_after_patch, dependency_rules)
+
+        # 横桁高さが更新された主桁高さ × factor になっていること
+        expected_crossbeam_height = (original_girder_web_height + 200.0) * 0.8
+        assert final_design.sections.crossbeam_standard.total_height == pytest.approx(expected_crossbeam_height)

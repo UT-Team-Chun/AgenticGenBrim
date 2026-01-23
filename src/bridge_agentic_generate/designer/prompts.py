@@ -60,9 +60,29 @@ DESIGNER_PROMPT = """
 
    - **横桁（crossbeam_section）に関するルールを最低1件は必ず抽出**してください。
      - まず優先すべきは「床組として満たすべき要求」「支間・定義」「荷重伝達・連結の考え方」など、
-     文献にある“定義/要求”です（根拠が取れるなら source_hit_ranks を付ける）。
+     文献にある"定義/要求"です（根拠が取れるなら source_hit_ranks を付ける）。
      - 横桁断面の**具体寸法**（高さ、板厚など）を決める明確な数値ルールが文献から取れない場合は、
        寸法決定は `source_hit_ranks: []` の仮定でよい（その場合 notes に必ず「仮定」「実務目安」と明記）。
+
+   - **依存関係ルールの抽出 (dependency_rules)**
+     - 横桁高さ（total_height）が主桁高さ（web_height）に連動する場合、
+       その関係を `DependencyRule` として抽出してください。
+     - **抽出条件**:
+       - RAGコンテキストに「横桁高さは主桁の〇〇%」「横桁高さ = 主桁高さ × 係数」等の記述がある場合のみ抽出
+       - 根拠がある場合は `source_hit_ranks` に参照元を記載
+       - **RAGコンテキストから係数（factor）を読み取れない場合は抽出しない**（dependency_rules は空リストでよい）
+     - **フォーマット例**:
+       ```json
+       {{
+         "rule_id": "D1",
+         "target_field": "crossbeam.total_height",
+         "source_field": "girder.web_height",
+         "factor": 0.8,
+         "source_hit_ranks": [17],
+         "notes": "示方書より横桁高さは主桁の80%程度"
+       }}
+       ```
+     - この依存関係ルールは、修正ループ（PatchPlan適用後）で主桁が変更された際に横桁を自動連動させるために使用します。
 
 3. **断面諸元の決定 (bridge_design)**
    - 抽出した `rules` の condition_expression を **数値的に満たす** ように寸法を決定してください。

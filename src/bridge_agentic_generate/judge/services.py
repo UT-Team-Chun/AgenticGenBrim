@@ -10,6 +10,8 @@ import math
 from src.bridge_agentic_generate.designer.models import (
     BridgeDesign,
     Components,
+    CrossbeamSection,
+    DependencyRule,
     GirderSection,
     Sections,
 )
@@ -593,4 +595,68 @@ def apply_patch_plan(
         dimensions=dims,
         sections=new_sections,
         components=new_components,
+    )
+
+
+# =============================================================================
+# 依存関係ルール適用
+# =============================================================================
+
+
+def apply_dependency_rules(
+    design: BridgeDesign,
+    dependency_rules: list[DependencyRule],
+) -> BridgeDesign:
+    """PatchPlan 適用後に依存関係ルールを適用する。
+
+    横桁高さが主桁高さに連動する場合など、部材間の依存関係を自動で反映する。
+    ルールが空の場合や、対象外のルールの場合は何もしない（フォールバック）。
+
+    Args:
+        design: 元の BridgeDesign
+        dependency_rules: 適用する依存関係ルールのリスト
+
+    Returns:
+        修正後の新しい BridgeDesign
+    """
+    if not dependency_rules:
+        return design
+
+    # 現在の値を取り出す
+    girder = design.sections.girder_standard
+    crossbeam = design.sections.crossbeam_standard
+    changed = False
+
+    for rule in dependency_rules:
+        # スコープ: crossbeam.total_height のみ（v1）
+        if rule.target_field == "crossbeam.total_height" and rule.source_field == "girder.web_height":
+            source_value = girder.web_height
+            new_value = source_value * rule.factor
+            crossbeam = CrossbeamSection(
+                total_height=new_value,
+                web_thickness=crossbeam.web_thickness,
+                flange_width=crossbeam.flange_width,
+                flange_thickness=crossbeam.flange_thickness,
+            )
+            changed = True
+            logger.info(
+                "apply_dependency_rules: %s = %.0f × %.2f = %.0f",
+                rule.target_field,
+                source_value,
+                rule.factor,
+                new_value,
+            )
+
+    if not changed:
+        return design
+
+    # 新しい BridgeDesign を構築
+    new_sections = Sections(
+        girder_standard=girder,
+        crossbeam_standard=crossbeam,
+    )
+    return BridgeDesign(
+        dimensions=design.dimensions,
+        sections=new_sections,
+        components=design.components,
     )

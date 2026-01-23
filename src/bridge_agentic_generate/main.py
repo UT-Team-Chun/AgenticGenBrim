@@ -15,7 +15,11 @@ from src.bridge_agentic_generate.judge.models import (
     RepairIteration,
     RepairLoopResult,
 )
-from src.bridge_agentic_generate.judge.services import apply_patch_plan, judge_v1
+from src.bridge_agentic_generate.judge.services import (
+    apply_dependency_rules,
+    apply_patch_plan,
+    judge_v1,
+)
 from src.bridge_agentic_generate.llm_client import LlmModel
 from src.bridge_agentic_generate.logger_config import logger
 from src.bridge_agentic_generate.rag.embedding_config import TOP_K
@@ -119,11 +123,13 @@ def run_with_repair_loop(
     result = generate_design_with_rag_log(inputs=inputs, top_k=top_k, model_name=model_name)
     design = result.design
     rag_log = result.rag_log
+    dependency_rules = result.dependency_rules
 
     logger.info(
-        "run_with_repair_loop: 初期設計生成完了 L=%.0fm, B=%.0fm",
+        "run_with_repair_loop: 初期設計生成完了 L=%.0fm, B=%.0fm (dependency_rules=%d件)",
         bridge_length_m,
         total_width_m,
+        len(dependency_rules),
     )
 
     # 2. Judge → 修正ループ
@@ -168,6 +174,9 @@ def run_with_repair_loop(
             patch_plan=report.patch_plan,
             deck_thickness_required=deck_thickness_required,
         )
+
+        # 依存関係ルールを適用（横桁高さの連動など）
+        design = apply_dependency_rules(design=design, dependency_rules=dependency_rules)
 
         logger.info(
             "run_with_repair_loop: PatchPlan 適用完了（%d アクション）",

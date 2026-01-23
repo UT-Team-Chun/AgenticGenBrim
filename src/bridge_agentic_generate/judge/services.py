@@ -259,21 +259,20 @@ def calc_allowable_deflection(bridge_length_mm: float) -> float:
 
 
 # =============================================================================
-# メイン照査関数
+# 計算ロジック抽出
 # =============================================================================
 
 
-def judge_v1(judge_input: JudgeInput, model: LlmModel) -> JudgeReport:
-    """Judge v1 メイン関数。
-
-    決定論的に util を計算し、合否判定・PatchPlan 生成を行う。
+def _calculate_utilization_and_diagnostics(
+    judge_input: JudgeInput,
+) -> tuple[Utilization, Diagnostics, bool]:
+    """util と diagnostics を計算する（LLM呼び出しなし）。
 
     Args:
         judge_input: Judge 入力
-        model: PatchPlan 生成に使用する LLM モデル
 
     Returns:
-        JudgeReport
+        (Utilization, Diagnostics, pass_fail) のタプル
     """
     design = judge_input.bridge_design
     params = judge_input.judge_params
@@ -285,8 +284,6 @@ def judge_v1(judge_input: JudgeInput, model: LlmModel) -> JudgeReport:
     dims = design.dimensions
     girder = design.sections.girder_standard
     deck_thickness = design.components.deck.thickness
-
-    logger.info("Judge v1: 照査開始 L=%.0fmm, B=%.0fmm", dims.bridge_length, dims.total_width)
 
     # -------------------------------------------------------------------------
     # 1. 活荷重断面力の内部計算
@@ -421,23 +418,67 @@ def judge_v1(judge_input: JudgeInput, model: LlmModel) -> JudgeReport:
         crossbeam_layout_ok=crossbeam_layout_ok,
     )
 
+    return utilization, diagnostics, pass_fail
+
+
+def judge_v1_lightweight(judge_input: JudgeInput) -> tuple[Utilization, Diagnostics]:
+    """軽量版Judge（LLM呼び出しなし）。PatchPlanの仮適用評価用。
+
+    Args:
+        judge_input: Judge 入力
+
+    Returns:
+        (Utilization, Diagnostics) のタプル
+    """
+    utilization, diagnostics, _ = _calculate_utilization_and_diagnostics(judge_input)
+    return utilization, diagnostics
+
+
+# =============================================================================
+# メイン照査関数
+# =============================================================================
+
+
+def judge_v1(judge_input: JudgeInput, model: LlmModel) -> JudgeReport:
+    """Judge v1 メイン関数。
+
+    決定論的に util を計算し、合否判定・PatchPlan 生成を行う。
+
+    Args:
+        judge_input: Judge 入力
+        model: PatchPlan 生成に使用する LLM モデル
+
+    Returns:
+        JudgeReport
+    """
+    design = judge_input.bridge_design
+    dims = design.dimensions
+
+    logger.info("Judge v1: 照査開始 L=%.0fmm, B=%.0fmm", dims.bridge_length, dims.total_width)
+
+    # -------------------------------------------------------------------------
+    # 1. util / diagnostics / pass_fail を計算
+    # -------------------------------------------------------------------------
+    utilization, diagnostics, pass_fail = _calculate_utilization_and_diagnostics(judge_input)
+
     logger.info(
         "Judge v1: util_deck=%.3f, util_bend=%.3f, util_shear=%.3f, util_deflection=%.3f",
-        util_deck,
-        util_bend,
-        util_shear,
-        util_deflection,
+        utilization.deck,
+        utilization.bend,
+        utilization.shear,
+        utilization.deflection,
     )
     logger.info(
         "Judge v1: max_util=%.3f, governing=%s, pass_fail=%s",
-        max_util,
-        governing_check,
+        utilization.max_util,
+        utilization.governing_check,
         pass_fail,
     )
 
     # -------------------------------------------------------------------------
-    # 13. PatchPlan 生成
+    # 2. PatchPlan 生成
     # -------------------------------------------------------------------------
+    evaluated_candidates = None
     if pass_fail:
         # 合格の場合は空の PatchPlan
         patch_plan = PatchPlan(actions=[])
@@ -447,9 +488,14 @@ def judge_v1(judge_input: JudgeInput, model: LlmModel) -> JudgeReport:
             design=design,
             utilization=utilization,
             diagnostics=diagnostics,
-            deck_thickness_required=deck_thickness_required,
+            deck_thickness_required=diagnostics.deck_thickness_required,
         )
-        patch_plan = generate_patch_plan(repair_context, model)
+        patch_plan, evaluated_candidates = generate_patch_plan(
+            context=repair_context,
+            model=model,
+            design=design,
+            judge_input_base=judge_input,
+        )
 
         # フォールバック: pass_fail = False かつ actions が空の場合はエラー
         if not patch_plan.actions:
@@ -460,6 +506,7 @@ def judge_v1(judge_input: JudgeInput, model: LlmModel) -> JudgeReport:
         utilization=utilization,
         diagnostics=diagnostics,
         patch_plan=patch_plan,
+        evaluated_candidates=evaluated_candidates,
     )
 
 

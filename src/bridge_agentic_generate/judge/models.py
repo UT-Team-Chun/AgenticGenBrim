@@ -191,12 +191,16 @@ class JudgeReport(BaseModel):
         utilization: 各項目の util
         diagnostics: 中間計算量
         patch_plan: 修正計画
+        evaluated_candidates: 評価済み候補リスト（不合格時のみ）
     """
 
     pass_fail: bool = Field(..., description="合否")
     utilization: Utilization = Field(..., description="各項目の util")
     diagnostics: Diagnostics = Field(..., description="中間計算量")
     patch_plan: PatchPlan = Field(..., description="修正計画")
+    evaluated_candidates: list["EvaluatedCandidate"] | None = Field(
+        default=None, description="評価済み候補リスト（不合格時のみ）"
+    )
 
 
 # =============================================================================
@@ -276,3 +280,34 @@ class RepairLoopResult(BaseModel):
     final_design: BridgeDesign = Field(..., description="最終設計")
     final_report: JudgeReport = Field(..., description="最終照査結果")
     rag_log: DesignerRagLog = Field(..., description="初期設計生成時の RAG ログ")
+
+
+# =============================================================================
+# PatchPlan 複数候補方式モデル
+# =============================================================================
+
+
+class PatchPlanCandidate(BaseModel):
+    """修正計画の候補1件。"""
+
+    plan: PatchPlan = Field(..., description="修正計画")
+    approach_summary: str = Field(..., description="アプローチの概要（例: フランジ厚重視）")
+
+
+class PatchPlanCandidates(BaseModel):
+    """修正計画の候補リスト（LLMが生成）。"""
+
+    candidates: list[PatchPlanCandidate] = Field(
+        default_factory=list,
+        min_length=1,
+        max_length=5,
+    )
+
+
+class EvaluatedCandidate(BaseModel):
+    """評価済み候補。"""
+
+    candidate: PatchPlanCandidate = Field(..., description="評価対象の候補")
+    simulated_max_util: float = Field(..., description="シミュレーション後の max_util")
+    simulated_utilization: Utilization = Field(..., description="シミュレーション後の Utilization")
+    improvement: float = Field(..., description="改善量（正なら改善）")

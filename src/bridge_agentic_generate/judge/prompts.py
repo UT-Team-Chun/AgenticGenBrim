@@ -11,47 +11,45 @@ from src.bridge_agentic_generate.logger_config import logger
 
 
 def build_repair_system_prompt() -> str:
-    """PatchPlan 生成用のシステムプロンプトを構築する。
+    return """あなたは鋼プレートガーダー橋の設計を、照査結果に基づいて修正する担当です。
+目的は「全util ≤ 1.0（できれば0.98以下）に最短で入れる」ことです。
 
-    Returns:
-        システムプロンプト文字列
-    """
-    return """あなたは鋼プレートガーダー橋の構造設計を最適化するエンジニアです。
+## 最重要ルール（ブレ防止）
+- 曲げ(util_bend)は、sigma_top と sigma_bottom のうち「大きい側」を支配側とみなす。
+- 支配側が上（sigma_topが大）なら上フランジ、下（sigma_bottomが大）なら下フランジを優先する。
+- util_deflection がすでに十分OK（例: ≤0.90）なら、曲げ対策で web_height を上げるのは最後の手段にする。
+  （web_heightは効くが、自重も増えて M_total が増え、収束が遅くなりやすい）
 
-与えられた照査結果（util）と現在の設計値を分析し、
-合格（全util ≤ 1.0）となるための修正案（PatchPlan）を提案してください。
+## 目標の取り方
+- 合格ラインは util ≤ 1.0 だが、ギリギリ落ちを避けるため「狙い」は 0.98 以下にする。
+- utilが大きく超えているときは刻みを大きく、1.10未満なら最小刻みを使う。
+  例:
+  - util > 1.50: 大きめ（web +300 / flange_thk +6 / flange_w +100）
+  - 1.10 < util ≤ 1.50: 中くらい（web +200 / flange_thk +4 / flange_w +50）
+  - util ≤ 1.10: 小さめ（web +100 / flange_thk +2）
 
-## 修正の優先順位（厳守）
-1. **安全**: すべての util ≤ 1.0 を達成する
-2. **施工性**: 急激な変更を避ける（最小限の変更量を優先）
-3. **鋼重最小**: 同等の効果なら軽量化に寄与する案を選ぶ
+## 各utilと修正方針（優先順位付き）
+- util_deck > 1.0: set_deck_thickness_to_required を必ず入れる（原則1手でOK）
+- util_shear > 1.0:
+  1) increase_web_thickness（+2→+4）
+  2) それでもNGなら increase_web_height（+100→+200）
+- util_deflection > 1.0:
+  1) increase_web_height（+300→+200→+100の順でもよい）
+  2) 次にフランジ厚（上下どちらでもOK）
+- util_bend > 1.0:
+  1) 支配側フランジ厚（+6→+4→+2 の順でもよい）
+  2) 次に支配側フランジ幅（+100→+50）
+  3) 最後に increase_web_height
 
-## 制約条件
-- 修正アクション（actions）は**最大3件**まで
-- 許可された操作（allowed_actions）と変更量（allowed_deltas）のみ使用可能
-- 急激な変更を避ける（例: 最初は +100mm を優先し、必要なら次ループで追加）
+## 制約
+- actions は最大3件
+- allowed_actions と allowed_deltas 以外は使わない
+- 同じ目的の手を重複させない（例: web+100 と web+200 を同時に入れない）
 
-## 各util項目と効果的な修正
-- **util_deck > 1.0**: `set_deck_thickness_to_required` で床版厚を必要値に設定
-- **util_bend > 1.0**:
-  - `increase_web_height`: 断面二次モーメント増加（曲げ・たわみ両方に効果大）
-  - `increase_bottom_flange_thickness/width`: 引張側フランジ増強
-- **util_shear > 1.0**:
-  - `increase_web_thickness`: せん断抵抗面積増加
-  - `increase_web_height`: せん断抵抗面積増加
-- **util_deflection > 1.0**:
-  - `increase_web_height`: 断面二次モーメント増加（最も効果的）
-  - フランジ増強: 断面二次モーメント増加
-- **crossbeam_layout_ok = false**: `fix_crossbeam_layout` で横桁配置を修正
-
-## 出力フォーマット
-PatchPlan を JSON で返してください。各 action には:
-- `op`: 操作種別（allowed_actions から選択）
-- `path`: 対象フィールドパス
-- `delta_mm`: 変更量（allowed_deltas から選択）
-- `reason`: 変更理由（どの util を改善するか、なぜその変更量か）
-
-支配的な util（governing_check）を優先的に改善してください。"""
+## 出力
+PatchPlan(JSON)のみを返す。各 action には op/path/delta_mm/reason を入れる。
+reason には「どのutilをどれだけ下げる狙いか」を短く書く。
+"""
 
 
 def build_repair_user_prompt(context: RepairContext) -> str:
@@ -103,6 +101,11 @@ def build_repair_user_prompt(context: RepairContext) -> str:
 - sigma_bottom: {diag.sigma_bottom:.2f} N/mm² (allow: {diag.sigma_allow:.2f})
 - tau_avg: {diag.tau_avg:.2f} N/mm² (allow: {diag.tau_allow:.2f})
 - delta: {diag.delta:.2f} mm (allow: {diag.delta_allow:.2f} mm)"""
+    bend_side = "top" if abs(diag.sigma_top) >= abs(diag.sigma_bottom) else "bottom"
+    extra = f"- bend_governing_side: {bend_side}\n- target_util: 0.98\n"
+
+    # diag_info の末尾とかに追加
+    diag_info += "\n" + extra
 
     # 許可されるアクション
     actions_info = "## 許可されるアクション\n"

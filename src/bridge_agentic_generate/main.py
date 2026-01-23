@@ -89,14 +89,14 @@ def run_single_case(
 
     if judge_enabled:
         judge_input = JudgeInput(bridge_design=design)
-        report = judge_v1(judge_input)
+        report = judge_v1(judge_input, model=model_name)
         logger.info("Judge result: pass_fail=%s, max_util=%.3f", report.pass_fail, report.utilization.max_util)
 
 
 def run_with_repair_loop(
     bridge_length_m: float,
     total_width_m: float,
-    model_name: LlmModel = LlmModel.GPT_5_MINI,
+    model_name: LlmModel,
     top_k: int = TOP_K,
     max_iterations: int = DEFAULT_MAX_ITERATIONS,
 ) -> RepairLoopResult:

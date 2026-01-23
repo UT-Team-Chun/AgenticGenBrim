@@ -34,8 +34,8 @@ from src.bridge_agentic_generate.logger_config import logger
 # =============================================================================
 
 ALLOWED_ACTIONS: list[AllowedActionSpec] = [
-    AllowedActionSpec(op=PatchActionOp.INCREASE_WEB_HEIGHT, allowed_deltas=[100.0, 200.0, 300.0]),
-    AllowedActionSpec(op=PatchActionOp.INCREASE_WEB_THICKNESS, allowed_deltas=[2.0, 4.0]),
+    AllowedActionSpec(op=PatchActionOp.INCREASE_WEB_HEIGHT, allowed_deltas=[100.0, 200.0, 300.0, 500.0]),
+    AllowedActionSpec(op=PatchActionOp.INCREASE_WEB_THICKNESS, allowed_deltas=[2.0, 4.0, 6.0]),
     AllowedActionSpec(op=PatchActionOp.INCREASE_TOP_FLANGE_THICKNESS, allowed_deltas=[2.0, 4.0, 6.0]),
     AllowedActionSpec(op=PatchActionOp.INCREASE_BOTTOM_FLANGE_THICKNESS, allowed_deltas=[2.0, 4.0, 6.0]),
     AllowedActionSpec(op=PatchActionOp.INCREASE_TOP_FLANGE_WIDTH, allowed_deltas=[50.0, 100.0]),
@@ -261,7 +261,7 @@ def calc_allowable_deflection(bridge_length_mm: float) -> float:
 # =============================================================================
 
 
-def judge_v1(judge_input: JudgeInput, model: LlmModel = LlmModel.GPT_5_MINI) -> JudgeReport:
+def judge_v1(judge_input: JudgeInput, model: LlmModel) -> JudgeReport:
     """Judge v1 メイン関数。
 
     決定論的に util を計算し、合否判定・PatchPlan 生成を行う。

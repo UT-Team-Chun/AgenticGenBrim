@@ -129,16 +129,14 @@ def calc_girder_section_properties(
 
 def calc_live_load_effects(
     p_live_equiv_kn_m2: float,
-    total_width_mm: float,
-    num_girders: int,
+    girder_spacing_mm: float,
     bridge_length_mm: float,
 ) -> tuple[float, float]:
     """活荷重断面力を計算する（内部計算）。
 
     Args:
         p_live_equiv_kn_m2: 等価活荷重面圧 [kN/m²]
-        total_width_mm: 橋全幅 [mm]
-        num_girders: 主桁本数
+        girder_spacing_mm: 主桁間隔（受け持ち幅）[mm]
         bridge_length_mm: 橋長 [mm]
 
     Returns:
@@ -147,7 +145,7 @@ def calc_live_load_effects(
         V_live_max: 活荷重最大せん断力 [N]
     """
     # 受け持ち幅 [m]
-    b_tr_m = (total_width_mm / 1000) / num_girders
+    b_tr_m = girder_spacing_mm / 1000
 
     # 等価線荷重 [kN/m]
     w_live_kn_m = p_live_equiv_kn_m2 * b_tr_m
@@ -272,8 +270,7 @@ def judge_v1(judge_input: JudgeInput, model: LlmModel = LlmModel.GPT_5_MINI) -> 
     # -------------------------------------------------------------------------
     m_live_max, v_live_max = calc_live_load_effects(
         p_live_equiv_kn_m2=load_input.p_live_equiv,
-        total_width_mm=dims.total_width,
-        num_girders=dims.num_girders,
+        girder_spacing_mm=dims.girder_spacing,
         bridge_length_mm=dims.bridge_length,
     )
 

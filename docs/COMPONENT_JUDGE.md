@@ -6,7 +6,7 @@ BridgeDesign を入力として決定論的な照査計算を行い、不合格�
 
 Judge は以下の責務を担う：
 
-1. **決定論的照査**: 曲げ・せん断・たわみ・床版厚・横桁配置の util を計算
+1. **決定論的照査**: 曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置の util を計算
 2. **合否判定**: すべての util ≤ 1.0 かつ横桁配置 OK なら合格
 3. **修正提案**: 不合格時は LLM が PatchPlan（修正操作リスト）を生成
 
@@ -54,8 +54,9 @@ class JudgeReport(BaseModel):
 | `bend` | max(\|σ_top\|, \|σ_bottom\|) / σ_allow | 曲げ応力度 util |
 | `shear` | \|τ_avg\| / τ_allow | せん断応力度 util |
 | `deflection` | δ / δ_allow | たわみ util |
-| `max_util` | max(deck, bend, shear, deflection) | 最大 util |
-| `governing_check` | max_util の支配項目 | deck/bend/shear/deflection/crossbeam_layout |
+| `web_slenderness` | t_min_required / web_thickness | 腹板幅厚比 util |
+| `max_util` | max(deck, bend, shear, deflection, web_slenderness) | 最大 util |
+| `governing_check` | max_util の支配項目 | deck/bend/shear/deflection/web_slenderness/crossbeam_layout |
 
 ### Diagnostics（中間計算値）
 
@@ -72,6 +73,7 @@ class JudgeReport(BaseModel):
 | `tau_avg` | N/mm² | 平均せん断応力度 |
 | `delta`, `delta_allow` | mm | たわみ / 許容たわみ |
 | `deck_thickness_required` | mm | 必要床版厚 |
+| `web_thickness_min_required` | mm | 必要最小腹板厚 |
 | `crossbeam_layout_ok` | bool | 横桁配置の整合性 |
 
 ## 照査計算の詳細
@@ -143,6 +145,19 @@ util_deck = required / provided
 ```
 layout_ok = |panel_length × num_panels - bridge_length| ≤ 1.0mm
           AND panel_length ≤ 20000mm
+```
+
+### 9. 腹板幅厚比
+
+鋼種に応じた幅厚比制限から必要最小腹板厚を計算し、現在の腹板厚と比較する。
+
+```
+# 必要最小腹板厚
+SM490: t_min = web_height / 130
+SM400: t_min = web_height / 152
+
+# util
+util_web_slenderness = t_min / web_thickness
 ```
 
 ## 修正提案（PatchPlan）

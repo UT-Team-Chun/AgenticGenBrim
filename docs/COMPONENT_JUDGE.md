@@ -58,7 +58,7 @@ class JudgeReport(BaseModel):
 | 項目 | 計算式 | 説明 |
 |------|--------|------|
 | `deck` | required / provided | 床版厚 util |
-| `bend` | max(\|σ_top\|, \|σ_bottom\|) / σ_allow | 曲げ応力度 util |
+| `bend` | max(\|σ_top\|/σ_allow_top, \|σ_bottom\|/σ_allow_bottom) | 曲げ応力度 util |
 | `shear` | \|τ_avg\| / τ_allow | せん断応力度 util |
 | `deflection` | δ / δ_allow | たわみ util |
 | `web_slenderness` | t_min_required / web_thickness | 腹板幅厚比 util |

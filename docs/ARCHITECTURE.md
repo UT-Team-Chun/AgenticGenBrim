@@ -75,7 +75,7 @@ src/
 
 ### Judge
 
-決定論的な照査計算（曲げ・せん断・たわみ・床版厚・横桁配置）を行い、不合格時は LLM で PatchPlan を生成。
+決定論的な照査計算（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）を行い、不合格時は LLM で PatchPlan を生成。
 
 - **入力**: JudgeInput（BridgeDesign + 荷重 + 材料 + パラメータ）
 - **出力**: JudgeReport（pass_fail, utilization, diagnostics, patch_plan）

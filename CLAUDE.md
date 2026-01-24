@@ -44,7 +44,7 @@ AgenticGenBrim/
 
 1. **RAG**: 道路橋示方書等の PDF をテキスト化・埋め込みし、設計時に参照する条文チャンクを検索
 2. **Designer**: 橋長 L・幅員 B を受け取り、RAG 文脈を踏まえた BridgeDesign（構造化 JSON）を生成
-3. **Judge**: 決定論的な照査計算（曲げ・せん断・たわみ・床版厚・横桁配置）を行い、不合格時は LLM で PatchPlan を生成
+3. **Judge**: 決定論的な照査計算（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）を行い、不合格時は LLM で PatchPlan を生成
 4. **Designer-Judge ループ**: 不合格時に PatchPlan を適用し、合格するまで繰り返す修正ループ
 5. **IFC Export**: BridgeDesign → Senkei JSON → IFC に変換し BrIM 環境に渡す
 

@@ -98,7 +98,7 @@ results = search_text(query="主桁の最小板厚", top_k=5)
 - 道路橋示方書_鋼橋・鋼部材編.pdf
 
 #### judge/
-決定論的な照査計算（曲げ・せん断・たわみ・床版厚・横桁配置）を行い、不合格時は LLM で PatchPlan を生成。
+決定論的な照査計算（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）を行い、不合格時は LLM で PatchPlan を生成。
 
 ```python
 # 使用例
@@ -122,6 +122,7 @@ if not report.pass_fail:
 - せん断応力度 util（tau / tau_allow）
 - たわみ util（delta / delta_allow）
 - 床版厚 util（required / provided）
+- 腹板幅厚比 util（web_thickness_min_required / web_thickness）
 - 横桁配置チェック（panel_length * num_panels == bridge_length）
 
 ### bridge_json_to_ifc/

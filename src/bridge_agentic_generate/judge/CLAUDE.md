@@ -9,6 +9,7 @@ BridgeDesign（床版・主桁・横桁）と活荷重断面力（M_live_max, V_
 - せん断応力度 util（平均せん断）
 - たわみ util（等価等分布換算）
 - 床版厚 util（required/provided）
+- 腹板幅厚比 util（web_thickness_min_required / web_thickness）
 - 横桁配置チェック（panel_length × num_panels == L など）
 
 を返す `JudgeReport` を実装する。
@@ -110,6 +111,7 @@ class GoverningCheck(StrEnum):
     BEND = "bend"
     SHEAR = "shear"
     DEFLECTION = "deflection"
+    WEB_SLENDERNESS = "web_slenderness"
     CROSSBEAM_LAYOUT = "crossbeam_layout"
 
 class Utilization(BaseModel):
@@ -117,6 +119,7 @@ class Utilization(BaseModel):
     bend: float
     shear: float
     deflection: float
+    web_slenderness: float
     max_util: float
     governing_check: GoverningCheck
 
@@ -145,6 +148,7 @@ class Diagnostics(BaseModel):
     sigma_allow_bottom: float      # 下縁許容曲げ応力度 [N/mm²]
     tau_allow: float               # 許容せん断応力度 [N/mm²]
     deck_thickness_required: float # 必要床版厚 [mm]
+    web_thickness_min_required: float  # 必要最小腹板厚 [mm]
     crossbeam_layout_ok: bool      # 横桁配置の整合性
 
 class PatchActionOp(StrEnum):
@@ -394,8 +398,8 @@ LLMが提案できる操作は以下のみ。
 
 | 操作名 | 許容値 |
 |--------|--------|
-| `increase_web_height` | Δh ∈ {+100, +200, +300} mm |
-| `increase_web_thickness` | Δtw ∈ {+2, +4} mm |
+| `increase_web_height` | Δh ∈ {+100, +200, +300, +500} mm |
+| `increase_web_thickness` | Δtw ∈ {+2, +4, +6} mm |
 | `increase_top_flange_thickness` | Δtt ∈ {+2, +4, +6} mm |
 | `increase_bottom_flange_thickness` | Δtb ∈ {+2, +4, +6} mm |
 | `increase_top_flange_width` | Δbt ∈ {+50, +100} mm |

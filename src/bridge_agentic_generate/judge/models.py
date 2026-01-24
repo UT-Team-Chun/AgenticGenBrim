@@ -12,6 +12,49 @@ from pydantic import BaseModel, Field
 from src.bridge_agentic_generate.designer.models import BridgeDesign, DesignerRagLog
 
 # =============================================================================
+# 鋼種と降伏点
+# =============================================================================
+
+
+class SteelGrade(StrEnum):
+    """鋼種。"""
+
+    SM400 = "SM400"
+    SM490 = "SM490"
+
+
+def get_fy(grade: SteelGrade, thickness_mm: float) -> float:
+    """鋼種と板厚から降伏点を返す。
+
+    Args:
+        grade: 鋼種
+        thickness_mm: 板厚 [mm]
+
+    Returns:
+        降伏点 [N/mm²]
+
+    Raises:
+        ValueError: 未対応の鋼種の場合
+    """
+    if grade == SteelGrade.SM400:
+        if thickness_mm <= 16:
+            return 245.0
+        elif thickness_mm <= 40:
+            return 235.0
+        else:
+            return 215.0
+    elif grade == SteelGrade.SM490:
+        if thickness_mm <= 16:
+            return 325.0
+        elif thickness_mm <= 40:
+            return 315.0
+        else:
+            return 295.0
+    else:
+        raise ValueError(f"未対応の鋼種: {grade}")
+
+
+# =============================================================================
 # 入力モデル
 # =============================================================================
 
@@ -33,12 +76,12 @@ class MaterialsSteel(BaseModel):
 
     Attributes:
         E: ヤング率 [N/mm²]
-        fy: 降伏点 [N/mm²]
+        grade: 鋼種
         unit_weight: 単位体積重量 [N/mm³]（kN/m³ から変換済み）
     """
 
     E: float = Field(default=2.0e5, description="ヤング率 [N/mm²]")
-    fy: float = Field(default=235.0, description="降伏点 [N/mm²]")
+    grade: SteelGrade = Field(default=SteelGrade.SM490, description="鋼種")
     unit_weight: float = Field(default=78.5e-6, description="単位体積重量 [N/mm³]（78.5 kN/m³ = 78.5e-6 N/mm³）")
 
 
@@ -138,7 +181,11 @@ class Diagnostics(BaseModel):
     tau_avg: float = Field(..., description="平均せん断応力度 [N/mm²]")
     delta: float = Field(..., description="たわみ [mm]")
     delta_allow: float = Field(..., description="許容たわみ [mm]")
-    sigma_allow: float = Field(..., description="許容曲げ応力度 [N/mm²]")
+    fy_top_flange: float = Field(..., description="上フランジ降伏点 [N/mm²]")
+    fy_bottom_flange: float = Field(..., description="下フランジ降伏点 [N/mm²]")
+    fy_web: float = Field(..., description="ウェブ降伏点 [N/mm²]")
+    sigma_allow_top: float = Field(..., description="上縁許容曲げ応力度 [N/mm²]")
+    sigma_allow_bottom: float = Field(..., description="下縁許容曲げ応力度 [N/mm²]")
     tau_allow: float = Field(..., description="許容せん断応力度 [N/mm²]")
     deck_thickness_required: float = Field(..., description="必要床版厚 [mm]")
     crossbeam_layout_ok: bool = Field(..., description="横桁配置の整合性")

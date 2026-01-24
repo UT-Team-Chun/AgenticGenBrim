@@ -93,8 +93,11 @@ def build_repair_user_prompt(context: RepairContext) -> str:
 - M_total: {diag.M_total:.2e} N·mm
 - V_total: {diag.V_total:.2e} N
 - I (moment_of_inertia): {diag.moment_of_inertia:.2e} mm⁴
-- sigma_top: {diag.sigma_top:.2f} N/mm² (allow: {diag.sigma_allow:.2f})
-- sigma_bottom: {diag.sigma_bottom:.2f} N/mm² (allow: {diag.sigma_allow:.2f})
+- fy_top_flange: {diag.fy_top_flange:.1f} N/mm²
+- fy_bottom_flange: {diag.fy_bottom_flange:.1f} N/mm²
+- fy_web: {diag.fy_web:.1f} N/mm²
+- sigma_top: {diag.sigma_top:.2f} N/mm² (allow: {diag.sigma_allow_top:.2f})
+- sigma_bottom: {diag.sigma_bottom:.2f} N/mm² (allow: {diag.sigma_allow_bottom:.2f})
 - tau_avg: {diag.tau_avg:.2f} N/mm² (allow: {diag.tau_allow:.2f})
 - delta: {diag.delta:.2f} mm (allow: {diag.delta_allow:.2f} mm)"""
     bend_side = "top" if abs(diag.sigma_top) >= abs(diag.sigma_bottom) else "bottom"

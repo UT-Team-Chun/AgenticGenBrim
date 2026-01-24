@@ -1075,17 +1075,17 @@ def Calculate_Yokogeta(ifc_all, Senkei_data, MainPanel_data, infor_yokogeta):
 
         # ウェブ情報
         web_thick = web_info.get("Thick", 12)
-        web_mat = web_info.get("Mat", "SM400A")
+        web_mat = web_info.get("Mat", "SM490A")
 
         # 上フランジ情報
         uf_thick = uflange_info.get("Thick", 16)
         uf_width = uflange_info.get("Width", 200)
-        uf_mat = uflange_info.get("Mat", "SM400A")
+        uf_mat = uflange_info.get("Mat", "SM490A")
 
         # 下フランジ情報
         lf_thick = lflange_info.get("Thick", 16)
         lf_width = lflange_info.get("Width", 200)
-        lf_mat = lflange_info.get("Mat", "SM400A")
+        lf_mat = lflange_info.get("Mat", "SM490A")
 
         # ウェブの生成（厚さ方向に分割）
         web_split_thick = web_thick / break_count

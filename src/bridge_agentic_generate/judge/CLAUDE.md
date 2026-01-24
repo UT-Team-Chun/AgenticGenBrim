@@ -21,13 +21,31 @@ BridgeDesign（床版・主桁・横桁）と活荷重断面力（M_live_max, V_
 ### 1.1 入力：JudgeInput
 
 ```python
+class SteelGrade(StrEnum):
+    SM400 = "SM400"
+    SM490 = "SM490"
+
+def get_fy(grade: SteelGrade, thickness_mm: float) -> float:
+    """鋼種と板厚から降伏点を返す。
+
+    SM400:
+        ≤16mm: 245 N/mm²
+        16-40mm: 235 N/mm²
+        >40mm: 215 N/mm²
+
+    SM490:
+        ≤16mm: 325 N/mm²
+        16-40mm: 315 N/mm²
+        >40mm: 295 N/mm²
+    """
+
 class JudgeParams(BaseModel):
     alpha_bend: float = 0.6
     alpha_shear: float = 0.6
 
 class MaterialsSteel(BaseModel):
     E: float = 2.0e5       # N/mm²
-    fy: float = 235.0      # N/mm²
+    grade: SteelGrade = SteelGrade.SM490  # 鋼種（デフォルト: SM490）
     unit_weight: float = 78.5e-6  # N/mm³（78.5 kN/m³ = 78.5e-6 N/mm³）
 
 class MaterialsConcrete(BaseModel):
@@ -45,6 +63,8 @@ class JudgeInput(BaseModel):
 ```
 
 > **注:** BridgeDesign は既存の構造化スキーマを使う（dimensions/sections/components が入ってるやつ）。
+>
+> **鋼種と降伏点:** 部材ごとの板厚に応じて降伏点(fy)を動的に決定する。SM490をデフォルトとし、板厚別の降伏点テーブルに基づいて計算する。
 
 ### 1.2 活荷重の内部計算
 
@@ -118,7 +138,11 @@ class Diagnostics(BaseModel):
     tau_avg: float                 # 平均せん断応力度 [N/mm²]
     delta: float                   # たわみ [mm]
     delta_allow: float             # 許容たわみ [mm]
-    sigma_allow: float             # 許容曲げ応力度 [N/mm²]
+    fy_top_flange: float           # 上フランジ降伏点 [N/mm²]
+    fy_bottom_flange: float        # 下フランジ降伏点 [N/mm²]
+    fy_web: float                  # ウェブ降伏点 [N/mm²]
+    sigma_allow_top: float         # 上縁許容曲げ応力度 [N/mm²]
+    sigma_allow_bottom: float      # 下縁許容曲げ応力度 [N/mm²]
     tau_allow: float               # 許容せん断応力度 [N/mm²]
     deck_thickness_required: float # 必要床版厚 [mm]
     crossbeam_layout_ok: bool      # 横桁配置の整合性
@@ -259,19 +283,29 @@ M_live_max, V_live_max は「代表主桁（1本）に生じる最大断面力�
 
 ### 2.7 応力度
 
+部材ごとの降伏点を計算：
+
+```
+fy_top = get_fy(steel.grade, girder.top_flange_thickness)
+fy_bottom = get_fy(steel.grade, girder.bottom_flange_thickness)
+fy_web = get_fy(steel.grade, girder.web_thickness)
+```
+
+曲げ応力度（上下フランジ別）：
+
 ```
 sigma_top    = M_total × y_top / moment_of_inertia
 sigma_bottom = M_total × y_bottom / moment_of_inertia
+
+sigma_allow_top = alpha_bend × fy_top
+sigma_allow_bottom = alpha_bend × fy_bottom
+
+util_bend_top = |sigma_top| / sigma_allow_top
+util_bend_bottom = |sigma_bottom| / sigma_allow_bottom
+util_bend = max(util_bend_top, util_bend_bottom)
 ```
 
-応力度制限（B 案）：
-
-```
-sigma_allow = alpha_bend × fy
-util_bend   = max(|sigma_top|, |sigma_bottom|) / sigma_allow
-```
-
-### 2.8 せん断（平均）
+### 2.8 せん断（平均、ウェブの降伏点を使用）
 
 ```
 tau_avg = V_total / (web_thickness × web_height)
@@ -280,7 +314,7 @@ tau_avg = V_total / (web_thickness × web_height)
 せん断制限：
 
 ```
-tau_allow  = alpha_shear × (fy / √3)
+tau_allow  = alpha_shear × (fy_web / √3)
 util_shear = |tau_avg| / tau_allow
 ```
 

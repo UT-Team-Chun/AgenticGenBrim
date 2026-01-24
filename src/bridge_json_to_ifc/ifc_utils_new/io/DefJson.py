@@ -54,7 +54,7 @@ def Convert_DataInput_From_Excel_To_Json(Location, NameFile):
     MainPanel_Rec = DefExcel.Load_Sheet_MainPanel_Rec(Ws_MainPanel_Rec)
 
     # デフォルト値を定義（材料と延長）
-    default_material = {"Thick1": 4.5, "Thick2": 4.5, "Mat": "SM400A"}
+    default_material = {"Thick1": 4.5, "Thick2": 4.5, "Mat": "SM490A"}
     default_expand = {"E1": 0, "E2": 0, "E3": 0, "E4": 0}
 
     # MainPanel_LineとMainPanel_Recをマージ
@@ -92,7 +92,7 @@ def Convert_DataInput_From_Excel_To_Json(Location, NameFile):
         SubPanel_Rec = DefExcel.Load_Sheet_SubPanel_Rec(Ws_SubPanel_Rec)
 
         # デフォルト値を定義
-        default_material = {"Thick1": 4.5, "Thick2": 4.5, "Mat": "SM400A"}
+        default_material = {"Thick1": 4.5, "Thick2": 4.5, "Mat": "SM490A"}
         default_out = {}
         default_expand = {"E1": 0, "E2": 0, "E3": 0, "E4": 0}
         # SubPanel_LineとSubPanel_Recをマージ

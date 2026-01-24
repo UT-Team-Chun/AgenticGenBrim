@@ -26,6 +26,7 @@ from src.bridge_agentic_generate.judge.models import (
     PatchPlan,
     RepairContext,
     Utilization,
+    get_fy,
 )
 from src.bridge_agentic_generate.judge.prompts import generate_patch_plan
 from src.bridge_agentic_generate.llm_client import LlmModel
@@ -323,23 +324,34 @@ def _calculate_utilization_and_diagnostics(
     ybar, moment_of_inertia, y_top, y_bottom, _ = calc_girder_section_properties(girder)
 
     # -------------------------------------------------------------------------
-    # 5. 応力度
+    # 5. 部材ごとの降伏点を計算
+    # -------------------------------------------------------------------------
+    fy_top = get_fy(steel.grade, girder.top_flange_thickness)
+    fy_bottom = get_fy(steel.grade, girder.bottom_flange_thickness)
+    fy_web = get_fy(steel.grade, girder.web_thickness)
+
+    # -------------------------------------------------------------------------
+    # 6. 応力度（曲げ: 上下フランジ別）
     # -------------------------------------------------------------------------
     sigma_top = m_total * y_top / moment_of_inertia
     sigma_bottom = m_total * y_bottom / moment_of_inertia
 
-    sigma_allow = params.alpha_bend * steel.fy
-    util_bend = max(abs(sigma_top), abs(sigma_bottom)) / sigma_allow
+    sigma_allow_top = params.alpha_bend * fy_top
+    sigma_allow_bottom = params.alpha_bend * fy_bottom
+
+    util_bend_top = abs(sigma_top) / sigma_allow_top
+    util_bend_bottom = abs(sigma_bottom) / sigma_allow_bottom
+    util_bend = max(util_bend_top, util_bend_bottom)
 
     # -------------------------------------------------------------------------
-    # 6. せん断（平均）
+    # 7. せん断（平均、ウェブの降伏点を使用）
     # -------------------------------------------------------------------------
     tau_avg = v_total / (girder.web_thickness * girder.web_height)
-    tau_allow = params.alpha_shear * (steel.fy / math.sqrt(3))
+    tau_allow = params.alpha_shear * (fy_web / math.sqrt(3))
     util_shear = abs(tau_avg) / tau_allow
 
     # -------------------------------------------------------------------------
-    # 7. たわみ（活荷重のみ・道路橋示方書準拠）
+    # 8. たわみ（活荷重のみ・道路橋示方書準拠）
     # -------------------------------------------------------------------------
     w_eq_live = 8 * m_live_max / (dims.bridge_length**2)
     delta = 5 * w_eq_live * dims.bridge_length**4 / (384 * steel.E * moment_of_inertia)
@@ -347,13 +359,13 @@ def _calculate_utilization_and_diagnostics(
     util_deflection = delta / delta_allow
 
     # -------------------------------------------------------------------------
-    # 8. 床版厚 util
+    # 9. 床版厚 util
     # -------------------------------------------------------------------------
     deck_thickness_required = calc_required_deck_thickness(dims.girder_spacing)
     util_deck = deck_thickness_required / deck_thickness
 
     # -------------------------------------------------------------------------
-    # 9. 横桁配置チェック
+    # 10. 横桁配置チェック
     # -------------------------------------------------------------------------
     # panel_length = crossbeam_spacing（仕様書の通り）
     panel_length = dims.panel_length
@@ -362,7 +374,7 @@ def _calculate_utilization_and_diagnostics(
     crossbeam_layout_ok = (layout_error <= CROSSBEAM_LAYOUT_TOL_MM) and (panel_length <= MAX_PANEL_LENGTH_MM)
 
     # -------------------------------------------------------------------------
-    # 10. governing_check と max_util
+    # 11. governing_check と max_util
     # -------------------------------------------------------------------------
     util_map = {
         GoverningCheck.DECK: util_deck,
@@ -378,12 +390,12 @@ def _calculate_utilization_and_diagnostics(
         governing_check = GoverningCheck.CROSSBEAM_LAYOUT
 
     # -------------------------------------------------------------------------
-    # 11. pass_fail
+    # 12. pass_fail
     # -------------------------------------------------------------------------
     pass_fail = (max_util <= 1.0) and crossbeam_layout_ok
 
     # -------------------------------------------------------------------------
-    # 12. Utilization / Diagnostics
+    # 13. Utilization / Diagnostics
     # -------------------------------------------------------------------------
     utilization = Utilization(
         deck=util_deck,
@@ -412,7 +424,11 @@ def _calculate_utilization_and_diagnostics(
         tau_avg=tau_avg,
         delta=delta,
         delta_allow=delta_allow,
-        sigma_allow=sigma_allow,
+        fy_top_flange=fy_top,
+        fy_bottom_flange=fy_bottom,
+        fy_web=fy_web,
+        sigma_allow_top=sigma_allow_top,
+        sigma_allow_bottom=sigma_allow_bottom,
         tau_allow=tau_allow,
         deck_thickness_required=deck_thickness_required,
         crossbeam_layout_ok=crossbeam_layout_ok,

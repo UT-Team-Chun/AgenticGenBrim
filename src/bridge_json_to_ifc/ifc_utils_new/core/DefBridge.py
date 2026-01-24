@@ -1366,9 +1366,9 @@ def _generate_yokogeta(ctx):
         reference = yokogeta.get("Reference", "Top")
         height = yokogeta.get("Height", 800)
         z_offset = yokogeta.get("ZOffset", 0)
-        web_info = yokogeta.get("Web", {"Thick": 12, "Mat": "SM400A"})
-        uflange_info = yokogeta.get("UFlange", {"Thick": 16, "Width": 200, "Mat": "SM400A"})
-        lflange_info = yokogeta.get("LFlange", {"Thick": 16, "Width": 200, "Mat": "SM400A"})
+        web_info = yokogeta.get("Web", {"Thick": 12, "Mat": "SM490A"})
+        uflange_info = yokogeta.get("UFlange", {"Thick": 16, "Width": 200, "Mat": "SM490A"})
+        lflange_info = yokogeta.get("LFlange", {"Thick": 16, "Width": 200, "Mat": "SM490A"})
         break_info = yokogeta.get("Break", {"Count": 1})
         infor_yokogeta = (
             name_yokogeta,

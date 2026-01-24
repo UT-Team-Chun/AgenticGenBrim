@@ -38,7 +38,7 @@ from src.bridge_json_to_ifc.senkei_models import (
     YokogetaReference,
 )
 
-DEFAULT_MATERIAL = "SM400A"
+DEFAULT_MATERIAL = "SM490A"
 DEFAULT_YOKOGETA_BREAK_COUNT = 2
 DEFAULT_SHOUBAN_BREAK_THICK = 2
 

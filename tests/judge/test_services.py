@@ -26,6 +26,8 @@ from src.bridge_agentic_generate.judge.models import (
     PatchAction,
     PatchActionOp,
     PatchPlan,
+    SteelGrade,
+    get_fy,
 )
 from src.bridge_agentic_generate.judge.services import (
     apply_dependency_rules,
@@ -92,6 +94,47 @@ def sample_bridge_design() -> BridgeDesign:
             deck=Deck(thickness=217.0),
         ),
     )
+
+
+# =============================================================================
+# 単体テスト: get_fy（鋼種と板厚から降伏点を取得）
+# =============================================================================
+
+
+class TestGetFy:
+    """get_fy 関数のテスト。"""
+
+    def test_sm400_thin(self) -> None:
+        """SM400、板厚16mm以下で245 N/mm²を返すこと。"""
+        assert get_fy(SteelGrade.SM400, 12.0) == pytest.approx(245.0)
+        assert get_fy(SteelGrade.SM400, 16.0) == pytest.approx(245.0)
+
+    def test_sm400_medium(self) -> None:
+        """SM400、板厚16-40mmで235 N/mm²を返すこと。"""
+        assert get_fy(SteelGrade.SM400, 20.0) == pytest.approx(235.0)
+        assert get_fy(SteelGrade.SM400, 30.0) == pytest.approx(235.0)
+        assert get_fy(SteelGrade.SM400, 40.0) == pytest.approx(235.0)
+
+    def test_sm400_thick(self) -> None:
+        """SM400、板厚40mm超で215 N/mm²を返すこと。"""
+        assert get_fy(SteelGrade.SM400, 50.0) == pytest.approx(215.0)
+        assert get_fy(SteelGrade.SM400, 75.0) == pytest.approx(215.0)
+
+    def test_sm490_thin(self) -> None:
+        """SM490、板厚16mm以下で325 N/mm²を返すこと。"""
+        assert get_fy(SteelGrade.SM490, 12.0) == pytest.approx(325.0)
+        assert get_fy(SteelGrade.SM490, 16.0) == pytest.approx(325.0)
+
+    def test_sm490_medium(self) -> None:
+        """SM490、板厚16-40mmで315 N/mm²を返すこと。"""
+        assert get_fy(SteelGrade.SM490, 20.0) == pytest.approx(315.0)
+        assert get_fy(SteelGrade.SM490, 30.0) == pytest.approx(315.0)
+        assert get_fy(SteelGrade.SM490, 40.0) == pytest.approx(315.0)
+
+    def test_sm490_thick(self) -> None:
+        """SM490、板厚40mm超で295 N/mm²を返すこと。"""
+        assert get_fy(SteelGrade.SM490, 50.0) == pytest.approx(295.0)
+        assert get_fy(SteelGrade.SM490, 75.0) == pytest.approx(295.0)
 
 
 # =============================================================================
@@ -361,7 +404,8 @@ class TestJudgeV1:
         assert diag.w_dead > 0
         assert diag.M_dead > 0
         assert diag.moment_of_inertia > 0
-        assert diag.sigma_allow > 0
+        assert diag.sigma_allow_top > 0
+        assert diag.sigma_allow_bottom > 0
         assert diag.delta > 0
 
     def test_judge_v1_with_passing_design(self) -> None:
@@ -582,7 +626,8 @@ class TestJudgeV1WithFixture:
         assert diag.w_dead > 0, "w_dead should be positive"
         assert diag.M_dead > 0, "M_dead should be positive"
         assert diag.moment_of_inertia > 0, "I should be positive"
-        assert diag.sigma_allow > 0, "sigma_allow should be positive"
+        assert diag.sigma_allow_top > 0, "sigma_allow_top should be positive"
+        assert diag.sigma_allow_bottom > 0, "sigma_allow_bottom should be positive"
         assert diag.delta > 0, "delta should be positive"
 
         # ログ出力用に診断情報を表示
@@ -597,7 +642,11 @@ class TestJudgeV1WithFixture:
         print(f"w_dead: {diag.w_dead:.4f} N/mm")
         print(f"M_dead: {diag.M_dead:.2e} N·mm")
         print(f"I: {diag.moment_of_inertia:.2e} mm⁴")
-        print(f"sigma_allow: {diag.sigma_allow:.2f} N/mm²")
+        print(f"fy_top_flange: {diag.fy_top_flange:.1f} N/mm²")
+        print(f"fy_bottom_flange: {diag.fy_bottom_flange:.1f} N/mm²")
+        print(f"fy_web: {diag.fy_web:.1f} N/mm²")
+        print(f"sigma_allow_top: {diag.sigma_allow_top:.2f} N/mm²")
+        print(f"sigma_allow_bottom: {diag.sigma_allow_bottom:.2f} N/mm²")
         print(f"delta: {diag.delta:.2f} mm (allow: {diag.delta_allow:.2f} mm)")
 
 
@@ -926,7 +975,8 @@ class TestJudgeV1Lightweight:
         assert diagnostics.w_dead > 0
         assert diagnostics.M_dead > 0
         assert diagnostics.moment_of_inertia > 0
-        assert diagnostics.sigma_allow > 0
+        assert diagnostics.sigma_allow_top > 0
+        assert diagnostics.sigma_allow_bottom > 0
 
     def test_judge_v1_lightweight_matches_judge_v1(self, sample_bridge_design: BridgeDesign) -> None:
         """judge_v1_lightweight の結果が judge_v1 と一致すること。"""

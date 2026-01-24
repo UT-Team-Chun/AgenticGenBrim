@@ -94,7 +94,7 @@ class PanelMaterial(BaseModel):
 
     thick1: float = Field(..., alias="Thick1", description="厚さ1 [mm]")
     thick2: float = Field(..., alias="Thick2", description="厚さ2 [mm]")
-    mat: str = Field(default="SM400A", alias="Mat", description="材料名")
+    mat: str = Field(default="SM490A", alias="Mat", description="材料名")
     split_thickness: bool | None = Field(
         default=None, alias="SplitThickness", description="厚み分割フラグ（UF/LFで使用）"
     )
@@ -163,7 +163,7 @@ class WebSpec(BaseModel):
     """横桁ウェブ仕様。"""
 
     thick: float = Field(..., alias="Thick", description="板厚 [mm]")
-    mat: str = Field(default="SM400A", alias="Mat", description="材料名")
+    mat: str = Field(default="SM490A", alias="Mat", description="材料名")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -173,7 +173,7 @@ class FlangeSpec(BaseModel):
 
     thick: float = Field(..., alias="Thick", description="板厚 [mm]")
     width: float = Field(..., alias="Width", description="フランジ幅 [mm]")
-    mat: str = Field(default="SM400A", alias="Mat", description="材料名")
+    mat: str = Field(default="SM490A", alias="Mat", description="材料名")
 
     model_config = ConfigDict(populate_by_name=True)
 

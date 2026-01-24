@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from src.bridge_agentic_generate.config import app_config
 from src.bridge_agentic_generate.judge.models import RepairLoopResult
+from src.bridge_agentic_generate.judge.report import generate_repair_report
 from src.bridge_agentic_generate.llm_client import LlmModel
 from src.bridge_agentic_generate.logger_config import logger
 from src.bridge_agentic_generate.main import run_single_case, run_with_repair_loop
@@ -52,6 +53,7 @@ class RunWithRepairResult(BaseModel):
         final_senkei_json: 最終設計の SenkeiSpec JSON のパス
         final_ifc: 最終設計の IFC ファイルのパス
         raglog_json: RAG ログの JSON パス
+        report_md: 修正ループレポート（Markdown）のパス
     """
 
     converged: bool
@@ -64,6 +66,7 @@ class RunWithRepairResult(BaseModel):
     final_senkei_json: str
     final_ifc: str
     raglog_json: str
+    report_md: str
 
 
 def _coerce_model(model_name: str | LlmModel) -> LlmModel:
@@ -199,6 +202,7 @@ class _SavedIterationPaths(BaseModel):
     final_senkei_json: str
     final_ifc: str
     raglog_json: str
+    report_md: str
 
 
 def _save_repair_loop_results(
@@ -219,12 +223,14 @@ def _save_repair_loop_results(
     senkei_json_dir = app_config.generated_senkei_json_dir
     raglog_json_dir = app_config.generated_bridge_raglog_json_dir
     ifc_dir = app_config.generated_ifc_dir
+    report_md_dir = app_config.generated_report_md_dir
 
     simple_json_dir.mkdir(parents=True, exist_ok=True)
     judge_json_dir.mkdir(parents=True, exist_ok=True)
     senkei_json_dir.mkdir(parents=True, exist_ok=True)
     raglog_json_dir.mkdir(parents=True, exist_ok=True)
     ifc_dir.mkdir(parents=True, exist_ok=True)
+    report_md_dir.mkdir(parents=True, exist_ok=True)
 
     iteration_design_paths: list[str] = []
     iteration_judge_paths: list[str] = []
@@ -283,6 +289,11 @@ def _save_repair_loop_results(
     )
     logger.info("Saved RAG log to %s", raglog_path)
 
+    # 修正ループレポートを生成・保存
+    report_path = report_md_dir / f"{base_name}_report.md"
+    generate_repair_report(loop_result, output_path=report_path)
+    logger.info("Saved repair loop report to %s", report_path)
+
     return _SavedIterationPaths(
         design_jsons=iteration_design_paths,
         judge_jsons=iteration_judge_paths,
@@ -292,6 +303,7 @@ def _save_repair_loop_results(
         final_senkei_json=str(final_senkei_path),
         final_ifc=str(final_ifc_path),
         raglog_json=str(raglog_path),
+        report_md=str(report_path),
     )
 
 
@@ -355,6 +367,7 @@ def run_with_repair(
         final_senkei_json=saved_paths.final_senkei_json,
         final_ifc=saved_paths.final_ifc,
         raglog_json=saved_paths.raglog_json,
+        report_md=saved_paths.report_md,
     )
 
 

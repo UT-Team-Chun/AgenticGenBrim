@@ -676,7 +676,9 @@ def apply_dependency_rules(
 
     for rule in dependency_rules:
         # スコープ: crossbeam.total_height のみ（v1）
-        if rule.target_field == "crossbeam.total_height" and rule.source_field == "girder.web_height":
+        target_match = rule.target_field == "sections.crossbeam_standard.total_height"
+        source_match = rule.source_field == "sections.girder_standard.web_height"
+        if target_match and source_match:
             source_value = girder.web_height
             new_value = source_value * rule.factor
             crossbeam = CrossbeamSection(

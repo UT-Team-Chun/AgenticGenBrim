@@ -781,8 +781,8 @@ class TestApplyDependencyRules:
         dependency_rules = [
             DependencyRule(
                 rule_id="D1",
-                target_field="crossbeam.total_height",
-                source_field="girder.web_height",
+                target_field="sections.crossbeam_standard.total_height",
+                source_field="sections.girder_standard.web_height",
                 factor=0.8,
                 source_hit_ranks=[17],
                 notes="示方書より横桁高さは主桁の80%程度",
@@ -843,8 +843,8 @@ class TestApplyDependencyRules:
         dependency_rules = [
             DependencyRule(
                 rule_id="D1",
-                target_field="crossbeam.total_height",
-                source_field="girder.web_height",
+                target_field="sections.crossbeam_standard.total_height",
+                source_field="sections.girder_standard.web_height",
                 factor=1.0,
                 source_hit_ranks=[],
                 notes="横桁高さを主桁と同じにする",
@@ -875,8 +875,8 @@ class TestApplyDependencyRules:
         dependency_rules = [
             DependencyRule(
                 rule_id="D1",
-                target_field="crossbeam.total_height",
-                source_field="girder.web_height",
+                target_field="sections.crossbeam_standard.total_height",
+                source_field="sections.girder_standard.web_height",
                 factor=0.8,
                 source_hit_ranks=[17],
                 notes="示方書より横桁高さは主桁の80%程度",

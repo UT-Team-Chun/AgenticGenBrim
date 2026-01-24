@@ -46,10 +46,11 @@ class JudgeInput(BaseModel):
 
 ```python
 class JudgeReport(BaseModel):
-    pass_fail: bool           # 合否
-    utilization: Utilization  # 各項目の util
-    diagnostics: Diagnostics  # 中間計算値
-    patch_plan: PatchPlan     # 修正提案（不合格時のみ）
+    pass_fail: bool                        # 合否
+    utilization: Utilization               # 各項目の util
+    diagnostics: Diagnostics               # 中間計算値
+    patch_plan: PatchPlan                  # 修正提案（不合格時のみ）
+    evaluated_candidates: list | None      # 評価済み候補リスト（不合格時のみ）
 ```
 
 ### Utilization
@@ -75,9 +76,13 @@ class JudgeReport(BaseModel):
 | `M_total`, `V_total` | N·mm, N | 合計断面力 |
 | `ybar` | mm | 中立軸位置（下端基準） |
 | `moment_of_inertia` | mm⁴ | 断面二次モーメント |
+| `y_top`, `y_bottom` | mm | 上縁距離 / 下縁距離 |
 | `sigma_top`, `sigma_bottom` | N/mm² | 上下縁応力度 |
 | `tau_avg` | N/mm² | 平均せん断応力度 |
 | `delta`, `delta_allow` | mm | たわみ / 許容たわみ |
+| `fy_top_flange`, `fy_bottom_flange`, `fy_web` | N/mm² | 各部位の降伏点 |
+| `sigma_allow_top`, `sigma_allow_bottom` | N/mm² | 上下縁許容曲げ応力度 |
+| `tau_allow` | N/mm² | 許容せん断応力度 |
 | `deck_thickness_required` | mm | 必要床版厚 |
 | `web_thickness_min_required` | mm | 必要最小腹板厚 |
 | `crossbeam_layout_ok` | bool | 横桁配置の整合性 |
@@ -87,7 +92,7 @@ class JudgeReport(BaseModel):
 ### 1. 活荷重断面力（内部計算）
 
 ```
-受け持ち幅: b_tr_m = (total_width / 1000) / num_girders [m]
+受け持ち幅: b_tr_m = girder_spacing / 1000 [m]
 等価線荷重: w_live = p_live_equiv × b_tr_m [kN/m]
 M_live_max = w_live × L² / 8 [kN·m] → [N·mm]
 V_live_max = w_live × L / 2 [kN] → [N]
@@ -114,18 +119,29 @@ V_dead = w_dead × L / 2 [N]
 
 ### 4. 応力度
 
+上下フランジで板厚が異なる場合、それぞれの降伏点から許容応力度を計算する。
+
 ```
 σ_top = M_total × y_top / I
 σ_bottom = M_total × y_bottom / I
-σ_allow = α_bend × fy
-util_bend = max(|σ_top|, |σ_bottom|) / σ_allow
+
+# 上下フランジそれぞれの許容応力度
+σ_allow_top = α_bend × fy_top
+σ_allow_bottom = α_bend × fy_bottom
+
+# 上下で別々に util を計算し、大きい方を採用
+util_bend_top = |σ_top| / σ_allow_top
+util_bend_bottom = |σ_bottom| / σ_allow_bottom
+util_bend = max(util_bend_top, util_bend_bottom)
 ```
 
 ### 5. せん断（平均せん断応力度）
 
+ウェブの降伏点を使用する。
+
 ```
 τ_avg = V_total / (web_thickness × web_height)
-τ_allow = α_shear × (fy / √3)
+τ_allow = α_shear × (fy_web / √3)
 util_shear = |τ_avg| / τ_allow
 ```
 
@@ -189,8 +205,8 @@ util_web_slenderness = t_min / web_thickness
 
 | 操作 | 対象 | 許容値 |
 |------|------|--------|
-| `increase_web_height` | girder.web_height | +100, +200, +300 mm |
-| `increase_web_thickness` | girder.web_thickness | +2, +4 mm |
+| `increase_web_height` | girder.web_height | +100, +200, +300, +500 mm |
+| `increase_web_thickness` | girder.web_thickness | +2, +4, +6 mm |
 | `increase_top_flange_thickness` | girder.top_flange_thickness | +2, +4, +6 mm |
 | `increase_bottom_flange_thickness` | girder.bottom_flange_thickness | +2, +4, +6 mm |
 | `increase_top_flange_width` | girder.top_flange_width | +50, +100 mm |

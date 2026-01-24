@@ -11,8 +11,9 @@ data/
   generated_simple_bridge_json/   # Designer 出力 JSON（BridgeDesign）
   generated_bridge_raglog_json/   # RAG ヒットログ
   generated_judge_json/           # Judge 出力 JSON（JudgeReport）
-  generated_detailed_bridge_json/ # IFC 変換用の詳細 JSON
-  generated_senkei_json/          # IFC 変換用の Senkei JSON
+  generated_senkei_json/          # IFC 変換用の Senkei JSON（推奨）
+  generated_detailed_bridge_json/ # IFC 変換用の詳細 JSON（旧方式）
+  generated_report_md/            # 修正ループレポート（Markdown）
   generated_ifc/                  # IFC 出力
 rag_index/
   pdfplumber/{meta.jsonl,embeddings.npy}
@@ -32,12 +33,12 @@ src/
       models.py                   # 入出力モデル（JudgeReport, PatchPlan 等）
       prompts.py                  # PatchPlan 生成プロンプト
       services.py                 # 照査計算・修正適用
+      report.py                   # 修正ループレポート生成
     rag/                          # PDF 抽出・チャンク化・埋め込み・検索
       embedding_config.py         # 埋め込み設定・インデックス構造
       loader.py                   # チャンク化・埋め込み生成
       search.py                   # ベクトル検索
       extract_pdfs_with_*.py      # PDF抽出スクリプト（3種）
-    extractor/                    # 設計制約抽出エージェント（計画中）
   bridge_json_to_ifc/
     run_convert.py                # 変換 CLI
     models.py                     # 詳細 JSON スキーマ（DetailedBridgeSpec）
@@ -86,10 +87,6 @@ src/
 
 - **最大イテレーション**: 設定可能（デフォルト 5）
 - **出力**: RepairLoopResult（converged, iterations, final_design, final_report）
-
-### Extractor（計画中）
-
-RAG で得た条文を元に設計制約を構造化抽出するエージェント。
 
 ### IFC Export
 

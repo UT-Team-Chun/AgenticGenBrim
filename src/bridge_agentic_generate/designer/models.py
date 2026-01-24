@@ -158,10 +158,9 @@ class DependencyRule(BaseModel):
 
 
 class DesignRule(BaseModel):
-    """今回の設計で使用したルール 1 件分（簡易 Extractor 用）。
+    """今回の設計で使用したルール 1 件分。
 
-    - 今は Designer の中で都度生成するが、
-      将来的には独立した Extractor コンポーネントでも再利用できる形を目指す。
+    Designer が設計生成時に参照・適用したルールを構造化して記録する。
     """
 
     rule_id: str = Field(
@@ -215,7 +214,7 @@ class DesignerOutput(BaseModel):
     """LLM (Designer) からの Structured Output。
 
     - reasoning: 設計プロセス全体の思考・判断根拠
-    - rules: 今回の設計で使用したルール一覧（簡易 Extractor 的）
+    - rules: 今回の設計で使用したルール一覧
     - dependency_rules: 部材間の依存関係ルール（PatchPlan 連動用）
     - bridge_design: 既存の BridgeDesign モデル
     """

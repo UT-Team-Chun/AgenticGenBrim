@@ -18,14 +18,17 @@ AgenticGenBrim/
 │   │   ├── main.py                   # Designer/Judge CLI
 │   │   ├── designer/                 # 設計生成エージェント
 │   │   ├── judge/                    # 照査・修正提案（決定論計算+LLM）
-│   │   ├── rag/                      # RAG（検索拡張生成）
-│   │   └── extractor/                # 設計制約抽出（計画中）
+│   │   └── rag/                      # RAG（検索拡張生成）
 │   └── bridge_json_to_ifc/           # JSON→IFC変換
 ├── data/                             # データ（.gitignore）
 │   ├── design_knowledge/             # 元PDF
 │   ├── extracted_by_*/               # 抽出テキスト
 │   ├── generated_simple_bridge_json/ # Designer出力
-│   ├── generated_detailed_bridge_json/ # 詳細JSON
+│   ├── generated_bridge_raglog_json/ # RAGヒットログ
+│   ├── generated_judge_json/         # Judge出力
+│   ├── generated_senkei_json/        # Senkei JSON（IFC変換用中間形式）
+│   ├── generated_detailed_bridge_json/ # 詳細JSON（旧方式）
+│   ├── generated_report_md/          # 修正ループレポート
 │   └── generated_ifc/                # IFC出力
 ├── rag_index/                        # RAGインデックス（.gitignore）
 ├── docs/                             # ドキュメント
@@ -43,8 +46,7 @@ AgenticGenBrim/
 2. **Designer**: 橋長 L・幅員 B を受け取り、RAG 文脈を踏まえた BridgeDesign（構造化 JSON）を生成
 3. **Judge**: 決定論的な照査計算（曲げ・せん断・たわみ・床版厚・横桁配置）を行い、不合格時は LLM で PatchPlan を生成
 4. **Designer-Judge ループ**: 不合格時に PatchPlan を適用し、合格するまで繰り返す修正ループ
-5. **Extractor**: RAG で得た条文を元に設計制約を構造化抽出（計画中）
-6. **IFC Export**: BridgeDesign → 詳細 JSON → IFC に変換し BrIM 環境に渡す
+5. **IFC Export**: BridgeDesign → Senkei JSON → IFC に変換し BrIM 環境に渡す
 
 ## 技術スタック
 
@@ -211,4 +213,4 @@ logger.info("message")
 - [docs/USAGE.md](docs/USAGE.md) - セットアップ・実行方法
 - [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md) - 開発メモ
 - [docs/COMPONENT_DESIGNER.md](docs/COMPONENT_DESIGNER.md) - Designer 詳細
-- [docs/COMPONENT_EXTRACTOR.md](docs/COMPONENT_EXTRACTOR.md) - Extractor 詳細
+- [docs/COMPONENT_JUDGE.md](docs/COMPONENT_JUDGE.md) - Judge 詳細

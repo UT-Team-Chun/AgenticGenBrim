@@ -16,7 +16,6 @@
 - [ ] `src/bridge_agentic_generate/designer/` - 設計生成
 - [ ] `src/bridge_agentic_generate/rag/` - RAG（検索拡張生成）
 - [ ] `src/bridge_agentic_generate/judge/` - 設計評価
-- [ ] `src/bridge_agentic_generate/extractor/` - 設計制約抽出
 - [ ] `src/bridge_json_to_ifc/` - IFC変換
 
 ## 対象ファイル

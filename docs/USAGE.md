@@ -95,10 +95,12 @@ uv run python -m src.main run_with_repair \
 
 出力:
 
-- `data/generated_simple_bridge_json/…` - Designer 出力
-- `data/generated_judge_json/…` - Judge 出力
-- `data/generated_senkei_json/….senkei.json` - Senkei JSON（IFC 変換用中間形式）
-- `data/generated_ifc/….ifc` - IFC ファイル
+- `data/generated_simple_bridge_json/…` - Designer 出力（各イテレーション + final）
+- `data/generated_judge_json/…` - Judge 出力（各イテレーション）
+- `data/generated_bridge_raglog_json/…` - RAG ヒットログ
+- `data/generated_senkei_json/….senkei.json` - Senkei JSON（各イテレーション + final）
+- `data/generated_report_md/…_report.md` - 修正ループレポート（Markdown）
+- `data/generated_ifc/….ifc` - IFC ファイル（各イテレーション + final）
 
 ### 既存 JSON を IFC 変換のみ
 
@@ -115,13 +117,26 @@ uv run python -m src.bridge_json_to_ifc.run_convert data/generated_simple_bridge
 
 ### src.main（統合 CLI）
 
+#### run コマンド
+
+| オプション          | 型     | デフォルト  | 説明                                |
+| ------------------- | ------ | ----------- | ----------------------------------- |
+| `bridge_length_m`   | float  | 40.0        | 橋長 [m]                            |
+| `total_width_m`     | float  | 10.0        | 幅員 [m]                            |
+| `model_name`        | str    | gpt-5-mini  | 使用する LLM モデル                 |
+| `top_k`             | int    | 5           | RAG 検索時の取得件数                |
+| `judge_enabled`     | bool   | True        | Judge を実行するか                  |
+| `senkei_json_path`  | str    | None        | Senkei JSON 出力パス（自動生成可）  |
+| `ifc_output_path`   | str    | None        | IFC 出力パス（自動生成可）          |
+
+#### run_with_repair コマンド
+
 | オプション         | 型     | デフォルト  | 説明                               |
 | ------------------ | ------ | ----------- | ---------------------------------- |
-| `bridge_length_m`  | float  | 40.0        | 橋長 [m]                           |
-| `total_width_m`    | float  | 10.0        | 幅員 [m]                           |
-| `model_name`       | str    | gpt-5-mini  | 使用する LLM モデル                |
-| `ifc_output_path`  | str    | None        | IFC 出力パス（指定時のみ IFC 出力）|
-| `judge_enabled`    | bool   | True        | Judge を実行するか                 |
+| `bridge_length_m`  | float  | 30.0        | 橋長 [m]                           |
+| `total_width_m`    | float  | 7.5         | 幅員 [m]                           |
+| `model_name`       | str    | gpt-5-1     | 使用する LLM モデル                |
+| `top_k`            | int    | 5           | RAG 検索時の取得件数               |
 | `max_iterations`   | int    | 5           | 修正ループの最大イテレーション     |
 
 ### src.bridge_agentic_generate.main（Designer/Judge CLI）

@@ -12,7 +12,7 @@ RAG + OpenAI API で橋梁設計JSONを生成し、IFCに変換する。
 - **CLI**: fire
 - **LLM**: OpenAI API (Responses API / Structured Output)
 - **バリデーション**: Pydantic
-- **埋め込み**: sentence-transformers
+- **埋め込み**: text-embedding-3-small（OpenAI）
 - **PDF抽出**: pdfplumber / pypdf / pymupdf4llm
 - **IFC出力**: ifcopenshell
 - **フォーマット/Lint**: Ruff
@@ -34,21 +34,29 @@ src/
 │   ├── judge/                      # 照査・修正提案
 │   │   ├── models.py               # JudgeInput/JudgeReport/PatchPlan等
 │   │   ├── prompts.py              # PatchPlan生成プロンプト
-│   │   └── services.py             # 照査計算・apply_patch_plan
+│   │   ├── services.py             # 照査計算・apply_patch_plan
+│   │   └── report.py               # 修正ループレポート生成
 │   ├── rag/                        # RAG（検索拡張生成）
 │   │   ├── embedding_config.py     # FileNamesUsedForRag定義
 │   │   ├── loader.py               # チャンク化・埋め込み生成
 │   │   ├── search.py               # ベクトル検索（search_text）
 │   │   └── extract_pdfs_with_*.py  # PDF抽出スクリプト
-│   └── extractor/                  # 設計制約抽出（計画中）
 └── bridge_json_to_ifc/             # JSON→IFC変換
     ├── run_convert.py              # 変換CLI
-    ├── convert_simple_to_detailed_json.py  # BridgeDesign→詳細JSON
-    ├── convert_detailed_json_to_ifc.py     # 詳細JSON→IFC
-    ├── models.py                   # 詳細JSONのPydanticモデル
-    └── ifc_utils/                  # IFC生成ユーティリティ
-        ├── DefIFC.py               # IFC要素定義
-        └── DefMath.py              # 数学ユーティリティ
+    ├── models.py                   # 詳細JSONのPydanticモデル（DetailedBridgeSpec）
+    ├── senkei_models.py            # Senkei JSONのPydanticモデル（SenkeiSpec）
+    ├── convert_simple_to_detailed_json.py  # BridgeDesign→詳細JSON（旧方式）
+    ├── convert_simple_to_senkei_json.py    # BridgeDesign→Senkei JSON（推奨）
+    ├── convert_detailed_json_to_ifc.py     # 詳細JSON→IFC（旧方式）
+    ├── convert_senkei_json_to_ifc.py       # Senkei JSON→IFC（推奨）
+    ├── ifc_utils/                  # 旧IFC生成ユーティリティ
+    │   ├── DefIFC.py               # IFC要素定義
+    │   └── DefMath.py              # 数学ユーティリティ
+    └── ifc_utils_new/              # 新IFC生成ユーティリティ（Senkei用）
+        ├── core/                   # DefBridge, DefIFC, DefMath等
+        ├── components/             # DefBracing, DefPanel, DefStiffener等
+        ├── io/                     # DefExcel, DefJson, DefStrings
+        └── utils/                  # DefBridgeUtils, logger
 ```
 
 ## 主要モジュール
@@ -122,11 +130,13 @@ BridgeDesign JSONをIFCに変換するモジュール。
 
 ```python
 # 使用例
-from src.bridge_json_to_ifc.run_convert import convert_json_to_ifc
+from src.bridge_json_to_ifc.run_convert import convert
 
-convert_json_to_ifc(
-    input_path="data/generated_simple_bridge_json/design.json",
-    output_path="data/generated_ifc/output.ifc"
+# BridgeDesign JSON → Senkei JSON → IFC
+convert(
+    design_json_path="data/generated_simple_bridge_json/design.json",
+    senkei_json_path="data/generated_senkei_json/design.senkei.json",
+    ifc_path="data/generated_ifc/design.ifc",
 )
 ```
 

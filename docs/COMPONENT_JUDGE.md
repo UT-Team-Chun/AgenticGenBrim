@@ -213,6 +213,7 @@ class RepairLoopResult(BaseModel):
 - `src/bridge_agentic_generate/judge/models.py`: Pydantic モデル定義
 - `src/bridge_agentic_generate/judge/services.py`: 照査計算・PatchPlan 適用
 - `src/bridge_agentic_generate/judge/prompts.py`: PatchPlan 生成プロンプト
+- `src/bridge_agentic_generate/judge/report.py`: 修正ループレポート生成（Markdown）
 - `src/bridge_agentic_generate/judge/CLAUDE.md`: 詳細仕様書
 
 ## 注意事項

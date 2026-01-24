@@ -73,8 +73,7 @@
 
   - 対象は鋼プレートガーダー橋（RC床版）のみ
   - 断面は全長一定（支点部・中央部の変化なし）
-  - 荷重・応力照査は未実装（概略設計レベル）
-  - Judge（設計評価）はダミー実装
+  - 照査は概略設計レベル（曲げ・せん断・たわみ・床版厚・横桁配置）
 
 
 ================================================================================
@@ -260,14 +259,21 @@ Structured Output（構造化出力）により、型安全な設計データを
          │
          ▼
   ┌──────────────────────────────────────────────────────────────────────┐
-  │ Step 5: Simple JSON → Detailed JSON 変換                              │
+  │ Step 5: Judge 照査（オプション）                                       │
+  │  ・決定論的照査（曲げ・せん断・たわみ・床版厚・横桁配置）             │
+  │  ・不合格時は LLM で PatchPlan 生成 → 修正ループ                      │
+  └──────┬───────────────────────────────────────────────────────────────┘
+         │
+         ▼
+  ┌──────────────────────────────────────────────────────────────────────┐
+  │ Step 6: Simple JSON → Senkei JSON 変換                                 │
   │  ・座標計算（主桁配置、格間分割）                                     │
   │  ・IFC 生成用の詳細ジオメトリ情報を追加                               │
   └──────┬───────────────────────────────────────────────────────────────┘
          │
          ▼
   ┌──────────────────────────────────────────────────────────────────────┐
-  │ Step 6: Detailed JSON → IFC 変換                                      │
+  │ Step 7: Senkei JSON → IFC 変換                                         │
   │  ・ifcopenshell による IFC 要素生成                                   │
   │  ・床版（Brep）、主桁（SweptSolid）、横桁（SweptSolid）              │
   └──────┬───────────────────────────────────────────────────────────────┘
@@ -293,13 +299,16 @@ AgenticGenBrim/
 │   │   │   ├── models.py             # Pydantic モデル定義
 │   │   │   ├── prompts.py            # プロンプトテンプレート
 │   │   │   └── services.py           # 設計生成ロジック
-│   │   ├── judge/                    # Judge サブシステム（ダミー）
-│   │   ├── rag/                      # RAG サブシステム
-│   │   │   ├── embedding_config.py   # 埋め込み設定
-│   │   │   ├── loader.py             # インデックス構築
-│   │   │   ├── search.py             # ベクトル検索
-│   │   │   └── extract_pdfs_*.py     # PDF 抽出スクリプト
-│   │   └── extractor/                # Extractor（計画中）
+│   │   ├── judge/                    # Judge サブシステム（照査・修正提案）
+│   │   │   ├── models.py             # JudgeInput/JudgeReport/PatchPlan等
+│   │   │   ├── prompts.py            # PatchPlan生成プロンプト
+│   │   │   ├── services.py           # 照査計算・apply_patch_plan
+│   │   │   └── report.py             # 修正ループレポート生成
+│   │   └── rag/                      # RAG サブシステム
+│   │       ├── embedding_config.py   # 埋め込み設定
+│   │       ├── loader.py             # インデックス構築
+│   │       ├── search.py             # ベクトル検索
+│   │       └── extract_pdfs_*.py     # PDF 抽出スクリプト
 │   └── bridge_json_to_ifc/           # IFC 変換モジュール
 │       ├── run_convert.py            # 変換 CLI
 │       ├── convert_simple_to_detailed_json.py
@@ -313,7 +322,10 @@ AgenticGenBrim/
 │   ├── extracted_by_pdfplumber/      # 抽出テキスト
 │   ├── generated_simple_bridge_json/ # Designer 出力 JSON
 │   ├── generated_bridge_raglog_json/ # RAG ログ
-│   ├── generated_detailed_bridge_json/ # IFC 変換用詳細 JSON
+│   ├── generated_judge_json/         # Judge 出力 JSON
+│   ├── generated_senkei_json/        # Senkei JSON（IFC変換用中間形式、推奨）
+│   ├── generated_detailed_bridge_json/ # 詳細 JSON（旧方式）
+│   ├── generated_report_md/          # 修正ループレポート（Markdown）
 │   └── generated_ifc/                # IFC 出力
 ├── rag_index/                        # RAG インデックス（.gitignore）
 │   └── pdfplumber/
@@ -985,9 +997,9 @@ Designer は設計値とともに、適用した設計ルールを構造化し�
       - チャンク化が固定長（800文字）で、文脈が分断される場合がある
       - 表・図のテキスト抽出が不完全な場合がある
 
-  (2) Judge の未実装
-      - 現状はダミー実装（常に OK を返す）
-      - 道路橋示方書に基づく照査機能は未完成
+  (2) Judge の照査範囲
+      - 曲げ・せん断・たわみ・床版厚・横桁配置の概略照査は実装済み
+      - 道路橋示方書に基づく詳細照査（座屈、疲労等）は未実装
 
   (3) IFC の限定的なサポート
       - IFC4x3 の限定的なエンティティのみ使用
@@ -997,18 +1009,10 @@ Designer は設計値とともに、適用した設計ルールを構造化し�
 7.2 計画中の機能
 --------------------------------------------------------------------------------
 
-【Extractor コンポーネント】
+【Judge コンポーネントの拡張】
 
-  - RAG で取得した条文から設計制約を構造化抽出するエージェント
-  - 設計ルールのデータベース化
-  - src/bridge_agentic_generate/extractor/ に実装予定
-
-
-【Judge コンポーネントの完成】
-
-  - 道路橋示方書に基づく設計照査
-  - 許容応力度法による断面照査
-  - 不適合箇所の指摘と修正提案
+  - 現状：曲げ・せん断・たわみ・床版厚・横桁配置の概略照査 + LLM による修正提案（PatchPlan）
+  - 今後：座屈照査、疲労照査、詳細な許容応力度照査の追加
 
 
 【複数断面への対応】
@@ -1061,7 +1065,7 @@ Designer は設計値とともに、適用した設計ルールを構造化し�
       - 製作・施工コストの考慮
 
   (3) マルチエージェント化
-      - Designer / Judge / Extractor の連携
+      - Designer / Judge の連携
       - 自律的な設計改善ループ
 
 

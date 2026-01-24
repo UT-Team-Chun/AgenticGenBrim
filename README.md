@@ -29,7 +29,6 @@ IFC 出力（BIM/CIM 連携）
 | **Judge** | 決定論的な照査計算（曲げ・せん断・たわみ・床版厚・横桁配置）を行い、不合格時は LLM で PatchPlan を生成 |
 | **修正ループ** | 不合格時に PatchPlan を適用し、合格するまで Designer-Judge を繰り返す |
 | **IFC Export** | BridgeDesign → Senkei JSON → IFC に変換して BIM/CIM 環境に渡す |
-| **Extractor** | RAG で得た条文から設計制約を構造化抽出（計画中） |
 
 ## 技術スタック
 
@@ -52,8 +51,7 @@ AgenticGenBrim/
 │       ├── main.py                   # Designer/Judge CLI
 │       ├── designer/                 # 設計生成（models, prompts, services）
 │       ├── judge/                    # 照査・修正提案（決定論計算 + LLM）
-│       ├── rag/                      # RAG（PDF抽出, チャンク化, 検索）
-│       └── extractor/                # 設計制約抽出（計画中）
+│       └── rag/                      # RAG（PDF抽出, チャンク化, 検索）
 │   └── bridge_json_to_ifc/           # JSON → IFC 変換
 ├── data/                             # データ（.gitignore）
 │   ├── design_knowledge/             # 元 PDF
@@ -175,5 +173,4 @@ JudgeReport
 - [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md) - 開発規約
 - [docs/COMPONENT_DESIGNER.md](docs/COMPONENT_DESIGNER.md) - Designer 詳細
 - [docs/COMPONENT_JUDGE.md](docs/COMPONENT_JUDGE.md) - Judge 詳細
-- [docs/COMPONENT_EXTRACTOR.md](docs/COMPONENT_EXTRACTOR.md) - Extractor 詳細（計画中）
 - [docs/json_spec.md](docs/json_spec.md) - Senkei JSON 仕様

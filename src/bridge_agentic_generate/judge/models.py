@@ -139,6 +139,7 @@ class GoverningCheck(StrEnum):
     SHEAR = "shear"
     DEFLECTION = "deflection"
     CROSSBEAM_LAYOUT = "crossbeam_layout"
+    WEB_SLENDERNESS = "web_slenderness"
 
 
 class Utilization(BaseModel):
@@ -149,6 +150,7 @@ class Utilization(BaseModel):
         bend: 曲げ応力度 util
         shear: せん断応力度 util（平均せん断）
         deflection: たわみ util
+        web_slenderness: 腹板幅厚比 util（t_min_required/web_thickness）
         max_util: 最大 util
         governing_check: 支配的なチェック項目
     """
@@ -157,6 +159,7 @@ class Utilization(BaseModel):
     bend: float = Field(..., description="曲げ応力度 util")
     shear: float = Field(..., description="せん断応力度 util（平均せん断）")
     deflection: float = Field(..., description="たわみ util")
+    web_slenderness: float = Field(..., description="腹板幅厚比 util（t_min_required/web_thickness）")
     max_util: float = Field(..., description="最大 util")
     governing_check: GoverningCheck = Field(..., description="支配的なチェック項目")
 
@@ -188,6 +191,7 @@ class Diagnostics(BaseModel):
     sigma_allow_bottom: float = Field(..., description="下縁許容曲げ応力度 [N/mm²]")
     tau_allow: float = Field(..., description="許容せん断応力度 [N/mm²]")
     deck_thickness_required: float = Field(..., description="必要床版厚 [mm]")
+    web_thickness_min_required: float = Field(..., description="必要最小腹板厚 [mm]")
     crossbeam_layout_ok: bool = Field(..., description="横桁配置の整合性")
 
 

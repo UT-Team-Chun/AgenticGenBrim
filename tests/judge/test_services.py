@@ -30,6 +30,8 @@ from src.bridge_agentic_generate.judge.models import (
     get_fy,
 )
 from src.bridge_agentic_generate.judge.services import (
+    WEB_SLENDERNESS_DIVISOR_SM400,
+    WEB_SLENDERNESS_DIVISOR_SM490,
     apply_dependency_rules,
     apply_patch_plan,
     calc_allowable_deflection,
@@ -39,6 +41,7 @@ from src.bridge_agentic_generate.judge.services import (
     calc_girder_section_properties,
     calc_live_load_effects,
     calc_required_deck_thickness,
+    get_min_web_thickness,
     judge_v1,
     judge_v1_lightweight,
 )
@@ -135,6 +138,43 @@ class TestGetFy:
         """SM490、板厚40mm超で295 N/mm²を返すこと。"""
         assert get_fy(SteelGrade.SM490, 50.0) == pytest.approx(295.0)
         assert get_fy(SteelGrade.SM490, 75.0) == pytest.approx(295.0)
+
+
+# =============================================================================
+# 単体テスト: get_min_web_thickness（腹板幅厚比照査）
+# =============================================================================
+
+
+class TestGetMinWebThickness:
+    """get_min_web_thickness 関数のテスト。"""
+
+    def test_sm490(self) -> None:
+        """SM490 で web_height / 130 を返すこと。"""
+        web_height = 1300.0  # mm
+        expected = web_height / WEB_SLENDERNESS_DIVISOR_SM490
+        assert get_min_web_thickness(SteelGrade.SM490, web_height) == pytest.approx(expected)
+        assert get_min_web_thickness(SteelGrade.SM490, web_height) == pytest.approx(10.0)
+
+    def test_sm400(self) -> None:
+        """SM400 で web_height / 152 を返すこと。"""
+        web_height = 1520.0  # mm
+        expected = web_height / WEB_SLENDERNESS_DIVISOR_SM400
+        assert get_min_web_thickness(SteelGrade.SM400, web_height) == pytest.approx(expected)
+        assert get_min_web_thickness(SteelGrade.SM400, web_height) == pytest.approx(10.0)
+
+    def test_sm490_with_various_heights(self) -> None:
+        """SM490 で様々な腹板高さで正しく計算されること。"""
+        # web_height=1400mm の場合
+        assert get_min_web_thickness(SteelGrade.SM490, 1400.0) == pytest.approx(1400.0 / 130.0)
+        # web_height=2000mm の場合
+        assert get_min_web_thickness(SteelGrade.SM490, 2000.0) == pytest.approx(2000.0 / 130.0)
+
+    def test_sm400_with_various_heights(self) -> None:
+        """SM400 で様々な腹板高さで正しく計算されること。"""
+        # web_height=1400mm の場合
+        assert get_min_web_thickness(SteelGrade.SM400, 1400.0) == pytest.approx(1400.0 / 152.0)
+        # web_height=2000mm の場合
+        assert get_min_web_thickness(SteelGrade.SM400, 2000.0) == pytest.approx(2000.0 / 152.0)
 
 
 # =============================================================================
@@ -394,6 +434,7 @@ class TestJudgeV1:
         assert isinstance(report.utilization.bend, float)
         assert isinstance(report.utilization.shear, float)
         assert isinstance(report.utilization.deflection, float)
+        assert isinstance(report.utilization.web_slenderness, float)
         assert isinstance(report.utilization.max_util, float)
 
         # governing_check が決まっていること
@@ -407,6 +448,7 @@ class TestJudgeV1:
         assert diag.sigma_allow_top > 0
         assert diag.sigma_allow_bottom > 0
         assert diag.delta > 0
+        assert diag.web_thickness_min_required > 0
 
     def test_judge_v1_with_passing_design(self) -> None:
         """合格する設計で PatchPlan が空であること。"""
@@ -968,6 +1010,7 @@ class TestJudgeV1Lightweight:
         assert isinstance(utilization.bend, float)
         assert isinstance(utilization.shear, float)
         assert isinstance(utilization.deflection, float)
+        assert isinstance(utilization.web_slenderness, float)
         assert isinstance(utilization.max_util, float)
         assert utilization.governing_check in GoverningCheck
 
@@ -977,6 +1020,7 @@ class TestJudgeV1Lightweight:
         assert diagnostics.moment_of_inertia > 0
         assert diagnostics.sigma_allow_top > 0
         assert diagnostics.sigma_allow_bottom > 0
+        assert diagnostics.web_thickness_min_required > 0
 
     def test_judge_v1_lightweight_matches_judge_v1(self, sample_bridge_design: BridgeDesign) -> None:
         """judge_v1_lightweight の結果が judge_v1 と一致すること。"""
@@ -1007,6 +1051,7 @@ class TestJudgeV1Lightweight:
         assert util_lightweight.bend == pytest.approx(report.utilization.bend)
         assert util_lightweight.shear == pytest.approx(report.utilization.shear)
         assert util_lightweight.deflection == pytest.approx(report.utilization.deflection)
+        assert util_lightweight.web_slenderness == pytest.approx(report.utilization.web_slenderness)
         assert util_lightweight.max_util == pytest.approx(report.utilization.max_util)
         assert util_lightweight.governing_check == report.utilization.governing_check
 
@@ -1024,3 +1069,186 @@ class TestJudgeV1Lightweight:
 
         # LLM は呼ばれないこと
         mock_generate.assert_not_called()
+
+
+# =============================================================================
+# 統合テスト: 腹板幅厚比照査 (WEB_SLENDERNESS)
+# =============================================================================
+
+
+class TestWebSlendernessCheck:
+    """腹板幅厚比照査の統合テスト。"""
+
+    def test_web_slenderness_ok(self) -> None:
+        """腹板厚が十分な場合、util_web_slenderness <= 1.0 となること。"""
+        # SM490、web_height=1300mm、web_thickness=16mm（必要厚: 1300/130=10mm）
+        design = BridgeDesign(
+            dimensions=Dimensions(
+                bridge_length=20000.0,
+                total_width=8000.0,
+                num_girders=4,
+                girder_spacing=2000.0,
+                panel_length=5000.0,
+                num_panels=4,
+            ),
+            sections=Sections(
+                girder_standard=GirderSection(
+                    web_height=1300.0,
+                    web_thickness=16.0,  # > 10mm = OK
+                    top_flange_width=400.0,
+                    top_flange_thickness=25.0,
+                    bottom_flange_width=500.0,
+                    bottom_flange_thickness=30.0,
+                ),
+                crossbeam_standard=CrossbeamSection(
+                    total_height=1040.0,
+                    web_thickness=10.0,
+                    flange_width=250.0,
+                    flange_thickness=12.0,
+                ),
+            ),
+            components=Components(
+                deck=Deck(thickness=220.0),
+            ),
+        )
+        judge_input = JudgeInput(bridge_design=design)
+
+        utilization, diagnostics = judge_v1_lightweight(judge_input)
+
+        # t_min_required = 1300 / 130 = 10 mm
+        assert diagnostics.web_thickness_min_required == pytest.approx(10.0)
+        # util = 10 / 16 = 0.625
+        assert utilization.web_slenderness == pytest.approx(10.0 / 16.0)
+        assert utilization.web_slenderness < 1.0
+
+    def test_web_slenderness_ng(self) -> None:
+        """腹板厚が不足している場合、util_web_slenderness > 1.0 となること。"""
+        # SM490、web_height=1950mm、web_thickness=10mm（必要厚: 1950/130=15mm > 10mm）
+        design = BridgeDesign(
+            dimensions=Dimensions(
+                bridge_length=20000.0,
+                total_width=8000.0,
+                num_girders=4,
+                girder_spacing=2000.0,
+                panel_length=5000.0,
+                num_panels=4,
+            ),
+            sections=Sections(
+                girder_standard=GirderSection(
+                    web_height=1950.0,
+                    web_thickness=10.0,  # < 15mm = NG
+                    top_flange_width=400.0,
+                    top_flange_thickness=25.0,
+                    bottom_flange_width=500.0,
+                    bottom_flange_thickness=30.0,
+                ),
+                crossbeam_standard=CrossbeamSection(
+                    total_height=1560.0,
+                    web_thickness=10.0,
+                    flange_width=250.0,
+                    flange_thickness=12.0,
+                ),
+            ),
+            components=Components(
+                deck=Deck(thickness=220.0),
+            ),
+        )
+        judge_input = JudgeInput(bridge_design=design)
+
+        utilization, diagnostics = judge_v1_lightweight(judge_input)
+
+        # t_min_required = 1950 / 130 = 15 mm
+        assert diagnostics.web_thickness_min_required == pytest.approx(15.0)
+        # util = 15 / 10 = 1.5
+        assert utilization.web_slenderness == pytest.approx(1.5)
+        assert utilization.web_slenderness > 1.0
+
+    def test_web_slenderness_governing_check(self) -> None:
+        """腹板幅厚比が支配的な場合、governing_check が WEB_SLENDERNESS となること。"""
+        # 腹板幅厚比以外は OK、腹板幅厚比だけ NG の設計
+        design = BridgeDesign(
+            dimensions=Dimensions(
+                bridge_length=20000.0,
+                total_width=8000.0,
+                num_girders=4,
+                girder_spacing=2000.0,
+                panel_length=5000.0,
+                num_panels=4,
+            ),
+            sections=Sections(
+                girder_standard=GirderSection(
+                    web_height=2600.0,  # 大きい → 曲げ/たわみ OK
+                    web_thickness=12.0,  # 2600/130=20 > 12 → NG
+                    top_flange_width=600.0,
+                    top_flange_thickness=50.0,
+                    bottom_flange_width=700.0,
+                    bottom_flange_thickness=60.0,
+                ),
+                crossbeam_standard=CrossbeamSection(
+                    total_height=2080.0,
+                    web_thickness=12.0,
+                    flange_width=400.0,
+                    flange_thickness=16.0,
+                ),
+            ),
+            components=Components(
+                deck=Deck(thickness=220.0),
+            ),
+        )
+        judge_input = JudgeInput(bridge_design=design)
+
+        utilization, _ = judge_v1_lightweight(judge_input)
+
+        # util_web_slenderness = 20 / 12 ≈ 1.67 > 1.0
+        expected_util = 2600.0 / 130.0 / 12.0
+        assert utilization.web_slenderness == pytest.approx(expected_util)
+
+        # 腹板幅厚比が最大 util の場合、governing_check が WEB_SLENDERNESS になる
+        if utilization.web_slenderness >= utilization.max_util:
+            assert utilization.governing_check == GoverningCheck.WEB_SLENDERNESS
+
+    def test_web_slenderness_with_sm400(self) -> None:
+        """SM400 鋼種で正しく計算されること。"""
+        from src.bridge_agentic_generate.judge.models import MaterialsSteel
+
+        # SM400、web_height=1520mm、web_thickness=10mm（必要厚: 1520/152=10mm）
+        design = BridgeDesign(
+            dimensions=Dimensions(
+                bridge_length=20000.0,
+                total_width=8000.0,
+                num_girders=4,
+                girder_spacing=2000.0,
+                panel_length=5000.0,
+                num_panels=4,
+            ),
+            sections=Sections(
+                girder_standard=GirderSection(
+                    web_height=1520.0,
+                    web_thickness=10.0,  # = 10mm（境界値）
+                    top_flange_width=400.0,
+                    top_flange_thickness=25.0,
+                    bottom_flange_width=500.0,
+                    bottom_flange_thickness=30.0,
+                ),
+                crossbeam_standard=CrossbeamSection(
+                    total_height=1216.0,
+                    web_thickness=10.0,
+                    flange_width=250.0,
+                    flange_thickness=12.0,
+                ),
+            ),
+            components=Components(
+                deck=Deck(thickness=220.0),
+            ),
+        )
+        judge_input = JudgeInput(
+            bridge_design=design,
+            materials_steel=MaterialsSteel(grade=SteelGrade.SM400),
+        )
+
+        utilization, diagnostics = judge_v1_lightweight(judge_input)
+
+        # t_min_required = 1520 / 152 = 10 mm
+        assert diagnostics.web_thickness_min_required == pytest.approx(10.0)
+        # util = 10 / 10 = 1.0
+        assert utilization.web_slenderness == pytest.approx(1.0)

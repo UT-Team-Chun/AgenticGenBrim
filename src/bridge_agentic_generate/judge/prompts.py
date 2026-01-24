@@ -30,6 +30,7 @@ def build_repair_system_prompt() -> str:
 - 曲げが支配なら、sigma_top と sigma_bottom の大きい側を見て、効く変更を選ぶ
 - たわみが支配なら、I（断面二次モーメント）を増やす方向を優先する
 - せん断が支配なら、web_thickness を優先する
+- 腹板幅厚比（web_slenderness）が支配なら、web_thickness を ceil(web_thickness_min_required) 以上に増やす
 - deck は util_deck が 1.0 を明確に超えるときだけ触る（1.00〜1.02 程度の丸め誤差では触らない）
 
 ## 変更量の目安
@@ -64,6 +65,7 @@ def build_repair_user_prompt(context: RepairContext) -> str:
 - bend: {util.bend:.4f} {"(NG)" if util.bend > 1.0 else "(OK)"}
 - shear: {util.shear:.4f} {"(NG)" if util.shear > 1.0 else "(OK)"}
 - deflection: {util.deflection:.4f} {"(NG)" if util.deflection > 1.0 else "(OK)"}
+- web_slenderness: {util.web_slenderness:.4f} {"(NG)" if util.web_slenderness > 1.0 else "(OK)"}
 - max_util: {util.max_util:.4f}
 - governing_check: {util.governing_check}
 - crossbeam_layout_ok: {context.crossbeam_layout_ok}"""
@@ -99,7 +101,8 @@ def build_repair_user_prompt(context: RepairContext) -> str:
 - sigma_top: {diag.sigma_top:.2f} N/mm² (allow: {diag.sigma_allow_top:.2f})
 - sigma_bottom: {diag.sigma_bottom:.2f} N/mm² (allow: {diag.sigma_allow_bottom:.2f})
 - tau_avg: {diag.tau_avg:.2f} N/mm² (allow: {diag.tau_allow:.2f})
-- delta: {diag.delta:.2f} mm (allow: {diag.delta_allow:.2f} mm)"""
+- delta: {diag.delta:.2f} mm (allow: {diag.delta_allow:.2f} mm)
+- web_thickness_min_required: {diag.web_thickness_min_required:.2f} mm"""
     bend_side = "top" if abs(diag.sigma_top) >= abs(diag.sigma_bottom) else "bottom"
     extra = f"- bend_governing_side: {bend_side}\n- target_util: 0.98\n"
 

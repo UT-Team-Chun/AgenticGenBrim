@@ -160,8 +160,8 @@ def _format_judge_results_table(iterations: list[RepairIteration]) -> str:
         照査結果テーブルの Markdown 文字列
     """
     lines = ["## 照査結果の変遷", ""]
-    header = "| Iter | deck  | bend  | shear | deflection | max_util | pass_fail | governing_check |"
-    sep = "|------|-------|-------|-------|------------|----------|-----------|-----------------|"
+    header = "| Iter | deck  | bend  | shear | deflection | web_slend | max_util | pass_fail | governing_check |"
+    sep = "|------|-------|-------|-------|------------|-----------|----------|-----------|-----------------|"
     lines.append(header)
     lines.append(sep)
 
@@ -173,6 +173,7 @@ def _format_judge_results_table(iterations: list[RepairIteration]) -> str:
             f"{u.bend:.2f}",
             f"{u.shear:.2f}",
             f"{u.deflection:.2f}",
+            f"{u.web_slenderness:.2f}",
             f"{u.max_util:.2f}",
             str(it.report.pass_fail),
             u.governing_check.value,
@@ -201,9 +202,12 @@ def _format_diagnostics_table(iterations: list[RepairIteration]) -> str:
         "tau_avg [N/mm2]",
         "delta [mm]",
         "delta_allow [mm]",
+        "web_t_min [mm]",
     ]
     lines.append("| " + " | ".join(header_cols) + " |")
-    lines.append("|------|----------------|----------------------|-----------------|------------|------------------|")
+    lines.append(
+        "|------|----------------|----------------------|-----------------|------------|------------------|---------------|"
+    )
 
     for it in iterations:
         diag = it.report.diagnostics
@@ -214,6 +218,7 @@ def _format_diagnostics_table(iterations: list[RepairIteration]) -> str:
             f"{diag.tau_avg:.1f}",
             f"{diag.delta:.1f}",
             f"{diag.delta_allow:.1f}",
+            f"{diag.web_thickness_min_required:.1f}",
         ]
         lines.append("| " + " | ".join(vals) + " |")
 

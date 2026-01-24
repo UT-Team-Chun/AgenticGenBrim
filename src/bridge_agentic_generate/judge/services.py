@@ -25,6 +25,7 @@ from src.bridge_agentic_generate.judge.models import (
     PatchActionOp,
     PatchPlan,
     RepairContext,
+    SteelGrade,
     Utilization,
     get_fy,
 )
@@ -51,6 +52,10 @@ ALLOWED_ACTIONS: list[AllowedActionSpec] = [
 CROSSBEAM_LAYOUT_TOL_MM = 1.0
 # 横桁間隔の上限 [mm]
 MAX_PANEL_LENGTH_MM = 20000.0
+
+# 腹板幅厚比照査の除数（鋼種別）
+WEB_SLENDERNESS_DIVISOR_SM490 = 130
+WEB_SLENDERNESS_DIVISOR_SM400 = 152
 
 
 # =============================================================================
@@ -123,6 +128,30 @@ def calc_girder_section_properties(
     y_top = total_height - ybar
 
     return ybar, moment_of_inertia, y_top, y_bottom, total_height
+
+
+# =============================================================================
+# 腹板幅厚比照査
+# =============================================================================
+
+
+def get_min_web_thickness(grade: SteelGrade, web_height: float) -> float:
+    """鋼種とフランジ間距離から最小腹板厚を返す。
+
+    Args:
+        grade: 鋼種
+        web_height: フランジ間距離 [mm]
+
+    Returns:
+        最小腹板厚 [mm]
+    """
+    if grade == SteelGrade.SM490:
+        return web_height / WEB_SLENDERNESS_DIVISOR_SM490
+    elif grade == SteelGrade.SM400:
+        return web_height / WEB_SLENDERNESS_DIVISOR_SM400
+    else:
+        # 未知の鋼種はSM490相当（保守的）
+        return web_height / WEB_SLENDERNESS_DIVISOR_SM490
 
 
 # =============================================================================
@@ -365,6 +394,12 @@ def _calculate_utilization_and_diagnostics(
     util_deck = deck_thickness_required / deck_thickness
 
     # -------------------------------------------------------------------------
+    # 9.5. 腹板幅厚比 util
+    # -------------------------------------------------------------------------
+    web_thickness_min_required = get_min_web_thickness(steel.grade, girder.web_height)
+    util_web_slenderness = web_thickness_min_required / girder.web_thickness
+
+    # -------------------------------------------------------------------------
     # 10. 横桁配置チェック
     # -------------------------------------------------------------------------
     # panel_length = crossbeam_spacing（仕様書の通り）
@@ -381,6 +416,7 @@ def _calculate_utilization_and_diagnostics(
         GoverningCheck.BEND: util_bend,
         GoverningCheck.SHEAR: util_shear,
         GoverningCheck.DEFLECTION: util_deflection,
+        GoverningCheck.WEB_SLENDERNESS: util_web_slenderness,
     }
     max_util = max(util_map.values())
     governing_check = max(util_map, key=lambda k: util_map[k])
@@ -402,6 +438,7 @@ def _calculate_utilization_and_diagnostics(
         bend=util_bend,
         shear=util_shear,
         deflection=util_deflection,
+        web_slenderness=util_web_slenderness,
         max_util=max_util,
         governing_check=governing_check,
     )
@@ -431,6 +468,7 @@ def _calculate_utilization_and_diagnostics(
         sigma_allow_bottom=sigma_allow_bottom,
         tau_allow=tau_allow,
         deck_thickness_required=deck_thickness_required,
+        web_thickness_min_required=web_thickness_min_required,
         crossbeam_layout_ok=crossbeam_layout_ok,
     )
 
@@ -478,11 +516,12 @@ def judge_v1(judge_input: JudgeInput, model: LlmModel) -> JudgeReport:
     utilization, diagnostics, pass_fail = _calculate_utilization_and_diagnostics(judge_input)
 
     logger.info(
-        "Judge v1: util_deck=%.3f, util_bend=%.3f, util_shear=%.3f, util_deflection=%.3f",
+        "Judge v1: util_deck=%.3f, util_bend=%.3f, util_shear=%.3f, util_deflection=%.3f, util_web_slenderness=%.3f",
         utilization.deck,
         utilization.bend,
         utilization.shear,
         utilization.deflection,
+        utilization.web_slenderness,
     )
     logger.info(
         "Judge v1: max_util=%.3f, governing=%s, pass_fail=%s",

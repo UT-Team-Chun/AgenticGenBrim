@@ -81,8 +81,10 @@ def sample_iterations() -> list[RepairIteration]:
         tau_avg: float,
         delta: float,
         delta_allow: float,
+        web_slenderness_util: float = 0.68,
+        web_thickness_min_required: float = 10.8,
     ) -> JudgeReport:
-        max_util = max(deck_util, bend_util, shear_util, deflection_util)
+        max_util = max(deck_util, bend_util, shear_util, deflection_util, web_slenderness_util)
         governing = GoverningCheck.DEFLECTION
         if max_util == deck_util:
             governing = GoverningCheck.DECK
@@ -90,6 +92,8 @@ def sample_iterations() -> list[RepairIteration]:
             governing = GoverningCheck.BEND
         elif max_util == shear_util:
             governing = GoverningCheck.SHEAR
+        elif max_util == web_slenderness_util:
+            governing = GoverningCheck.WEB_SLENDERNESS
 
         return JudgeReport(
             pass_fail=max_util <= 1.0,
@@ -98,6 +102,7 @@ def sample_iterations() -> list[RepairIteration]:
                 bend=bend_util,
                 shear=shear_util,
                 deflection=deflection_util,
+                web_slenderness=web_slenderness_util,
                 max_util=max_util,
                 governing_check=governing,
             ),
@@ -126,6 +131,7 @@ def sample_iterations() -> list[RepairIteration]:
                 sigma_allow_bottom=189.0,
                 tau_allow=112.6,
                 deck_thickness_required=185.0,
+                web_thickness_min_required=web_thickness_min_required,
                 crossbeam_layout_ok=True,
             ),
             patch_plan=PatchPlan(actions=[]),
@@ -219,13 +225,13 @@ class TestFormatJudgeResultsTable:
         table = _format_judge_results_table(sample_iterations)
 
         assert "## 照査結果の変遷" in table
-        assert "| Iter | deck  | bend  | shear | deflection | max_util |" in table
+        assert "| Iter | deck  | bend  | shear | deflection | web_slend | max_util |" in table
 
         # iter 0: pass_fail=False, max_util=1.42, governing=deflection
-        assert "| 0 | 0.92 | 1.15 | 0.73 | 1.42 | 1.42 | False | deflection |" in table
+        assert "| 0 | 0.92 | 1.15 | 0.73 | 1.42 | 0.68 | 1.42 | False | deflection |" in table
 
         # iter 2: pass_fail=True, max_util=0.95, governing=deflection
-        assert "| 2 | 0.91 | 0.89 | 0.62 | 0.95 | 0.95 | True | deflection |" in table
+        assert "| 2 | 0.91 | 0.89 | 0.62 | 0.95 | 0.68 | 0.95 | True | deflection |" in table
 
 
 class TestFormatDiagnosticsTable:
@@ -237,12 +243,13 @@ class TestFormatDiagnosticsTable:
 
         assert "## Diagnostics 抜粋" in table
         assert "| Iter | M_total [N-mm] | sigma_bottom [N/mm2] |" in table
+        assert "web_t_min [mm]" in table
 
-        # iter 0: M_total=4.5e9, sigma_bottom=162.3, tau_avg=61.2, delta=28.4, delta_allow=20.0
-        assert "| 0 | 4.50e+09 | 162.3 | 61.2 | 28.4 | 20.0 |" in table
+        # iter 0: M_total=4.5e9, sigma_bottom=162.3, tau_avg=61.2, delta=28.4, delta_allow=20.0, web_t_min=10.8
+        assert "| 0 | 4.50e+09 | 162.3 | 61.2 | 28.4 | 20.0 | 10.8 |" in table
 
-        # iter 2: delta=19.0, delta_allow=20.0
-        assert "| 2 | 4.50e+09 | 121.5 | 52.3 | 19.0 | 20.0 |" in table
+        # iter 2: delta=19.0, delta_allow=20.0, web_t_min=10.8
+        assert "| 2 | 4.50e+09 | 121.5 | 52.3 | 19.0 | 20.0 | 10.8 |" in table
 
 
 class TestGenerateRepairReport:
@@ -335,6 +342,7 @@ class TestGenerateRepairReportEdgeCases:
                 bend=0.90,
                 shear=0.65,
                 deflection=0.88,
+                web_slenderness=0.68,
                 max_util=0.90,
                 governing_check=GoverningCheck.BEND,
             ),
@@ -363,6 +371,7 @@ class TestGenerateRepairReportEdgeCases:
                 sigma_allow_bottom=189.0,
                 tau_allow=112.6,
                 deck_thickness_required=185.0,
+                web_thickness_min_required=10.8,
                 crossbeam_layout_ok=True,
             ),
             patch_plan=PatchPlan(actions=[]),

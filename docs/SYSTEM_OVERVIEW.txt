@@ -4,6 +4,7 @@
 ================================================================================
 
 作成日: 2026年1月7日
+更新日: 2026年1月24日
 
 
 ================================================================================
@@ -26,7 +27,12 @@
       - 各ルールに根拠（文献の rank）または「仮定」を付与
       - 将来の設計ルールDB構築の基盤
 
-  [4] IFC 形式での 3D モデル出力
+  [4] 決定論的照査と自動修正ループ（Judge）
+      - 曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置の 6 項目を照査
+      - 不合格時は LLM が修正提案（PatchPlan）を生成
+      - 合格するまで自動で設計修正を繰り返す（最大 5 イテレーション）
+
+  [5] IFC 形式での 3D モデル出力
       - BIM/CIM ソフトウェアで表示可能な IFC ファイルを生成
       - 床版、主桁（I形断面）、横桁を 3D モデル化
       - BIMvision、Revit、FreeCAD 等で即座に可視化可能
@@ -65,15 +71,22 @@
   - マルチクエリ RAG
     → 寸法、主桁配置、主桁断面、床版、横桁の 5 観点で並行検索
 
+  - 決定論計算 + LLM ハイブリッド照査
+    → 数式による照査計算は決定論的に実行、修正提案のみ LLM が生成
+
+  - Designer-Judge 修正ループ
+    → 不合格時は PatchPlan を適用し、合格まで自動で繰り返し
+
   - 2段階の IFC 変換
-    → 設計JSON → 詳細JSON → IFC の変換パイプライン
+    → 設計JSON → Senkei JSON → IFC の変換パイプライン
 
 
 【現時点での制約】
 
   - 対象は鋼プレートガーダー橋（RC床版）のみ
   - 断面は全長一定（支点部・中央部の変化なし）
-  - 照査は概略設計レベル（曲げ・せん断・たわみ・床版厚・横桁配置）
+  - 照査は概略設計レベル（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）
+  - 座屈・疲労等の詳細照査は未実装
 
 
 ================================================================================
@@ -105,23 +118,29 @@
   4.5 プロンプトエンジニアリング
   4.6 設計ルール抽出機能
 
-第5章 IFC 変換サブシステム
+第5章 Judge（照査・修正提案）サブシステム
   5.1 概要
-  5.2 BridgeDesign から詳細 JSON への変換
-  5.3 詳細 JSON から IFC への変換
-  5.4 生成される IFC 要素
+  5.2 照査項目
+  5.3 入出力仕様
+  5.4 PatchPlan 生成
+  5.5 Designer-Judge 修正ループ
 
-第6章 実行実績と出力例
-  6.1 実行実績の概要
-  6.2 設計出力例（BridgeDesign JSON）
-  6.3 RAG 検索結果と設計根拠
-  6.4 抽出された設計ルール
-  6.5 生成された IFC ファイル
+第6章 IFC 変換サブシステム
+  6.1 概要
+  6.2 BridgeDesign から Senkei JSON への変換
+  6.3 Senkei JSON から IFC への変換
+  6.4 生成される IFC 要素
 
-第7章 現在の制約と今後の課題
-  7.1 現在の制約事項
-  7.2 計画中の機能
-  7.3 今後の拡張方針
+第7章 実行実績と出力例
+  7.1 実行実績の概要
+  7.2 設計出力例（BridgeDesign JSON）
+  7.3 RAG 検索結果と設計根拠
+  7.4 抽出された設計ルール
+  7.5 生成された IFC ファイル
+
+第8章 現在の制約と今後の課題
+  8.1 現在の制約事項
+  8.2 今後の拡張方針
 
 
 ================================================================================
@@ -154,11 +173,14 @@
 
   - RAG サブシステム：設計知識（PDF文書）の検索・参照機能
   - Designer サブシステム：LLM による橋梁断面設計の生成
+  - Judge サブシステム：決定論的照査計算 + LLM による修正提案
   - IFC 変換サブシステム：設計 JSON から IFC ファイルへの変換
   - 統合 CLI：上記コンポーネントを一括実行するインターフェース
 
 システムは Python 3.13 で実装され、OpenAI API を活用した
 Structured Output（構造化出力）により、型安全な設計データを生成する。
+Judge サブシステムでは、照査計算を決定論的に実行し、修正提案のみを
+LLM が生成するハイブリッドアプローチを採用している。
 
 
 1.3 対象とする橋梁形式
@@ -188,8 +210,9 @@ Structured Output（構造化出力）により、型安全な設計データを
 │                          ユーザーインターフェース層                         │
 │  ┌─────────────────────────────────────────────────────────────────────┐  │
 │  │  統合 CLI (src/main.py)                                             │  │
-│  │  - generate コマンド：設計 JSON 生成                                 │  │
-│  │  - run コマンド：設計 JSON 生成 → IFC 変換まで一括実行              │  │
+│  │  - generate：設計 JSON 生成                                         │  │
+│  │  - run：設計 JSON 生成 → IFC 変換まで一括実行                       │  │
+│  │  - run_with_repair：修正ループ付き実行（各イテレーション保存）      │  │
 │  └─────────────────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
@@ -197,12 +220,18 @@ Structured Output（構造化出力）により、型安全な設計データを
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                            コアロジック層                                   │
 │  ┌───────────────────┐  ┌───────────────────┐  ┌───────────────────────┐  │
-│  │  RAG サブシステム  │  │ Designer         │  │ IFC 変換              │  │
+│  │  RAG サブシステム  │  │ Designer         │  │ Judge                 │  │
 │  │  ・PDF テキスト抽出│  │ サブシステム      │  │ サブシステム          │  │
-│  │  ・チャンク化      │  │ ・プロンプト構築 │  │ ・Simple→Detailed    │  │
-│  │  ・埋め込み生成    │  │ ・LLM 呼び出し   │  │ ・Detailed→IFC       │  │
-│  │  ・ベクトル検索    │  │ ・設計生成       │  │                       │  │
+│  │  ・チャンク化      │  │ ・プロンプト構築 │  │ ・決定論照査計算      │  │
+│  │  ・埋め込み生成    │  │ ・LLM 呼び出し   │  │ ・PatchPlan 生成      │  │
+│  │  ・ベクトル検索    │  │ ・設計生成       │  │ ・修正ループ制御      │  │
 │  └───────────────────┘  └───────────────────┘  └───────────────────────┘  │
+│                                                                             │
+│  ┌───────────────────────────────────────────────────────────────────────┐│
+│  │  IFC 変換サブシステム                                                 ││
+│  │  ・Simple JSON → Senkei JSON 変換（座標計算）                         ││
+│  │  ・Senkei JSON → IFC 変換（ifcopenshell）                             ││
+│  └───────────────────────────────────────────────────────────────────────┘│
 └─────────────────────────────────────────────────────────────────────────────┘
                                       │
                                       ▼
@@ -260,9 +289,18 @@ Structured Output（構造化出力）により、型安全な設計データを
          ▼
   ┌──────────────────────────────────────────────────────────────────────┐
   │ Step 5: Judge 照査（オプション）                                       │
-  │  ・決定論的照査（曲げ・せん断・たわみ・床版厚・横桁配置）             │
-  │  ・不合格時は LLM で PatchPlan 生成 → 修正ループ                      │
+  │  ・決定論的照査（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置） │
+  │  ・合格 → Step 6 へ                                                   │
+  │  ・不合格 → PatchPlan 生成 → 修正ループ（Step 5a）                    │
   └──────┬───────────────────────────────────────────────────────────────┘
+         │
+         │  ┌────────────────────────────────────────────────────────────┐
+         │  │ Step 5a: 修正ループ（最大 5 イテレーション）               │
+         │  │  ・LLM が PatchPlan（修正提案）を生成                       │
+         │  │  ・PatchPlan を BridgeDesign に適用                         │
+         │  │  ・依存関係ルール適用（横桁高さ連動など）                   │
+         │  │  ・再照査 → 合格するまで繰り返し                           │
+         │  └────────────────────────────────────────────────────────────┘
          │
          ▼
   ┌──────────────────────────────────────────────────────────────────────┐
@@ -284,6 +322,34 @@ Structured Output（構造化出力）により、型安全な設計データを
   └──────────────┘
 
 
+【修正ループ（Designer-Judge イテレーション）の詳細フロー】
+
+  初期設計生成（Designer）
+       │
+       ▼
+  ┌─── for iteration in range(max_iterations) ───────────────────────────┐
+  │                                                                       │
+  │    照査実行（Judge v1）                                               │
+  │         │                                                             │
+  │         ├── pass_fail == True ──→ 収束・終了                         │
+  │         │                                                             │
+  │         ▼                                                             │
+  │    PatchPlan 生成（LLM）                                              │
+  │         │                                                             │
+  │         ▼                                                             │
+  │    PatchPlan を BridgeDesign に適用                                   │
+  │         │                                                             │
+  │         ▼                                                             │
+  │    依存関係ルール適用（横桁高さ連動など）                             │
+  │         │                                                             │
+  │         └──────→ 次イテレーションへ                                  │
+  │                                                                       │
+  └───────────────────────────────────────────────────────────────────────┘
+       │
+       ▼
+  最大イテレーション後も不合格 → converged=False で終了
+
+
 2.3 ディレクトリ構成
 --------------------------------------------------------------------------------
 
@@ -291,40 +357,42 @@ AgenticGenBrim/
 ├── src/                              # ソースコード
 │   ├── main.py                       # 統合 CLI エントリーポイント
 │   ├── bridge_agentic_generate/      # 設計生成モジュール
-│   │   ├── main.py                   # Designer + Judge 実行
-│   │   ├── config.py                 # アプリケーション設定
+│   │   ├── main.py                   # Designer + Judge 実行 CLI
+│   │   ├── config.py                 # アプリケーション設定（パス管理）
 │   │   ├── llm_client.py             # OpenAI API ラッパー
 │   │   ├── logger_config.py          # ロギング設定
 │   │   ├── designer/                 # Designer サブシステム
 │   │   │   ├── models.py             # Pydantic モデル定義
 │   │   │   ├── prompts.py            # プロンプトテンプレート
 │   │   │   └── services.py           # 設計生成ロジック
-│   │   ├── judge/                    # Judge サブシステム（照査・修正提案）
+│   │   ├── judge/                    # Judge サブシステム
 │   │   │   ├── models.py             # JudgeInput/JudgeReport/PatchPlan等
-│   │   │   ├── prompts.py            # PatchPlan生成プロンプト
-│   │   │   ├── services.py           # 照査計算・apply_patch_plan
+│   │   │   ├── prompts.py            # PatchPlan 生成プロンプト
+│   │   │   ├── services.py           # 決定論照査計算・apply_patch_plan
 │   │   │   └── report.py             # 修正ループレポート生成
 │   │   └── rag/                      # RAG サブシステム
-│   │       ├── embedding_config.py   # 埋め込み設定
-│   │       ├── loader.py             # インデックス構築
+│   │       ├── embedding_config.py   # 埋め込み設定・インデックス構造
+│   │       ├── loader.py             # チャンク化・埋め込み生成
 │   │       ├── search.py             # ベクトル検索
-│   │       └── extract_pdfs_*.py     # PDF 抽出スクリプト
+│   │       └── extract_pdfs_*.py     # PDF 抽出スクリプト（3種）
 │   └── bridge_json_to_ifc/           # IFC 変換モジュール
-│       ├── run_convert.py            # 変換 CLI
-│       ├── convert_simple_to_detailed_json.py
-│       ├── convert_detailed_json_to_ifc.py
-│       ├── models.py                 # 詳細 JSON スキーマ
-│       └── ifc_utils/                # IFC 生成ユーティリティ
-│           ├── DefIFC.py             # IFC 要素定義
-│           └── DefMath.py            # 数学ユーティリティ
+│       ├── run_convert.py            # 変換 CLI（統合エントリー）
+│       ├── convert_simple_to_senkei_json.py  # BridgeDesign → Senkei JSON
+│       ├── convert_senkei_json_to_ifc.py     # Senkei JSON → IFC
+│       ├── senkei_models.py          # Senkei JSON スキーマ
+│       ├── models.py                 # 詳細 JSON スキーマ（旧方式）
+│       └── ifc_utils_new/            # IFC 生成ユーティリティ（推奨）
+│           ├── core/                 # 橋梁・IFC 基本要素
+│           ├── components/           # 床版・斜材・スティフナー等
+│           ├── io/                   # 入出力ユーティリティ
+│           └── utils/                # ユーティリティ
 ├── data/                             # データディレクトリ（.gitignore）
 │   ├── design_knowledge/             # 元 PDF 配置場所
 │   ├── extracted_by_pdfplumber/      # 抽出テキスト
 │   ├── generated_simple_bridge_json/ # Designer 出力 JSON
 │   ├── generated_bridge_raglog_json/ # RAG ログ
 │   ├── generated_judge_json/         # Judge 出力 JSON
-│   ├── generated_senkei_json/        # Senkei JSON（IFC変換用中間形式、推奨）
-│   ├── generated_detailed_bridge_json/ # 詳細 JSON（旧方式）
+│   ├── generated_senkei_json/        # Senkei JSON（IFC 変換用中間形式）
 │   ├── generated_report_md/          # 修正ループレポート（Markdown）
 │   └── generated_ifc/                # IFC 出力
 ├── rag_index/                        # RAG インデックス（.gitignore）
@@ -620,27 +688,163 @@ Designer は設計値だけでなく、適用した設計ルールを明示的�
 
 
 ================================================================================
-第5章 IFC 変換サブシステム
+第5章 Judge（照査・修正提案）サブシステム
 ================================================================================
 
 5.1 概要
 --------------------------------------------------------------------------------
 
-IFC 変換サブシステムは、Designer が生成した BridgeDesign JSON を
+Judge サブシステムは、Designer が生成した BridgeDesign に対して決定論的な
+照査計算を行い、不合格時には LLM を用いて修正提案（PatchPlan）を生成する。
+
+主な特徴：
+  - 照査計算は数式ベースの決定論的処理（LLM を使わない）
+  - 修正提案のみ LLM が生成するハイブリッドアプローチ
+  - 許可されたアクションの範囲内で修正を提案（安全性確保）
+  - 修正ループにより合格するまで自動で繰り返し
+
+
+5.2 照査項目
+--------------------------------------------------------------------------------
+
+Judge は以下の 6 項目について照査を実行する：
+
+【1. 曲げ応力度照査】
+  計算式：σ = M_total × y / I
+  判定：σ_actual / σ_allow ≤ 1.0（上下フランジ別に評価）
+  許容応力度：σ_allow = α_bend × fy（α_bend = 0.6）
+
+【2. せん断応力度照査】
+  計算式：τ_avg = V_total / (t_web × h_web)
+  判定：τ_avg / τ_allow ≤ 1.0
+  許容応力度：τ_allow = α_shear × (fy / √3)（α_shear = 0.6）
+
+【3. たわみ照査】
+  計算式：δ = 5 × w_eq_live × L⁴ / (384 × E × I)
+  判定：δ_actual / δ_allow ≤ 1.0
+  許容たわみ：道示準拠（支間長により L/2000 ～ L/500）
+
+【4. 床版厚照査】
+  要求床版厚：d_required = 30 × L_support + 110 [mm]
+  （L_support は主桁中心間隔 [m]）
+  判定：deck.thickness ≥ d_required
+
+【5. 腹板幅厚比照査】
+  要求腹板厚：web_thickness_min = web_height / 130（SM490 の場合）
+  判定：web_thickness ≥ web_thickness_min
+
+【6. 横桁配置照査】
+  判定：panel_length × num_panels ≈ bridge_length（許容誤差 0.1%）
+
+
+5.3 入出力仕様
+--------------------------------------------------------------------------------
+
+【JudgeInput（入力）】
+
+  JudgeInput:
+    - bridge_design: BridgeDesign（設計データ）
+    - load_input: LoadInput（活荷重等価荷重 p_live_equiv = 12.0 kN/m²）
+    - materials_steel: MaterialsSteel（ヤング率、鋼種、単位重量）
+    - materials_concrete: MaterialsConcrete（単位重量）
+    - judge_params: JudgeParams（α_bend = 0.6、α_shear = 0.6）
+
+【JudgeReport（出力）】
+
+  JudgeReport:
+    - pass_fail: bool（照査合否）
+    - utilization: Utilization
+        - deck: float（床版厚 util）
+        - bend: float（曲げ応力度 util、上下フランジの max）
+        - shear: float（せん断応力度 util）
+        - deflection: float（たわみ util）
+        - web_slenderness: float（腹板幅厚比 util）
+        - max_util: float（最大 util）
+        - governing_check: GoverningCheck（支配項目）
+    - diagnostics: Diagnostics（中間計算値 20+ 項目）
+    - patch_plan: PatchPlan（不合格時の修正提案）
+
+
+5.4 PatchPlan 生成
+--------------------------------------------------------------------------------
+
+不合格時に LLM が生成する修正提案。許可されたアクションの範囲内で最大 3 手。
+
+【許可アクション（ALLOWED_ACTIONS）】
+
+  - increase_web_height: 腹板高さを増加（Δ: +100, +200, +300, +500 mm）
+  - increase_web_thickness: 腹板厚を増加（Δ: +2, +4, +6 mm）
+  - increase_top_flange_thickness: 上フランジ厚を増加
+  - increase_top_flange_width: 上フランジ幅を増加
+  - increase_bottom_flange_thickness: 下フランジ厚を増加
+  - increase_bottom_flange_width: 下フランジ幅を増加
+  - set_deck_thickness_to_required: 床版厚を要求値に設定
+  - fix_crossbeam_layout: num_panels または panel_length を修正
+
+【PatchPlan 構造】
+
+  PatchPlan:
+    - actions: list[PatchAction]（最大 3 アクション）
+
+  PatchAction:
+    - action_name: str（許可アクション名）
+    - delta: float | None（変更量）
+    - reason: str（理由）
+
+
+5.5 Designer-Judge 修正ループ
+--------------------------------------------------------------------------------
+
+【run_with_repair_loop() の処理フロー】
+
+  1. 初期設計生成（Designer）
+  2. 照査実行（Judge v1）
+  3. pass_fail == True → 収束・終了
+  4. PatchPlan を BridgeDesign に適用（apply_patch_plan）
+  5. 依存関係ルール適用（apply_dependency_rules）
+     例：主桁腹板高さ変更時に横桁高さを連動
+  6. 次イテレーションへ（Step 2 に戻る）
+  7. max_iterations 到達後も不合格 → converged=False で終了
+
+【出力（RepairLoopResult）】
+
+  RepairLoopResult:
+    - converged: bool（収束したか）
+    - num_iterations: int（実行イテレーション数）
+    - iterations: list[RepairIteration]（各イテレーションの設計・レポート）
+    - final_design: BridgeDesign（最終設計）
+    - final_report: JudgeReport（最終照査結果）
+    - initial_rag_log: DesignerRagLog（初期設計時の RAG ログ）
+
+【修正ループレポート】
+
+各イテレーションの設計・照査結果を Markdown 形式で保存：
+  - 保存先：data/generated_report_md/
+  - 内容：各イテレーションの util 値、PatchPlan、設計変更履歴
+
+
+================================================================================
+第6章 IFC 変換サブシステム
+================================================================================
+
+6.1 概要
+--------------------------------------------------------------------------------
+
+IFC 変換サブシステムは、Designer（または Judge 修正後）の BridgeDesign JSON を
 IFC（Industry Foundation Classes）形式に変換し、BIM/CIM ソフトウェアで
 利用可能な 3D モデルを出力する。
 
-変換は 2 段階で行われる：
-  (1) BridgeDesign JSON → 詳細 JSON（DetailedBridgeJson）
-  (2) 詳細 JSON → IFC ファイル
+変換は 2 段階で行われる（推奨パイプライン）：
+  (1) BridgeDesign JSON → Senkei JSON（中間形式）
+  (2) Senkei JSON → IFC ファイル
 
 
-5.2 BridgeDesign から詳細 JSON への変換
+6.2 BridgeDesign から Senkei JSON への変換
 --------------------------------------------------------------------------------
 
-【変換処理】（convert_simple_to_detailed_json.py）
+【変換処理】（convert_simple_to_senkei_json.py）
 
-BridgeDesign から DetailedBridgeJson への変換では、以下の座標計算を行う：
+BridgeDesign から Senkei JSON への変換では、以下の座標計算を行う：
 
   (1) 主桁配置の X 座標計算
       - 主桁の総スパン: (num_girders - 1) × girder_spacing
@@ -656,9 +860,11 @@ BridgeDesign から DetailedBridgeJson への変換では、以下の座標計�
       - 初期位置: panel_length
 
 
-【DetailedBridgeJson スキーマ】
+【Senkei JSON スキーマ】（senkei_models.py）
 
-  DetailedBridgeJson
+Senkei JSON は IFC 生成に必要な詳細ジオメトリ情報を持つ中間形式：
+
+  SenkeiJson
   ├── bridge_type: str                    # "Steel Girder"
   ├── geometry: Geometry
   │   ├── girders: GirdersGeometry
@@ -666,37 +872,28 @@ BridgeDesign から DetailedBridgeJson への変換では、以下の座標計�
   │   │   ├── spacing_x: float            # 主桁間隔 [mm]
   │   │   ├── length: float               # 主桁長さ [mm]
   │   │   ├── x_offset: float             # 主桁開始位置 X [mm]
-  │   │   ├── web_height: float
-  │   │   ├── web_thickness: float
-  │   │   ├── top_flange_width: float
-  │   │   ├── top_flange_thickness: float
-  │   │   ├── bottom_flange_width: float
-  │   │   └── bottom_flange_thickness: float
+  │   │   ├── web_height, web_thickness
+  │   │   ├── top_flange_width, top_flange_thickness
+  │   │   └── bottom_flange_width, bottom_flange_thickness
   │   ├── deck: DeckGeometry
-  │   │   ├── length: float
-  │   │   ├── width: float
-  │   │   ├── thickness: float
+  │   │   ├── length, width, thickness
   │   │   └── points: list[list[float]]   # 床版輪郭座標
   │   └── partition: Partition
   │       ├── x_positions: list[float]
   │       └── y_positions: list[float]
   └── crossbeams: Crossbeams
       ├── use_crossbeams: bool
-      ├── use_i_section: bool
       ├── num_cross_girders: int
-      ├── spacing_z: float
-      ├── initial_position_z: float
-      ├── height: float
-      ├── flange_width: float
-      ├── flange_thickness: float
-      ├── web_thickness: float
+      ├── spacing_z, initial_position_z
+      ├── height, flange_width, flange_thickness
+      ├── web_thickness
       └── length: float
 
 
-5.3 詳細 JSON から IFC への変換
+6.3 Senkei JSON から IFC への変換
 --------------------------------------------------------------------------------
 
-【IFC 生成処理】（convert_detailed_json_to_ifc.py）
+【IFC 生成処理】（convert_senkei_json_to_ifc.py）
 
 ifcopenshell ライブラリを使用して IFC ファイルを生成する。
 
@@ -708,19 +905,19 @@ ifcopenshell ライブラリを使用して IFC ファイルを生成する。
 
   (2) 床版の生成（Brep）
       - 2D ポリゴンを押し出して直方体を生成
-      - create_prism_from_2d() で Brep ソリッドを作成
+      - Brep ソリッドを作成
 
   (3) 主桁の生成（SweptSolid）
-      - I 形断面プロファイルを定義（create_i_section_profile()）
+      - I 形断面プロファイルを定義
       - 断面をパネルごとに押し出し
-      - extrude_profile_and_align() で位置・方向を設定
+      - 位置・方向を設定
 
   (4) 横桁の生成（SweptSolid）
       - I 形断面プロファイルを定義
       - 各主桁間に配置
 
 
-5.4 生成される IFC 要素
+6.4 生成される IFC 要素
 --------------------------------------------------------------------------------
 
 【IFC エンティティ】
@@ -744,10 +941,10 @@ ifcopenshell ライブラリを使用して IFC ファイルを生成する。
 
 
 ================================================================================
-第6章 実行実績と出力例
+第7章 実行実績と出力例
 ================================================================================
 
-6.1 実行実績の概要
+7.1 実行実績の概要
 --------------------------------------------------------------------------------
 
 本システムは既に複数回の設計生成を実行しており、以下の実績がある：
@@ -765,7 +962,7 @@ ifcopenshell ライブラリを使用して IFC ファイルを生成する。
   - 最新実行：2026年1月6日（design_L50_B10_20260106_163611）
 
 
-6.2 設計出力例（BridgeDesign JSON）
+7.2 設計出力例（BridgeDesign JSON）
 --------------------------------------------------------------------------------
 
 【実行条件】
@@ -817,7 +1014,7 @@ ifcopenshell ライブラリを使用して IFC ファイルを生成する。
   └─────────────────────────────────────────────────────────────────────┘
 
 
-6.3 RAG 検索結果と設計根拠
+7.3 RAG 検索結果と設計根拠
 --------------------------------------------------------------------------------
 
 【マルチクエリ RAG 検索の実行結果】
@@ -856,7 +1053,7 @@ ifcopenshell ライブラリを使用して IFC ファイルを生成する。
      荷重分配・剛性のバランスが良いため採用としました。"
 
 
-6.4 抽出された設計ルール
+7.4 抽出された設計ルール
 --------------------------------------------------------------------------------
 
 Designer は設計値とともに、適用した設計ルールを構造化して出力する。
@@ -909,7 +1106,7 @@ Designer は設計値とともに、適用した設計ルールを構造化し�
   ・notes: RC床版合成桁の場合の横桁役割に関する要求
 
 
-6.5 生成された IFC ファイル
+7.5 生成された IFC ファイル
 --------------------------------------------------------------------------------
 
 【IFC 出力の構成】
@@ -966,10 +1163,10 @@ Designer は設計値とともに、適用した設計ルールを構造化し�
 
 
 ================================================================================
-第7章 現在の制約と今後の課題
+第8章 現在の制約と今後の課題
 ================================================================================
 
-7.1 現在の制約事項
+8.1 現在の制約事項
 --------------------------------------------------------------------------------
 
 【設計面の制約】
@@ -982,13 +1179,21 @@ Designer は設計値とともに、適用した設計ルールを構造化し�
       - 全長にわたって同一断面を仮定
       - 支点部・中央部での断面変化は考慮していない
 
-  (3) 荷重・応力照査の未実装
-      - 設計値は「目安」レベル
-      - 正式な構造計算による照査は行っていない
-
-  (4) 横構・対傾構の未対応
+  (3) 横構・対傾構の未対応
       - 横桁のみモデル化
       - 水平ブレーシング等は未対応
+
+
+【照査面の制約】
+
+  (1) 概略照査レベル
+      - 曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置の 6 項目は実装済み
+      - 座屈照査、疲労照査は未実装
+      - 詳細な許容応力度照査（道示準拠の全項目）は未対応
+
+  (2) 荷重条件の簡略化
+      - 活荷重は等価分布荷重（デフォルト 12.0 kN/m²）で近似
+      - 車両荷重の厳密な配置計算は未対応
 
 
 【システム面の制約】
@@ -997,31 +1202,12 @@ Designer は設計値とともに、適用した設計ルールを構造化し�
       - チャンク化が固定長（800文字）で、文脈が分断される場合がある
       - 表・図のテキスト抽出が不完全な場合がある
 
-  (2) Judge の照査範囲
-      - 曲げ・せん断・たわみ・床版厚・横桁配置の概略照査は実装済み
-      - 道路橋示方書に基づく詳細照査（座屈、疲労等）は未実装
-
-  (3) IFC の限定的なサポート
+  (2) IFC の限定的なサポート
       - IFC4x3 の限定的なエンティティのみ使用
       - プロパティセット、材料情報等は未設定
 
 
-7.2 計画中の機能
---------------------------------------------------------------------------------
-
-【Judge コンポーネントの拡張】
-
-  - 現状：曲げ・せん断・たわみ・床版厚・横桁配置の概略照査 + LLM による修正提案（PatchPlan）
-  - 今後：座屈照査、疲労照査、詳細な許容応力度照査の追加
-
-
-【複数断面への対応】
-
-  - 支点部・中央部での断面変化
-  - ハンチの考慮
-
-
-7.3 今後の拡張方針
+8.2 今後の拡張方針
 --------------------------------------------------------------------------------
 
 【短期目標】
@@ -1030,9 +1216,9 @@ Designer は設計値とともに、適用した設計ルールを構造化し�
       - セマンティックチャンキングの導入
       - リランキングモデルの適用
 
-  (2) Judge の基本実装
-      - 桁高/支間比のチェック
-      - 板厚の最小値チェック
+  (2) Judge の照査項目拡張
+      - 座屈照査の追加
+      - 疲労照査の追加
 
   (3) IFC 出力の充実
       - 材料情報の追加
@@ -1064,9 +1250,9 @@ Designer は設計値とともに、適用した設計ルールを構造化し�
       - 鋼材量の最小化
       - 製作・施工コストの考慮
 
-  (3) マルチエージェント化
-      - Designer / Judge の連携
-      - 自律的な設計改善ループ
+  (3) Web UI の実装
+      - ブラウザベースの設計インターフェース
+      - 設計結果のリアルタイム可視化
 
 
 ================================================================================
@@ -1085,13 +1271,27 @@ Designer は設計値とともに、適用した設計ルールを構造化し�
   - Components: 構成要素コンテナ
   - DesignerOutput: LLM からの Structured Output
   - DesignRule: 設計ルール
+  - DependencyRule: 依存関係ルール（横桁高さ連動など）
   - DesignerRagLog: RAG 実行ログ
   - RagHit: RAG ヒット 1 件分
-  - DesignResult: 設計結果 + RAG ログ
+  - DesignResult: 設計結果 + RAG ログ + 依存関係ルール
+
+【Judge 関連】
+
+  - JudgeInput: 照査入力（設計、荷重、材料、パラメータ）
+  - JudgeReport: 照査結果（合否、utilization、diagnostics、patch_plan）
+  - Utilization: 各照査項目の util 値
+  - Diagnostics: 中間計算値（20+ 項目）
+  - PatchPlan: 修正提案（最大 3 アクション）
+  - PatchAction: 修正アクション（action_name、delta、reason）
+  - RepairIteration: 修正ループの 1 イテレーション
+  - RepairLoopResult: 修正ループ全体の結果
+  - SteelGrade: 鋼種（SM400/SM490）
+  - GoverningCheck: 支配照査項目（StrEnum）
 
 【IFC 変換関連】
 
-  - DetailedBridgeJson: IFC 生成用詳細スキーマ
+  - SenkeiJson: IFC 生成用中間スキーマ（推奨）
   - Geometry: ジオメトリ情報コンテナ
   - GirdersGeometry: 主桁ジオメトリ
   - DeckGeometry: 床版ジオメトリ
@@ -1154,7 +1354,14 @@ FileNamesUsedForRag:
 
 作成者: AgenticGenBrim 開発チーム
 作成日: 2026年1月7日
-バージョン: 1.0
+更新日: 2026年1月24日
+バージョン: 1.1
 ステータス: MVP (Minimum Viable Product)
+
+主な更新内容（v1.1）:
+  - 第5章 Judge サブシステムの追加（決定論照査 + PatchPlan 生成）
+  - Designer-Judge 修正ループの説明を追加
+  - IFC 変換を Senkei JSON 経由に更新
+  - 章番号の再構成（全 8 章 + 付録 4 種）
 
 ================================================================================

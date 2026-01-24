@@ -104,6 +104,8 @@ DESIGNER_PROMPT = """
      - 最終案を選び、採用理由を reasoning に必ず記述してください。
 
    - RC床版厚さ算定の支間 L_support には主桁中心間隔（girder_spacing[mm]をm換算）を用いてよい。
+   - **床版厚は 10mm 刻みで設計し、必要厚（道示の式）を満たすよう余裕を持たせること**。
+     - 例: 必要厚 192mm → 200mm、必要厚 210mm → 220mm
    - **パネル長（panel_length）とパネル数（num_panels）は必ず決めること（0やnullは禁止）**
     - ここで panel_length は「長手方向の横桁（または中間横桁・対傾構/横構の節点）間隔（mm）」として定義する。
     - num_panels は次で計算する：

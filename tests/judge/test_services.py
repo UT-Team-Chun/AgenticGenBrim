@@ -741,6 +741,25 @@ class TestApplyPatchPlan:
 
         assert new_design.components.deck.thickness == pytest.approx(required_thickness)
 
+    def test_apply_patch_plan_set_deck_thickness_rounds_up(self, sample_bridge_design: BridgeDesign) -> None:
+        """床版厚が10mm単位で切り上げられること。"""
+        patch_plan = PatchPlan(
+            actions=[
+                PatchAction(
+                    op=PatchActionOp.SET_DECK_THICKNESS_TO_REQUIRED,
+                    path="components.deck.thickness",
+                    delta_mm=0.0,
+                    reason="必要床版厚に設定",
+                ),
+            ]
+        )
+
+        # 192.5mm → 200mm に切り上げ
+        required_thickness = 192.5
+        new_design = apply_patch_plan(sample_bridge_design, patch_plan, deck_thickness_required=required_thickness)
+
+        assert new_design.components.deck.thickness == pytest.approx(200.0)
+
     def test_apply_patch_plan_set_deck_thickness_without_required_raises(
         self, sample_bridge_design: BridgeDesign
     ) -> None:

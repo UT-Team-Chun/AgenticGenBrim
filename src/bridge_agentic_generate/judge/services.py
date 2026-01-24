@@ -253,7 +253,7 @@ def calc_dead_load_effects(w_dead: float, bridge_length_mm: float) -> tuple[floa
 
 
 def calc_required_deck_thickness(girder_spacing_mm: float) -> float:
-    """必要床版厚を計算する。
+    """必要床版厚を計算する（照査用）。
 
     道路橋示方書の式: max(30 * L_support_m + 110, 160)
 
@@ -668,8 +668,14 @@ def apply_patch_plan(
         elif op == PatchActionOp.SET_DECK_THICKNESS_TO_REQUIRED:
             if deck_thickness_required is None:
                 raise ValueError("deck_thickness_required が指定されていません")
-            deck = deck.model_copy(update={"thickness": deck_thickness_required})
-            logger.info("apply_patch_plan: deck.thickness = %.0f (required)", deck_thickness_required)
+            # 10mm単位で切り上げて余裕を持たせる
+            new_thickness = math.ceil(deck_thickness_required / 10) * 10
+            deck = deck.model_copy(update={"thickness": new_thickness})
+            logger.info(
+                "apply_patch_plan: deck.thickness = %.0f (required=%.1f, 10mm切り上げ)",
+                new_thickness,
+                deck_thickness_required,
+            )
 
         elif op == PatchActionOp.FIX_CROSSBEAM_LAYOUT:
             # num_panels を調整する方式（仕様推奨）

@@ -16,9 +16,9 @@ Judge は以下の責務を担う：
 class JudgeInput(BaseModel):
     bridge_design: BridgeDesign
     load_input: LoadInput = LoadInput()           # p_live_equiv: 12.0 kN/m²
-    materials_steel: MaterialsSteel = ...         # E=2.0e5, fy=235, unit_weight=78.5e-6
+    materials_steel: MaterialsSteel = ...         # E=2.0e5, grade=SM490, unit_weight=78.5e-6
     materials_concrete: MaterialsConcrete = ...   # unit_weight=25.0e-6
-    judge_params: JudgeParams = ...               # alpha_bend=0.6, alpha_shear=0.6, deflection_ratio=600
+    judge_params: JudgeParams = ...               # alpha_bend=0.6, alpha_shear=0.6
 ```
 
 ### JudgeParams（デフォルト値）
@@ -27,14 +27,20 @@ class JudgeInput(BaseModel):
 |------------|------------|------|
 | `alpha_bend` | 0.6 | 曲げ許容応力度係数。σ_allow = α × fy |
 | `alpha_shear` | 0.6 | せん断許容応力度係数。τ_allow = α × (fy/√3) |
-| `deflection_ratio` | 600.0 | たわみ制限比。δ_allow = L / ratio |
 
 ### 材料特性（デフォルト値）
 
-| 材料 | E [N/mm²] | fy [N/mm²] | unit_weight [N/mm³] |
-|------|-----------|------------|---------------------|
-| 鋼 | 2.0×10⁵ | 235 | 78.5×10⁻⁶ |
+| 材料 | E [N/mm²] | grade | unit_weight [N/mm³] |
+|------|-----------|-------|---------------------|
+| 鋼 | 2.0×10⁵ | SM490 | 78.5×10⁻⁶ |
 | コンクリート | - | - | 25.0×10⁻⁶ |
+
+**降伏点 fy**: 鋼種と板厚に応じて `get_fy()` で動的に計算される。
+
+| 鋼種 | 板厚 ≤16mm | 16-40mm | >40mm |
+|------|------------|---------|-------|
+| SM400 | 245 | 235 | 215 |
+| SM490 | 325 | 315 | 295 |
 
 ## 出力（JudgeReport）
 
@@ -123,12 +129,27 @@ util_bend = max(|σ_top|, |σ_bottom|) / σ_allow
 util_shear = |τ_avg| / τ_allow
 ```
 
-### 6. たわみ（等価等分布換算）
+### 6. たわみ（活荷重のみ・道路橋示方書準拠）
+
+使用限界状態のたわみ照査は活荷重のみで評価する。許容たわみは支間長に応じて 3 区分で計算する。
 
 ```
-w_eq = 8 × M_total / L²
-δ = 5 × w_eq × L⁴ / (384 × E × I)
-δ_allow = L / deflection_ratio
+# 活荷重による等価等分布荷重
+w_eq_live = 8 × M_live_max / L²
+
+# たわみ
+δ = 5 × w_eq_live × L⁴ / (384 × E × I)
+
+# 許容たわみ（L_m は m 単位）
+L_m = L / 1000
+
+if L_m ≤ 10:
+    δ_allow = L_m / 2000 × 1000 [mm]
+elif L_m ≤ 40:
+    δ_allow = L_m² / 20000 × 1000 [mm]
+else:
+    δ_allow = L_m / 500 × 1000 [mm]
+
 util_deflection = δ / δ_allow
 ```
 

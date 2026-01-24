@@ -60,12 +60,6 @@ uv run python -m src.bridge_agentic_generate.main run \
   --total_width_m 10 \
   --judge
 
-# Designer + Judge + 修正ループ（合格するまで繰り返し）
-uv run python -m src.bridge_agentic_generate.main run_with_repair \
-  --bridge_length_m 50 \
-  --total_width_m 10 \
-  --max_iterations 5
-
 # バッチ実行（L=30,40,50,60,70m）
 uv run python -m src.bridge_agentic_generate.main batch
 ```
@@ -133,17 +127,30 @@ uv run python -m src.bridge_json_to_ifc.run_convert data/generated_simple_bridge
 
 | オプション         | 型     | デフォルト  | 説明                               |
 | ------------------ | ------ | ----------- | ---------------------------------- |
-| `bridge_length_m`  | float  | 30.0        | 橋長 [m]                           |
-| `total_width_m`    | float  | 7.5         | 幅員 [m]                           |
-| `model_name`       | str    | gpt-5-1     | 使用する LLM モデル                |
+| `bridge_length_m`  | float  | 40.0        | 橋長 [m]                           |
+| `total_width_m`    | float  | 10.0        | 幅員 [m]                           |
+| `model_name`       | str    | gpt-5-mini  | 使用する LLM モデル                |
 | `top_k`            | int    | 5           | RAG 検索時の取得件数               |
 | `max_iterations`   | int    | 5           | 修正ループの最大イテレーション     |
 
 ### src.bridge_agentic_generate.main（Designer/Judge CLI）
 
-| オプション         | 型     | デフォルト  | 説明                               |
-| ------------------ | ------ | ----------- | ---------------------------------- |
-| `bridge_length_m`  | float  | 50.0        | 橋長 [m]                           |
-| `total_width_m`    | float  | 10.0        | 幅員 [m]                           |
-| `judge`            | bool   | False       | Judge を実行するか（run コマンド） |
-| `max_iterations`   | int    | 5           | 修正ループの最大イテレーション     |
+#### run コマンド
+
+| オプション         | 型       | デフォルト  | 説明                   |
+| ------------------ | -------- | ----------- | ---------------------- |
+| `bridge_length_m`  | float    | 50.0        | 橋長 [m]               |
+| `total_width_m`    | float    | 10.0        | 幅員 [m]               |
+| `model_name`       | LlmModel | gpt-5-mini  | 使用する LLM モデル    |
+| `top_k`            | int      | 5           | RAG 検索時の取得件数   |
+| `judge`            | bool     | False       | Judge を実行するか     |
+
+#### batch コマンド
+
+| オプション         | 型       | デフォルト  | 説明                              |
+| ------------------ | -------- | ----------- | --------------------------------- |
+| `model_name`       | LlmModel | gpt-5-mini  | 使用する LLM モデル               |
+| `total_width_m`    | float    | 10.0        | 幅員 [m]（全ケース共通）          |
+| `top_k`            | int      | 5           | RAG 検索時の取得件数              |
+
+**Note:** 修正ループ付き実行（`run_with_repair`）は `src.main` の統合 CLI を使用してください。

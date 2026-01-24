@@ -112,12 +112,6 @@ uv run python -m src.bridge_agentic_generate.main run \
   --total_width_m 10 \
   --judge
 
-# Designer + Judge + 修正ループ（合格するまで繰り返し）
-uv run python -m src.bridge_agentic_generate.main run_with_repair \
-  --bridge_length_m 50 \
-  --total_width_m 10 \
-  --max_iterations 5
-
 # バッチ実行（L=30,40,50,60,70m）
 uv run python -m src.bridge_agentic_generate.main batch
 

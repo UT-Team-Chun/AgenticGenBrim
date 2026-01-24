@@ -38,7 +38,9 @@ from src.bridge_agentic_generate.judge.services import (
     calc_live_load_effects,
     calc_required_deck_thickness,
     judge_v1,
+    judge_v1_lightweight,
 )
+from src.bridge_agentic_generate.llm_client import LlmModel
 
 # =============================================================================
 # テスト用フィクスチャ
@@ -335,9 +337,9 @@ class TestJudgeV1:
 
         with patch(
             "src.bridge_agentic_generate.judge.services.generate_patch_plan",
-            return_value=mock_patch_plan,
+            return_value=(mock_patch_plan, []),  # タプルで返す
         ):
-            report = judge_v1(judge_input)
+            report = judge_v1(judge_input, model=LlmModel.GPT_5_MINI)
 
         # report の構造を確認
         assert report.utilization is not None
@@ -398,7 +400,7 @@ class TestJudgeV1:
 
         # LLM をモック（合格の場合は呼ばれないはず）
         with patch("src.bridge_agentic_generate.judge.services.generate_patch_plan") as mock_generate:
-            report = judge_v1(judge_input)
+            report = judge_v1(judge_input, model=LlmModel.GPT_5_MINI)
 
         # 合格であること
         assert report.pass_fail is True
@@ -457,9 +459,9 @@ class TestJudgeV1:
 
         with patch(
             "src.bridge_agentic_generate.judge.services.generate_patch_plan",
-            return_value=mock_patch_plan,
+            return_value=(mock_patch_plan, []),  # タプルで返す
         ) as mock_generate:
-            report = judge_v1(judge_input)
+            report = judge_v1(judge_input, model=LlmModel.GPT_5_MINI)
 
         # 不合格であること
         assert report.pass_fail is False
@@ -518,9 +520,9 @@ class TestJudgeV1:
 
         with patch(
             "src.bridge_agentic_generate.judge.services.generate_patch_plan",
-            return_value=mock_patch_plan,
+            return_value=(mock_patch_plan, []),  # タプルで返す
         ):
-            report = judge_v1(judge_input)
+            report = judge_v1(judge_input, model=LlmModel.GPT_5_MINI)
 
         # 横桁配置 NG
         assert report.diagnostics.crossbeam_layout_ok is False
@@ -559,9 +561,9 @@ class TestJudgeV1WithFixture:
         )
         with patch(
             "src.bridge_agentic_generate.judge.services.generate_patch_plan",
-            return_value=mock_patch_plan,
+            return_value=(mock_patch_plan, []),  # タプルで返す
         ):
-            report = judge_v1(judge_input)
+            report = judge_v1(judge_input, model=LlmModel.GPT_5_MINI)
 
         # report が出る
         assert report is not None
@@ -896,3 +898,79 @@ class TestApplyDependencyRules:
         # 横桁高さが更新された主桁高さ × factor になっていること
         expected_crossbeam_height = (original_girder_web_height + 200.0) * 0.8
         assert final_design.sections.crossbeam_standard.total_height == pytest.approx(expected_crossbeam_height)
+
+
+# =============================================================================
+# 単体テスト: judge_v1_lightweight
+# =============================================================================
+
+
+class TestJudgeV1Lightweight:
+    """judge_v1_lightweight のテスト。"""
+
+    def test_judge_v1_lightweight_returns_utilization_and_diagnostics(self, sample_bridge_design: BridgeDesign) -> None:
+        """Utilization と Diagnostics が正しく返されること。"""
+        judge_input = JudgeInput(bridge_design=sample_bridge_design)
+
+        utilization, diagnostics = judge_v1_lightweight(judge_input)
+
+        # Utilization の構造を確認
+        assert isinstance(utilization.deck, float)
+        assert isinstance(utilization.bend, float)
+        assert isinstance(utilization.shear, float)
+        assert isinstance(utilization.deflection, float)
+        assert isinstance(utilization.max_util, float)
+        assert utilization.governing_check in GoverningCheck
+
+        # Diagnostics の構造を確認
+        assert diagnostics.w_dead > 0
+        assert diagnostics.M_dead > 0
+        assert diagnostics.moment_of_inertia > 0
+        assert diagnostics.sigma_allow > 0
+
+    def test_judge_v1_lightweight_matches_judge_v1(self, sample_bridge_design: BridgeDesign) -> None:
+        """judge_v1_lightweight の結果が judge_v1 と一致すること。"""
+        judge_input = JudgeInput(bridge_design=sample_bridge_design)
+
+        # judge_v1_lightweight の結果
+        util_lightweight, diag_lightweight = judge_v1_lightweight(judge_input)
+
+        # judge_v1 の結果（モックあり）
+        mock_patch_plan = PatchPlan(
+            actions=[
+                PatchAction(
+                    op=PatchActionOp.INCREASE_WEB_HEIGHT,
+                    path="sections.girder_standard.web_height",
+                    delta_mm=100.0,
+                    reason="test",
+                ),
+            ]
+        )
+        with patch(
+            "src.bridge_agentic_generate.judge.services.generate_patch_plan",
+            return_value=(mock_patch_plan, []),  # タプルで返す
+        ):
+            report = judge_v1(judge_input, model=LlmModel.GPT_5_MINI)
+
+        # util が一致すること
+        assert util_lightweight.deck == pytest.approx(report.utilization.deck)
+        assert util_lightweight.bend == pytest.approx(report.utilization.bend)
+        assert util_lightweight.shear == pytest.approx(report.utilization.shear)
+        assert util_lightweight.deflection == pytest.approx(report.utilization.deflection)
+        assert util_lightweight.max_util == pytest.approx(report.utilization.max_util)
+        assert util_lightweight.governing_check == report.utilization.governing_check
+
+        # diagnostics が一致すること
+        assert diag_lightweight.w_dead == pytest.approx(report.diagnostics.w_dead)
+        assert diag_lightweight.M_dead == pytest.approx(report.diagnostics.M_dead)
+        assert diag_lightweight.moment_of_inertia == pytest.approx(report.diagnostics.moment_of_inertia)
+
+    def test_judge_v1_lightweight_no_llm_call(self, sample_bridge_design: BridgeDesign) -> None:
+        """LLM が呼ばれないこと。"""
+        judge_input = JudgeInput(bridge_design=sample_bridge_design)
+
+        with patch("src.bridge_agentic_generate.judge.services.generate_patch_plan") as mock_generate:
+            judge_v1_lightweight(judge_input)
+
+        # LLM は呼ばれないこと
+        mock_generate.assert_not_called()

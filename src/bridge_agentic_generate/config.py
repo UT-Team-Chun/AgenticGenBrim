@@ -20,6 +20,7 @@ class AppConfig(BaseModel):
     generated_detailed_bridge_json_dir: Path
     generated_senkei_json_dir: Path
     generated_ifc_dir: Path
+    generated_report_md_dir: Path
     rag_index_dir: Path
     rag_index_dir_plumber: Path
     rag_index_dir_pymupdf: Path
@@ -44,6 +45,7 @@ def get_app_config() -> AppConfig:
         generated_detailed_bridge_json_dir=project_root / "data" / "generated_detailed_bridge_json",
         generated_senkei_json_dir=project_root / "data" / "generated_senkei_json",
         generated_ifc_dir=project_root / "data" / "generated_ifc",
+        generated_report_md_dir=project_root / "data" / "generated_report_md",
         rag_index_dir=project_root / "rag_index",
         rag_index_dir_plumber=project_root / "rag_index" / "pdfplumber",
         rag_index_dir_pymupdf=project_root / "rag_index" / "pymupdf",

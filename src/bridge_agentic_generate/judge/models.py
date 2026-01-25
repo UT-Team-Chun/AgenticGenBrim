@@ -161,24 +161,64 @@ class Utilization(BaseModel):
 
 
 # =============================================================================
-# L荷重計算結果モデル
+# 荷重計算結果モデル（死荷重・活荷重統合）
 # =============================================================================
 
 
-class GirderLiveLoadResult(BaseModel):
-    """1本の主桁の活荷重計算結果。"""
+class GirderLoadResult(BaseModel):
+    """1本の主桁の荷重計算結果（死荷重・活荷重統合）。
+
+    Attributes:
+        girder_index: 主桁インデックス（0始まり）
+        b_i_m: 受け持ち幅 [m]
+        w_dead: 死荷重線荷重 [N/mm]
+        M_dead: 死荷重曲げモーメント [N·mm]
+        V_dead: 死荷重せん断力 [N]
+        b_eff_m: 実効幅 [m]（活荷重用）
+        w_M: 曲げ用等価線荷重 [kN/m]
+        w_V: せん断用等価線荷重 [kN/m]
+        M_live: 活荷重曲げモーメント [N·mm]
+        V_live: 活荷重せん断力 [N]
+        M_total: 合計曲げモーメント [N·mm]
+        V_total: 合計せん断力 [N]
+    """
 
     girder_index: int = Field(..., description="主桁インデックス（0始まり）")
     b_i_m: float = Field(..., description="受け持ち幅 [m]")
-    b_eff_m: float = Field(..., description="実効幅 [m]")
+    # 死荷重
+    w_dead: float = Field(..., description="死荷重線荷重 [N/mm]")
+    M_dead: float = Field(..., description="死荷重曲げモーメント [N·mm]")
+    V_dead: float = Field(..., description="死荷重せん断力 [N]")
+    # 活荷重
+    b_eff_m: float = Field(..., description="実効幅 [m]（活荷重用）")
     w_M: float = Field(..., description="曲げ用等価線荷重 [kN/m]")
     w_V: float = Field(..., description="せん断用等価線荷重 [kN/m]")
-    M_live: float = Field(..., description="活荷重最大曲げモーメント [N·mm]")
-    V_live: float = Field(..., description="活荷重最大せん断力 [N]")
+    M_live: float = Field(..., description="活荷重曲げモーメント [N·mm]")
+    V_live: float = Field(..., description="活荷重せん断力 [N]")
+    # 合計
+    M_total: float = Field(..., description="合計曲げモーメント [N·mm]")
+    V_total: float = Field(..., description="合計せん断力 [N]")
 
 
-class LiveLoadEffectsResult(BaseModel):
-    """全主桁の活荷重計算結果。"""
+class LoadEffectsResult(BaseModel):
+    """全主桁の荷重計算結果（死荷重・活荷重統合）。
+
+    Attributes:
+        L_m: 支間長 [m]
+        D_m: 載荷長 [m]
+        p2: p2 面圧 [kN/m²]
+        p1_M: 曲げ用 p1 面圧 [kN/m²]
+        p1_V: せん断用 p1 面圧 [kN/m²]
+        gamma: 等価係数
+        p_eq_M: 曲げ用等価面圧 [kN/m²]
+        p_eq_V: せん断用等価面圧 [kN/m²]
+        overhang_m: 張り出し幅 [m]
+        girder_results: 各主桁の計算結果
+        governing_girder_index_bend: 曲げで最厳しい主桁のインデックス
+        governing_girder_index_shear: せん断で最厳しい主桁のインデックス
+        M_total_max: 最大合計曲げモーメント [N·mm]
+        V_total_max: 最大合計せん断力 [N]
+    """
 
     # 共通パラメータ
     L_m: float = Field(..., description="支間長 [m]")
@@ -186,37 +226,57 @@ class LiveLoadEffectsResult(BaseModel):
     p2: float = Field(..., description="p2 面圧 [kN/m²]")
     p1_M: float = Field(..., description="曲げ用 p1 面圧 [kN/m²]")
     p1_V: float = Field(..., description="せん断用 p1 面圧 [kN/m²]")
-    gamma: float = Field(..., description="等価係数（曲げ・せん断共通）")
+    gamma: float = Field(..., description="等価係数")
     p_eq_M: float = Field(..., description="曲げ用等価面圧 [kN/m²]")
     p_eq_V: float = Field(..., description="せん断用等価面圧 [kN/m²]")
     overhang_m: float = Field(..., description="張り出し幅 [m]")
     # 主桁ごとの結果
-    girder_results: list[GirderLiveLoadResult] = Field(..., description="各主桁の計算結果")
-    # 最厳しい結果（照査用）- 曲げとせん断で別々
-    critical_girder_index_M: int = Field(..., description="曲げで最厳しい主桁のインデックス")
-    critical_girder_index_V: int = Field(..., description="せん断で最厳しい主桁のインデックス")
-    M_live_max: float = Field(..., description="最大活荷重曲げモーメント [N·mm]")
-    V_live_max: float = Field(..., description="最大活荷重せん断力 [N]")
+    girder_results: list[GirderLoadResult] = Field(..., description="各主桁の計算結果")
+    # governing 桁（曲げ・せん断で別々）
+    governing_girder_index_bend: int = Field(..., description="曲げで最厳しい主桁のインデックス")
+    governing_girder_index_shear: int = Field(..., description="せん断で最厳しい主桁のインデックス")
+    M_total_max: float = Field(..., description="最大合計曲げモーメント [N·mm]")
+    V_total_max: float = Field(..., description="最大合計せん断力 [N]")
 
 
 class Diagnostics(BaseModel):
-    """Judge の中間計算量（デバッグ・説明用）。"""
+    """Judge の中間計算量（デバッグ・説明用）。
 
-    b_tr: float = Field(..., description="受け持ち幅 [mm]")
-    w_dead: float = Field(..., description="死荷重線荷重 [N/mm]")
-    M_dead: float = Field(..., description="死荷重曲げモーメント [N·mm]")
-    V_dead: float = Field(..., description="死荷重せん断力 [N]")
-    M_live_max: float = Field(..., description="活荷重最大曲げモーメント [N·mm]")
-    V_live_max: float = Field(..., description="活荷重最大せん断力 [N]")
-    M_total: float = Field(..., description="合計曲げモーメント [N·mm]")
-    V_total: float = Field(..., description="合計せん断力 [N]")
+    Attributes:
+        M_total: governing 桁の合計曲げモーメント [N·mm]
+        V_total: governing 桁の合計せん断力 [N]
+        ybar: 中立軸位置（下端基準）[mm]
+        moment_of_inertia: 断面二次モーメント [mm⁴]
+        y_top: 上縁距離 [mm]
+        y_bottom: 下縁距離 [mm]
+        sigma_top: governing 桁の上縁応力度 [N/mm²]
+        sigma_bottom: governing 桁の下縁応力度 [N/mm²]
+        tau_avg: governing 桁の平均せん断応力度 [N/mm²]
+        delta: たわみ [mm]
+        delta_allow: 許容たわみ [mm]
+        fy_top_flange: 上フランジ降伏点 [N/mm²]
+        fy_bottom_flange: 下フランジ降伏点 [N/mm²]
+        fy_web: ウェブ降伏点 [N/mm²]
+        sigma_allow_top: 上縁許容曲げ応力度 [N/mm²]
+        sigma_allow_bottom: 下縁許容曲げ応力度 [N/mm²]
+        tau_allow: 許容せん断応力度 [N/mm²]
+        deck_thickness_required: 必要床版厚 [mm]
+        web_thickness_min_required: 必要最小腹板厚 [mm]
+        crossbeam_layout_ok: 横桁配置の整合性
+        load_effects: 荷重計算結果（詳細）
+        governing_girder_index_bend: 曲げで最厳しい桁のインデックス
+        governing_girder_index_shear: せん断で最厳しい桁のインデックス
+    """
+
+    M_total: float = Field(..., description="governing 桁の合計曲げモーメント [N·mm]")
+    V_total: float = Field(..., description="governing 桁の合計せん断力 [N]")
     ybar: float = Field(..., description="中立軸位置（下端基準）[mm]")
     moment_of_inertia: float = Field(..., description="断面二次モーメント [mm⁴]")
     y_top: float = Field(..., description="上縁距離 [mm]")
     y_bottom: float = Field(..., description="下縁距離 [mm]")
-    sigma_top: float = Field(..., description="上縁応力度 [N/mm²]")
-    sigma_bottom: float = Field(..., description="下縁応力度 [N/mm²]")
-    tau_avg: float = Field(..., description="平均せん断応力度 [N/mm²]")
+    sigma_top: float = Field(..., description="governing 桁の上縁応力度 [N/mm²]")
+    sigma_bottom: float = Field(..., description="governing 桁の下縁応力度 [N/mm²]")
+    tau_avg: float = Field(..., description="governing 桁の平均せん断応力度 [N/mm²]")
     delta: float = Field(..., description="たわみ [mm]")
     delta_allow: float = Field(..., description="許容たわみ [mm]")
     fy_top_flange: float = Field(..., description="上フランジ降伏点 [N/mm²]")
@@ -228,7 +288,9 @@ class Diagnostics(BaseModel):
     deck_thickness_required: float = Field(..., description="必要床版厚 [mm]")
     web_thickness_min_required: float = Field(..., description="必要最小腹板厚 [mm]")
     crossbeam_layout_ok: bool = Field(..., description="横桁配置の整合性")
-    live_load_result: LiveLoadEffectsResult = Field(..., description="L荷重計算結果（詳細）")
+    load_effects: LoadEffectsResult = Field(..., description="荷重計算結果（詳細）")
+    governing_girder_index_bend: int = Field(..., description="曲げで最厳しい桁のインデックス")
+    governing_girder_index_shear: int = Field(..., description="せん断で最厳しい桁のインデックス")
 
 
 class PatchActionOp(StrEnum):

@@ -43,9 +43,9 @@ from src.bridge_agentic_generate.judge.services import (
     calc_dead_load,
     calc_dead_load_effects,
     calc_gamma,
+    calc_girder_load_effects,
     calc_girder_section_area,
     calc_girder_section_properties,
-    calc_l_live_load_effects,
     calc_overhang,
     calc_required_deck_thickness,
     calc_tributary_width,
@@ -400,16 +400,20 @@ class TestCalcTributaryWidth:
         assert b_i_2 == pytest.approx(2500.0)
 
 
-class TestCalcLLiveLoadEffects:
-    """calc_l_live_load_effects 関数のテスト。"""
+class TestCalcGirderLoadEffects:
+    """calc_girder_load_effects 関数のテスト。"""
 
-    def test_basic_calculation(self) -> None:
+    def test_basic_calculation(self, sample_girder_section: GirderSection) -> None:
         """基本的な計算が正しく行われること。"""
-        result = calc_l_live_load_effects(
+        result = calc_girder_load_effects(
             bridge_length_mm=40000.0,  # 40m
             total_width_mm=10000.0,  # 10m
             num_girders=4,
             girder_spacing_mm=2667.0,
+            girder_section=sample_girder_section,
+            deck_thickness_mm=217.0,
+            gamma_steel=78.5e-6,
+            gamma_concrete=25.0e-6,
         )
 
         # 共通パラメータの確認
@@ -431,13 +435,17 @@ class TestCalcLLiveLoadEffects:
         # 主桁数の確認
         assert len(result.girder_results) == 4
 
-    def test_girder_results_structure(self) -> None:
+    def test_girder_results_structure(self, sample_girder_section: GirderSection) -> None:
         """各主桁の結果が正しく計算されること。"""
-        result = calc_l_live_load_effects(
+        result = calc_girder_load_effects(
             bridge_length_mm=30000.0,
             total_width_mm=10000.0,
             num_girders=4,
             girder_spacing_mm=2667.0,
+            girder_section=sample_girder_section,
+            deck_thickness_mm=217.0,
+            gamma_steel=78.5e-6,
+            gamma_concrete=25.0e-6,
         )
 
         # 端桁と中間桁で b_i が異なること
@@ -459,34 +467,42 @@ class TestCalcLLiveLoadEffects:
         assert g2.girder_index == 2
         assert g3.girder_index == 3
 
-    def test_critical_girder_selection(self) -> None:
-        """最厳しい主桁が正しく選択されること。"""
-        result = calc_l_live_load_effects(
+    def test_governing_girder_selection(self, sample_girder_section: GirderSection) -> None:
+        """governing 主桁が正しく選択されること。"""
+        result = calc_girder_load_effects(
             bridge_length_mm=40000.0,
             total_width_mm=10000.0,
             num_girders=4,
             girder_spacing_mm=2667.0,
+            girder_section=sample_girder_section,
+            deck_thickness_mm=217.0,
+            gamma_steel=78.5e-6,
+            gamma_concrete=25.0e-6,
         )
 
-        # 最大 M_live を持つ主桁のインデックス
-        max_M_idx = max(range(4), key=lambda i: result.girder_results[i].M_live)
-        assert result.critical_girder_index_M == max_M_idx
+        # 最大 M_total を持つ主桁のインデックス
+        max_M_idx = max(range(4), key=lambda i: result.girder_results[i].M_total)
+        assert result.governing_girder_index_bend == max_M_idx
 
-        # 最大 V_live を持つ主桁のインデックス
-        max_V_idx = max(range(4), key=lambda i: result.girder_results[i].V_live)
-        assert result.critical_girder_index_V == max_V_idx
+        # 最大 V_total を持つ主桁のインデックス
+        max_V_idx = max(range(4), key=lambda i: result.girder_results[i].V_total)
+        assert result.governing_girder_index_shear == max_V_idx
 
-        # M_live_max と V_live_max が正しいこと
-        assert result.M_live_max == pytest.approx(result.girder_results[max_M_idx].M_live)
-        assert result.V_live_max == pytest.approx(result.girder_results[max_V_idx].V_live)
+        # M_total_max と V_total_max が正しいこと
+        assert result.M_total_max == pytest.approx(result.girder_results[max_M_idx].M_total)
+        assert result.V_total_max == pytest.approx(result.girder_results[max_V_idx].V_total)
 
-    def test_short_span_D_equals_L(self) -> None:
+    def test_short_span_D_equals_L(self, sample_girder_section: GirderSection) -> None:
         """短支間（L < 10m）の場合、D = L となること。"""
-        result = calc_l_live_load_effects(
+        result = calc_girder_load_effects(
             bridge_length_mm=5000.0,  # 5m
             total_width_mm=6000.0,
             num_girders=3,
             girder_spacing_mm=2500.0,
+            girder_section=sample_girder_section,
+            deck_thickness_mm=217.0,
+            gamma_steel=78.5e-6,
+            gamma_concrete=25.0e-6,
         )
 
         # D = min(10, 5) = 5
@@ -494,38 +510,50 @@ class TestCalcLLiveLoadEffects:
         # γ = 5(2×5 - 5) / 5² = 1.0
         assert result.gamma == pytest.approx(1.0)
 
-    def test_raises_not_applicable_error_L_over_80m(self) -> None:
+    def test_raises_not_applicable_error_L_over_80m(self, sample_girder_section: GirderSection) -> None:
         """L > 80m の場合に NotApplicableError が発生すること。"""
         with pytest.raises(NotApplicableError, match="適用範囲外"):
-            calc_l_live_load_effects(
+            calc_girder_load_effects(
                 bridge_length_mm=81000.0,  # 81m
                 total_width_mm=12000.0,
                 num_girders=4,
                 girder_spacing_mm=3000.0,
+                girder_section=sample_girder_section,
+                deck_thickness_mm=217.0,
+                gamma_steel=78.5e-6,
+                gamma_concrete=25.0e-6,
             )
 
-    def test_raises_value_error_L_zero(self) -> None:
+    def test_raises_value_error_L_zero(self, sample_girder_section: GirderSection) -> None:
         """L <= 0 の場合に ValueError が発生すること。"""
         with pytest.raises(ValueError, match="支間長は正の値"):
-            calc_l_live_load_effects(
+            calc_girder_load_effects(
                 bridge_length_mm=0.0,
                 total_width_mm=10000.0,
                 num_girders=4,
                 girder_spacing_mm=2500.0,
+                girder_section=sample_girder_section,
+                deck_thickness_mm=217.0,
+                gamma_steel=78.5e-6,
+                gamma_concrete=25.0e-6,
             )
 
-    def test_boundary_L_80m(self) -> None:
+    def test_boundary_L_80m(self, sample_girder_section: GirderSection) -> None:
         """L = 80m の境界値が正常に処理されること。"""
-        result = calc_l_live_load_effects(
+        result = calc_girder_load_effects(
             bridge_length_mm=80000.0,  # 80m（適用範囲内）
             total_width_mm=12000.0,
             num_girders=4,
             girder_spacing_mm=3000.0,
+            girder_section=sample_girder_section,
+            deck_thickness_mm=217.0,
+            gamma_steel=78.5e-6,
+            gamma_concrete=25.0e-6,
         )
 
         assert result.L_m == pytest.approx(80.0)
-        assert result.M_live_max > 0
-        assert result.V_live_max > 0
+        assert result.M_total_max > 0
+        assert result.V_total_max > 0
 
 
 # =============================================================================
@@ -641,13 +669,17 @@ class TestJudgeV1:
 
         # 診断情報が埋まっていること
         diag = report.diagnostics
-        assert diag.w_dead > 0
-        assert diag.M_dead > 0
+        assert diag.M_total > 0
+        assert diag.V_total > 0
         assert diag.moment_of_inertia > 0
         assert diag.sigma_allow_top > 0
         assert diag.sigma_allow_bottom > 0
         assert diag.delta > 0
         assert diag.web_thickness_min_required > 0
+        # 桁別計算結果が含まれていること
+        assert len(diag.load_effects.girder_results) == 4
+        assert diag.governing_girder_index_bend >= 0
+        assert diag.governing_girder_index_shear >= 0
 
     def test_judge_v1_with_passing_design(self) -> None:
         """合格する設計で PatchPlan が空であること。"""
@@ -864,12 +896,16 @@ class TestJudgeV1WithFixture:
 
         # 主要中間量が説明可能
         diag = report.diagnostics
-        assert diag.w_dead > 0, "w_dead should be positive"
-        assert diag.M_dead > 0, "M_dead should be positive"
+        assert diag.M_total > 0, "M_total should be positive"
+        assert diag.V_total > 0, "V_total should be positive"
         assert diag.moment_of_inertia > 0, "I should be positive"
         assert diag.sigma_allow_top > 0, "sigma_allow_top should be positive"
         assert diag.sigma_allow_bottom > 0, "sigma_allow_bottom should be positive"
         assert diag.delta > 0, "delta should be positive"
+        # governing 桁情報
+        assert diag.governing_girder_index_bend >= 0
+        assert diag.governing_girder_index_shear >= 0
+        assert len(diag.load_effects.girder_results) > 0
 
         # ログ出力用に診断情報を表示
         print("\n=== Fixture Test Results ===")
@@ -880,8 +916,10 @@ class TestJudgeV1WithFixture:
         print(f"util_deflection: {report.utilization.deflection:.4f}")
         print(f"max_util: {report.utilization.max_util:.4f}")
         print(f"governing_check: {report.utilization.governing_check}")
-        print(f"w_dead: {diag.w_dead:.4f} N/mm")
-        print(f"M_dead: {diag.M_dead:.2e} N·mm")
+        print(f"governing_girder_bend: G{diag.governing_girder_index_bend}")
+        print(f"governing_girder_shear: G{diag.governing_girder_index_shear}")
+        print(f"M_total: {diag.M_total:.2e} N·mm")
+        print(f"V_total: {diag.V_total:.2e} N·mm")
         print(f"I: {diag.moment_of_inertia:.2e} mm⁴")
         print(f"fy_top_flange: {diag.fy_top_flange:.1f} N/mm²")
         print(f"fy_bottom_flange: {diag.fy_bottom_flange:.1f} N/mm²")
@@ -1233,12 +1271,15 @@ class TestJudgeV1Lightweight:
         assert utilization.governing_check in GoverningCheck
 
         # Diagnostics の構造を確認
-        assert diagnostics.w_dead > 0
-        assert diagnostics.M_dead > 0
+        assert diagnostics.M_total > 0
+        assert diagnostics.V_total > 0
         assert diagnostics.moment_of_inertia > 0
         assert diagnostics.sigma_allow_top > 0
         assert diagnostics.sigma_allow_bottom > 0
         assert diagnostics.web_thickness_min_required > 0
+        # governing 桁情報
+        assert diagnostics.governing_girder_index_bend >= 0
+        assert diagnostics.governing_girder_index_shear >= 0
 
     def test_judge_v1_lightweight_matches_judge_v1(self, sample_bridge_design: BridgeDesign) -> None:
         """judge_v1_lightweight の結果が judge_v1 と一致すること。"""
@@ -1274,9 +1315,11 @@ class TestJudgeV1Lightweight:
         assert util_lightweight.governing_check == report.utilization.governing_check
 
         # diagnostics が一致すること
-        assert diag_lightweight.w_dead == pytest.approx(report.diagnostics.w_dead)
-        assert diag_lightweight.M_dead == pytest.approx(report.diagnostics.M_dead)
+        assert diag_lightweight.M_total == pytest.approx(report.diagnostics.M_total)
+        assert diag_lightweight.V_total == pytest.approx(report.diagnostics.V_total)
         assert diag_lightweight.moment_of_inertia == pytest.approx(report.diagnostics.moment_of_inertia)
+        assert diag_lightweight.governing_girder_index_bend == report.diagnostics.governing_girder_index_bend
+        assert diag_lightweight.governing_girder_index_shear == report.diagnostics.governing_girder_index_shear
 
     def test_judge_v1_lightweight_no_llm_call(self, sample_bridge_design: BridgeDesign) -> None:
         """LLM が呼ばれないこと。"""
@@ -1292,6 +1335,59 @@ class TestJudgeV1Lightweight:
 # =============================================================================
 # 統合テスト: 腹板幅厚比照査 (WEB_SLENDERNESS)
 # =============================================================================
+
+
+class TestGirderDeadLoadCalculation:
+    """桁別死荷重計算のテスト。"""
+
+    def test_dead_load_per_girder(self, sample_girder_section: GirderSection) -> None:
+        """死荷重が桁ごとに正しく計算されること。"""
+        result = calc_girder_load_effects(
+            bridge_length_mm=30000.0,
+            total_width_mm=10000.0,
+            num_girders=4,
+            girder_spacing_mm=2667.0,
+            girder_section=sample_girder_section,
+            deck_thickness_mm=217.0,
+            gamma_steel=78.5e-6,
+            gamma_concrete=25.0e-6,
+        )
+
+        # 端桁と中間桁で受け持ち幅が異なるため、死荷重も異なる
+        g0 = result.girder_results[0]  # 端桁
+        g1 = result.girder_results[1]  # 中間桁
+
+        # 端桁の受け持ち幅は小さいため、死荷重も小さい
+        assert g0.w_dead < g1.w_dead
+        assert g0.M_dead < g1.M_dead
+        assert g0.V_dead < g1.V_dead
+
+        # 合計断面力も桁ごとに計算されている
+        assert g0.M_total == pytest.approx(g0.M_dead + g0.M_live)
+        assert g1.M_total == pytest.approx(g1.M_dead + g1.M_live)
+
+    def test_governing_girder_identification(self, sample_girder_section: GirderSection) -> None:
+        """governing 桁が正しく特定されること。"""
+        result = calc_girder_load_effects(
+            bridge_length_mm=30000.0,
+            total_width_mm=10000.0,
+            num_girders=4,
+            girder_spacing_mm=2667.0,
+            girder_section=sample_girder_section,
+            deck_thickness_mm=217.0,
+            gamma_steel=78.5e-6,
+            gamma_concrete=25.0e-6,
+        )
+
+        # governing 桁のインデックスが有効範囲内
+        assert 0 <= result.governing_girder_index_bend < 4
+        assert 0 <= result.governing_girder_index_shear < 4
+
+        # governing 桁の断面力が最大値と一致
+        gov_bend = result.girder_results[result.governing_girder_index_bend]
+        gov_shear = result.girder_results[result.governing_girder_index_shear]
+        assert gov_bend.M_total == pytest.approx(result.M_total_max)
+        assert gov_shear.V_total == pytest.approx(result.V_total_max)
 
 
 class TestWebSlendernessCheck:

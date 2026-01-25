@@ -91,7 +91,9 @@ def build_repair_user_prompt(context: RepairContext) -> str:
 
     # 診断情報（主要なもののみ）
     diag = context.diagnostics
-    diag_info = f"""## 診断情報
+    diag_info = f"""## 診断情報（governing 桁基準）
+- governing_girder_bend: G{diag.governing_girder_index_bend}
+- governing_girder_shear: G{diag.governing_girder_index_shear}
 - M_total: {diag.M_total:.2e} N·mm
 - V_total: {diag.V_total:.2e} N
 - I (moment_of_inertia): {diag.moment_of_inertia:.2e} mm⁴

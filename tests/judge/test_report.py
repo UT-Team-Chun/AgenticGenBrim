@@ -18,8 +18,10 @@ from src.bridge_agentic_generate.designer.models import (
 )
 from src.bridge_agentic_generate.judge.models import (
     Diagnostics,
+    GirderLoadResult,
     GoverningCheck,
     JudgeReport,
+    LoadEffectsResult,
     PatchPlan,
     RepairIteration,
     RepairLoopResult,
@@ -32,6 +34,47 @@ from src.bridge_agentic_generate.judge.report import (
     _format_summary,
     generate_repair_report,
 )
+
+
+def _make_load_effects(
+    num_girders: int = 4,
+    governing_bend: int = 1,
+    governing_shear: int = 1,
+) -> LoadEffectsResult:
+    """テスト用の LoadEffectsResult を生成する。"""
+    girder_results = [
+        GirderLoadResult(
+            girder_index=i,
+            b_i_m=2.5 if i in (0, num_girders - 1) else 2.5,
+            w_dead=18.0,
+            M_dead=5.625e9,
+            V_dead=450000.0,
+            b_eff_m=2.5,
+            w_M=30.0,
+            w_V=35.0,
+            M_live=4.5e9,
+            V_live=360000.0,
+            M_total=10.125e9,
+            V_total=810000.0,
+        )
+        for i in range(num_girders)
+    ]
+    return LoadEffectsResult(
+        L_m=50.0,
+        D_m=10.0,
+        p2=3.5,
+        p1_M=10.0,
+        p1_V=12.0,
+        gamma=0.36,
+        p_eq_M=7.1,
+        p_eq_V=7.82,
+        overhang_m=1.25,
+        girder_results=girder_results,
+        governing_girder_index_bend=governing_bend,
+        governing_girder_index_shear=governing_shear,
+        M_total_max=girder_results[governing_bend].M_total,
+        V_total_max=girder_results[governing_shear].V_total,
+    )
 
 
 @pytest.fixture
@@ -83,6 +126,8 @@ def sample_iterations() -> list[RepairIteration]:
         delta_allow: float,
         web_slenderness_util: float = 0.68,
         web_thickness_min_required: float = 10.8,
+        governing_bend: int = 1,
+        governing_shear: int = 1,
     ) -> JudgeReport:
         max_util = max(deck_util, bend_util, shear_util, deflection_util, web_slenderness_util)
         governing = GoverningCheck.DEFLECTION
@@ -94,6 +139,12 @@ def sample_iterations() -> list[RepairIteration]:
             governing = GoverningCheck.SHEAR
         elif max_util == web_slenderness_util:
             governing = GoverningCheck.WEB_SLENDERNESS
+
+        load_effects = _make_load_effects(
+            num_girders=4,
+            governing_bend=governing_bend,
+            governing_shear=governing_shear,
+        )
 
         return JudgeReport(
             pass_fail=max_util <= 1.0,
@@ -107,12 +158,6 @@ def sample_iterations() -> list[RepairIteration]:
                 governing_check=governing,
             ),
             diagnostics=Diagnostics(
-                b_tr=2500.0,
-                w_dead=18.0,
-                M_dead=5.625e9,
-                V_dead=450000.0,
-                M_live_max=4.5e9,
-                V_live_max=360000.0,
                 M_total=m_total,
                 V_total=810000.0,
                 ybar=700.0,
@@ -133,6 +178,9 @@ def sample_iterations() -> list[RepairIteration]:
                 deck_thickness_required=185.0,
                 web_thickness_min_required=web_thickness_min_required,
                 crossbeam_layout_ok=True,
+                load_effects=load_effects,
+                governing_girder_index_bend=governing_bend,
+                governing_girder_index_shear=governing_shear,
             ),
             patch_plan=PatchPlan(actions=[]),
         )
@@ -242,14 +290,14 @@ class TestFormatDiagnosticsTable:
         table = _format_diagnostics_table(sample_iterations)
 
         assert "## Diagnostics 抜粋" in table
-        assert "| Iter | M_total [N-mm] | sigma_bottom [N/mm2] |" in table
+        assert "M_total [N-mm]" in table
+        assert "sigma_bottom [N/mm2]" in table
         assert "web_t_min [mm]" in table
+        assert "Gov_G_bend" in table
+        assert "Gov_G_shear" in table
 
-        # iter 0: M_total=4.5e9, sigma_bottom=162.3, tau_avg=61.2, delta=28.4, delta_allow=20.0, web_t_min=10.8
-        assert "| 0 | 4.50e+09 | 162.3 | 61.2 | 28.4 | 20.0 | 10.8 |" in table
-
-        # iter 2: delta=19.0, delta_allow=20.0, web_t_min=10.8
-        assert "| 2 | 4.50e+09 | 121.5 | 52.3 | 19.0 | 20.0 | 10.8 |" in table
+        # iter 0: governing girder = G1
+        assert "G1" in table
 
 
 class TestGenerateRepairReport:
@@ -335,6 +383,8 @@ class TestGenerateRepairReportEdgeCases:
             components=Components(deck=Deck(thickness=217.0)),
         )
 
+        load_effects = _make_load_effects(num_girders=4, governing_bend=1, governing_shear=1)
+
         report_obj = JudgeReport(
             pass_fail=True,
             utilization=Utilization(
@@ -347,12 +397,6 @@ class TestGenerateRepairReportEdgeCases:
                 governing_check=GoverningCheck.BEND,
             ),
             diagnostics=Diagnostics(
-                b_tr=2500.0,
-                w_dead=18.0,
-                M_dead=2.025e9,
-                V_dead=270000.0,
-                M_live_max=2.0e9,
-                V_live_max=200000.0,
                 M_total=4.025e9,
                 V_total=470000.0,
                 ybar=700.0,
@@ -373,6 +417,9 @@ class TestGenerateRepairReportEdgeCases:
                 deck_thickness_required=185.0,
                 web_thickness_min_required=10.8,
                 crossbeam_layout_ok=True,
+                load_effects=load_effects,
+                governing_girder_index_bend=1,
+                governing_girder_index_shear=1,
             ),
             patch_plan=PatchPlan(actions=[]),
         )

@@ -19,11 +19,11 @@ from src.bridge_agentic_generate.judge.models import (
     AllowedActionSpec,
     CurrentDesignValues,
     Diagnostics,
-    GirderLiveLoadResult,
+    GirderLoadResult,
     GoverningCheck,
     JudgeInput,
     JudgeReport,
-    LiveLoadEffectsResult,
+    LoadEffectsResult,
     NotApplicableError,
     PatchActionOp,
     PatchPlan,
@@ -256,25 +256,33 @@ def calc_gamma(L_m: float, D_m: float) -> float:
     return D_m * (2 * L_m - D_m) / (L_m**2)
 
 
-def calc_l_live_load_effects(
+def calc_girder_load_effects(
     bridge_length_mm: float,
     total_width_mm: float,
     num_girders: int,
     girder_spacing_mm: float,
-) -> LiveLoadEffectsResult:
-    """L荷重（p1/p2ルール）に基づく活荷重を計算し、最も厳しい結果を返す。
+    girder_section: GirderSection,
+    deck_thickness_mm: float,
+    gamma_steel: float,
+    gamma_concrete: float,
+) -> LoadEffectsResult:
+    """主桁の荷重計算（死荷重・活荷重統合）。
 
-    全主桁をループして各桁の M_live, V_live を計算し、
-    最大の断面力を持つ主桁を critical として選定する。
+    全主桁をループして各桁の死荷重・活荷重・合計断面力を計算し、
+    governing 桁を特定する。
 
     Args:
         bridge_length_mm: 橋長 [mm]
         total_width_mm: 橋全幅 [mm]
         num_girders: 主桁本数
         girder_spacing_mm: 主桁間隔 [mm]
+        girder_section: 主桁断面
+        deck_thickness_mm: 床版厚 [mm]
+        gamma_steel: 鋼の単位体積重量 [N/mm³]
+        gamma_concrete: コンクリートの単位体積重量 [N/mm³]
 
     Returns:
-        LiveLoadEffectsResult: 全主桁の結果と最厳しい結果
+        LoadEffectsResult: 全主桁の結果と governing 桁
 
     Raises:
         NotApplicableError: L > 80m の場合
@@ -303,8 +311,12 @@ def calc_l_live_load_effects(
     overhang_mm = calc_overhang(total_width_mm, num_girders, girder_spacing_mm)
     overhang_m = overhang_mm / 1000
 
+    # 鋼桁自重（全桁共通）
+    a_steel = calc_girder_section_area(girder_section)
+    w_steel = gamma_steel * a_steel
+
     # 各主桁の計算
-    girder_results: list[GirderLiveLoadResult] = []
+    girder_results: list[GirderLoadResult] = []
 
     for i in range(num_girders):
         # 受け持ち幅
@@ -314,10 +326,14 @@ def calc_l_live_load_effects(
         if b_i_m <= 0:
             raise ValueError(f"主桁 {i} の受け持ち幅が0以下です: b_i_m={b_i_m}")
 
-        # 実効幅
-        b_eff_m = calc_beff(b_i_m)
+        # 死荷重
+        w_deck = gamma_concrete * deck_thickness_mm * b_i_mm
+        w_dead = w_deck + w_steel  # [N/mm]
+        M_dead = w_dead * bridge_length_mm**2 / 8  # [N·mm]
+        V_dead = w_dead * bridge_length_mm / 2  # [N]
 
-        # 等価線荷重
+        # 活荷重
+        b_eff_m = calc_beff(b_i_m)
         w_M = p_eq_M * b_eff_m  # [kN/m]
         w_V = p_eq_V * b_eff_m  # [kN/m]
 
@@ -329,25 +345,34 @@ def calc_l_live_load_effects(
         M_live = M_live_kn_m * 1e6  # [N·mm]
         V_live = V_live_kn * 1e3  # [N]
 
+        # 合計
+        M_total = M_dead + M_live
+        V_total = V_dead + V_live
+
         girder_results.append(
-            GirderLiveLoadResult(
+            GirderLoadResult(
                 girder_index=i,
                 b_i_m=b_i_m,
+                w_dead=w_dead,
+                M_dead=M_dead,
+                V_dead=V_dead,
                 b_eff_m=b_eff_m,
                 w_M=w_M,
                 w_V=w_V,
                 M_live=M_live,
                 V_live=V_live,
+                M_total=M_total,
+                V_total=V_total,
             )
         )
 
-    # 最厳しい結果を選定（曲げとせん断で別々）
-    critical_girder_index_M = max(range(num_girders), key=lambda i: girder_results[i].M_live)
-    critical_girder_index_V = max(range(num_girders), key=lambda i: girder_results[i].V_live)
-    M_live_max = girder_results[critical_girder_index_M].M_live
-    V_live_max = girder_results[critical_girder_index_V].V_live
+    # governing 桁を選定（曲げとせん断で別々）
+    governing_girder_index_bend = max(range(num_girders), key=lambda i: girder_results[i].M_total)
+    governing_girder_index_shear = max(range(num_girders), key=lambda i: girder_results[i].V_total)
+    M_total_max = girder_results[governing_girder_index_bend].M_total
+    V_total_max = girder_results[governing_girder_index_shear].V_total
 
-    return LiveLoadEffectsResult(
+    return LoadEffectsResult(
         L_m=L_m,
         D_m=D_m,
         p2=P2_KN_M2,
@@ -358,10 +383,10 @@ def calc_l_live_load_effects(
         p_eq_V=p_eq_V,
         overhang_m=overhang_m,
         girder_results=girder_results,
-        critical_girder_index_M=critical_girder_index_M,
-        critical_girder_index_V=critical_girder_index_V,
-        M_live_max=M_live_max,
-        V_live_max=V_live_max,
+        governing_girder_index_bend=governing_girder_index_bend,
+        governing_girder_index_shear=governing_girder_index_shear,
+        M_total_max=M_total_max,
+        V_total_max=V_total_max,
     )
 
 
@@ -484,39 +509,24 @@ def _calculate_utilization_and_diagnostics(
     deck_thickness = design.components.deck.thickness
 
     # -------------------------------------------------------------------------
-    # 1. 活荷重断面力の内部計算（p1/p2ルール）
+    # 1. 荷重計算（死荷重・活荷重統合、桁別計算）
     # -------------------------------------------------------------------------
-    live_load_result = calc_l_live_load_effects(
+    load_effects = calc_girder_load_effects(
         bridge_length_mm=dims.bridge_length,
         total_width_mm=dims.total_width,
         num_girders=dims.num_girders,
         girder_spacing_mm=dims.girder_spacing,
-    )
-    m_live_max = live_load_result.M_live_max
-    v_live_max = live_load_result.V_live_max
-
-    # -------------------------------------------------------------------------
-    # 2. 死荷重計算
-    # -------------------------------------------------------------------------
-    # 受け持ち幅 = girder_spacing（中間桁基準）
-    b_tr = dims.girder_spacing
-
-    w_deck, w_steel = calc_dead_load(
         girder_section=girder,
         deck_thickness_mm=deck_thickness,
-        girder_spacing_mm=b_tr,
         gamma_steel=steel.unit_weight,
         gamma_concrete=concrete.unit_weight,
     )
-    w_dead = w_deck + w_steel
 
-    m_dead, v_dead = calc_dead_load_effects(w_dead, dims.bridge_length)
-
-    # -------------------------------------------------------------------------
-    # 3. 合計断面力
-    # -------------------------------------------------------------------------
-    m_total = m_dead + m_live_max
-    v_total = v_dead + v_live_max
+    # governing 桁の断面力を取得
+    governing_bend_result = load_effects.girder_results[load_effects.governing_girder_index_bend]
+    governing_shear_result = load_effects.girder_results[load_effects.governing_girder_index_shear]
+    m_total = governing_bend_result.M_total
+    v_total = governing_shear_result.V_total
 
     # -------------------------------------------------------------------------
     # 4. 断面諸量
@@ -553,6 +563,8 @@ def _calculate_utilization_and_diagnostics(
     # -------------------------------------------------------------------------
     # 8. たわみ（活荷重のみ・道路橋示方書準拠）
     # -------------------------------------------------------------------------
+    # M_live が最大の桁を選定（たわみ照査は活荷重のみ）
+    m_live_max = max(gr.M_live for gr in load_effects.girder_results)
     w_eq_live = 8 * m_live_max / (dims.bridge_length**2)
     delta = 5 * w_eq_live * dims.bridge_length**4 / (384 * steel.E * moment_of_inertia)
     delta_allow = calc_allowable_deflection(dims.bridge_length)
@@ -615,12 +627,6 @@ def _calculate_utilization_and_diagnostics(
     )
 
     diagnostics = Diagnostics(
-        b_tr=b_tr,
-        w_dead=w_dead,
-        M_dead=m_dead,
-        V_dead=v_dead,
-        M_live_max=m_live_max,
-        V_live_max=v_live_max,
         M_total=m_total,
         V_total=v_total,
         ybar=ybar,
@@ -641,7 +647,9 @@ def _calculate_utilization_and_diagnostics(
         deck_thickness_required=deck_thickness_required,
         web_thickness_min_required=web_thickness_min_required,
         crossbeam_layout_ok=crossbeam_layout_ok,
-        live_load_result=live_load_result,
+        load_effects=load_effects,
+        governing_girder_index_bend=load_effects.governing_girder_index_bend,
+        governing_girder_index_shear=load_effects.governing_girder_index_shear,
     )
 
     return utilization, diagnostics, pass_fail

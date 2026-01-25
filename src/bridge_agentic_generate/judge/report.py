@@ -197,6 +197,8 @@ def _format_diagnostics_table(iterations: list[RepairIteration]) -> str:
     lines = ["## Diagnostics 抜粋", ""]
     header_cols = [
         "Iter",
+        "Gov_G_bend",
+        "Gov_G_shear",
         "M_total [N-mm]",
         "sigma_bottom [N/mm2]",
         "tau_avg [N/mm2]",
@@ -206,13 +208,16 @@ def _format_diagnostics_table(iterations: list[RepairIteration]) -> str:
     ]
     lines.append("| " + " | ".join(header_cols) + " |")
     lines.append(
-        "|------|----------------|----------------------|-----------------|------------|------------------|---------------|"
+        "|------|--------------|---------------|----------------|----------------------|-----------------|"
+        "------------|------------------|---------------|"
     )
 
     for it in iterations:
         diag = it.report.diagnostics
         vals = [
             str(it.iteration),
+            f"G{diag.governing_girder_index_bend}",
+            f"G{diag.governing_girder_index_shear}",
             f"{diag.M_total:.2e}",
             f"{diag.sigma_bottom:.1f}",
             f"{diag.tau_avg:.1f}",

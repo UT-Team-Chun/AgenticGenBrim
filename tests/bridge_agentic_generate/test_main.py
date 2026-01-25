@@ -18,11 +18,14 @@ from src.bridge_agentic_generate.designer.models import (
 )
 from src.bridge_agentic_generate.judge.models import (
     Diagnostics,
+    GirderLoadResult,
     GoverningCheck,
     JudgeReport,
+    LoadEffectsResult,
     PatchAction,
     PatchActionOp,
     PatchPlan,
+    RepairLoopResult,
     Utilization,
 )
 from src.bridge_agentic_generate.main import run_with_repair_loop
@@ -100,6 +103,43 @@ def failing_design() -> BridgeDesign:
     )
 
 
+def _create_load_effects() -> LoadEffectsResult:
+    """テスト用の LoadEffectsResult を作成。"""
+    girder_results = [
+        GirderLoadResult(
+            girder_index=i,
+            b_i_m=2.5,
+            w_dead=18.0,
+            M_dead=5.625e9,
+            V_dead=450000.0,
+            b_eff_m=2.5,
+            w_M=30.0,
+            w_V=35.0,
+            M_live=4.5e9,
+            V_live=360000.0,
+            M_total=10.125e9,
+            V_total=810000.0,
+        )
+        for i in range(4)
+    ]
+    return LoadEffectsResult(
+        L_m=50.0,
+        D_m=10.0,
+        p2=3.5,
+        p1_M=10.0,
+        p1_V=12.0,
+        gamma=0.36,
+        p_eq_M=7.1,
+        p_eq_V=7.82,
+        overhang_m=1.25,
+        girder_results=girder_results,
+        governing_girder_index_bend=1,
+        governing_girder_index_shear=1,
+        M_total_max=10.125e9,
+        V_total_max=810000.0,
+    )
+
+
 def _create_passing_report() -> JudgeReport:
     """合格する JudgeReport を作成。"""
     return JudgeReport(
@@ -109,16 +149,11 @@ def _create_passing_report() -> JudgeReport:
             bend=0.7,
             shear=0.5,
             deflection=0.6,
+            web_slenderness=0.68,
             max_util=0.8,
             governing_check=GoverningCheck.DECK,
         ),
         diagnostics=Diagnostics(
-            b_tr=2000.0,
-            w_dead=15.0,
-            M_dead=1e9,
-            V_dead=3e5,
-            M_live_max=2e9,
-            V_live_max=4e5,
             M_total=3e9,
             V_total=7e5,
             ybar=800.0,
@@ -130,10 +165,18 @@ def _create_passing_report() -> JudgeReport:
             tau_avg=30.0,
             delta=25.0,
             delta_allow=40.0,
-            sigma_allow=141.0,
-            tau_allow=81.0,
+            fy_top_flange=315.0,
+            fy_bottom_flange=315.0,
+            fy_web=325.0,
+            sigma_allow_top=189.0,
+            sigma_allow_bottom=189.0,
+            tau_allow=112.6,
             deck_thickness_required=200.0,
+            web_thickness_min_required=10.8,
             crossbeam_layout_ok=True,
+            load_effects=_create_load_effects(),
+            governing_girder_index_bend=1,
+            governing_girder_index_shear=1,
         ),
         patch_plan=PatchPlan(actions=[]),
     )
@@ -148,16 +191,11 @@ def _create_failing_report() -> JudgeReport:
             bend=1.2,
             shear=0.8,
             deflection=1.5,
+            web_slenderness=0.68,
             max_util=1.5,
             governing_check=GoverningCheck.DEFLECTION,
         ),
         diagnostics=Diagnostics(
-            b_tr=4000.0,
-            w_dead=25.0,
-            M_dead=5e9,
-            V_dead=8e5,
-            M_live_max=8e9,
-            V_live_max=1e6,
             M_total=13e9,
             V_total=1.8e6,
             ybar=500.0,
@@ -169,10 +207,18 @@ def _create_failing_report() -> JudgeReport:
             tau_avg=60.0,
             delta=120.0,
             delta_allow=80.0,
-            sigma_allow=141.0,
-            tau_allow=81.0,
+            fy_top_flange=315.0,
+            fy_bottom_flange=315.0,
+            fy_web=325.0,
+            sigma_allow_top=189.0,
+            sigma_allow_bottom=189.0,
+            tau_allow=112.6,
             deck_thickness_required=230.0,
+            web_thickness_min_required=10.8,
             crossbeam_layout_ok=True,
+            load_effects=_create_load_effects(),
+            governing_girder_index_bend=1,
+            governing_girder_index_shear=1,
         ),
         patch_plan=PatchPlan(
             actions=[
@@ -212,16 +258,19 @@ class TestRunWithRepairLoop:
                 return_value=_create_passing_report(),
             ) as mock_judge,
         ):
-            design, report = run_with_repair_loop(
+            result = run_with_repair_loop(
                 bridge_length_m=20.0,
                 total_width_m=8.0,
+                model_name="gpt-5-mini",
                 max_iterations=5,
             )
 
         # 1回だけ照査が呼ばれること
         assert mock_judge.call_count == 1
         # 合格していること
-        assert report.pass_fail is True
+        assert result.converged is True
+        assert result.final_report.pass_fail is True
+        assert len(result.iterations) == 1
 
     def test_converges_after_repair(self, failing_design: BridgeDesign, passing_design: BridgeDesign) -> None:
         """修正後に合格する場合、正しく収束すること。"""
@@ -243,16 +292,19 @@ class TestRunWithRepairLoop:
                 side_effect=judge_results,
             ) as mock_judge,
         ):
-            design, report = run_with_repair_loop(
+            result = run_with_repair_loop(
                 bridge_length_m=50.0,
                 total_width_m=12.0,
+                model_name="gpt-5-mini",
                 max_iterations=5,
             )
 
         # 2回照査が呼ばれること
         assert mock_judge.call_count == 2
         # 最終的に合格していること
-        assert report.pass_fail is True
+        assert result.converged is True
+        assert result.final_report.pass_fail is True
+        assert len(result.iterations) == 2
 
     def test_raises_on_max_iterations(self, failing_design: BridgeDesign) -> None:
         """max_iterations 回の修正で収束しない場合、RuntimeError が発生すること。"""
@@ -272,12 +324,18 @@ class TestRunWithRepairLoop:
                 return_value=_create_failing_report(),
             ),
         ):
-            with pytest.raises(RuntimeError, match="収束しませんでした"):
-                run_with_repair_loop(
-                    bridge_length_m=50.0,
-                    total_width_m=12.0,
-                    max_iterations=3,
-                )
+            result = run_with_repair_loop(
+                bridge_length_m=50.0,
+                total_width_m=12.0,
+                model_name="gpt-5-mini",
+                max_iterations=3,
+            )
+
+        # 収束しないこと
+        assert result.converged is False
+        assert result.final_report.pass_fail is False
+        # max_iterations=3 の場合、0,1,2の3回修正後に最終照査が入り、合計4回
+        assert len(result.iterations) == 4
 
     def test_applies_patch_plan(self, failing_design: BridgeDesign) -> None:
         """PatchPlan が正しく適用されること。"""
@@ -313,6 +371,7 @@ class TestRunWithRepairLoop:
             run_with_repair_loop(
                 bridge_length_m=50.0,
                 total_width_m=12.0,
+                model_name="gpt-5-mini",
                 max_iterations=5,
             )
 

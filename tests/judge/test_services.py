@@ -23,6 +23,7 @@ from src.bridge_agentic_generate.designer.models import (
 from src.bridge_agentic_generate.judge.models import (
     GoverningCheck,
     JudgeInput,
+    NotApplicableError,
     PatchAction,
     PatchActionOp,
     PatchPlan,
@@ -30,17 +31,24 @@ from src.bridge_agentic_generate.judge.models import (
     get_fy,
 )
 from src.bridge_agentic_generate.judge.services import (
+    P1_M_KN_M2,
+    P1_V_KN_M2,
+    P2_KN_M2,
     WEB_SLENDERNESS_DIVISOR_SM400,
     WEB_SLENDERNESS_DIVISOR_SM490,
     apply_dependency_rules,
     apply_patch_plan,
     calc_allowable_deflection,
+    calc_beff,
     calc_dead_load,
     calc_dead_load_effects,
+    calc_gamma,
     calc_girder_section_area,
     calc_girder_section_properties,
-    calc_live_load_effects,
+    calc_l_live_load_effects,
+    calc_overhang,
     calc_required_deck_thickness,
+    calc_tributary_width,
     get_min_web_thickness,
     judge_v1,
     judge_v1_lightweight,
@@ -296,37 +304,228 @@ class TestDeadLoad:
 
 
 # =============================================================================
-# 単体テスト: 活荷重計算
+# 単体テスト: L荷重計算（p1/p2ルール）
 # =============================================================================
 
 
-class TestLiveLoad:
-    """活荷重計算のテスト。"""
+class TestCalcGamma:
+    """等価係数 γ の計算テスト。"""
 
-    def test_calc_live_load_effects(self) -> None:
-        """活荷重断面力が正しく計算されること。"""
-        p_live = 12.0  # kN/m²
-        girder_spacing = 2667.0  # mm
-        bridge_length = 30000.0  # mm
+    def test_calc_gamma_L40_D10(self) -> None:
+        """L=40m, D=10m の場合の γ。タスク仕様の例1。"""
+        # γ = D(2L - D) / L² = 10 × (2×40 - 10) / 40² = 10 × 70 / 1600 = 0.4375
+        gamma = calc_gamma(L_m=40.0, D_m=10.0)
+        assert gamma == pytest.approx(0.4375)
 
-        m_live, v_live = calc_live_load_effects(
-            p_live_equiv_kn_m2=p_live,
-            girder_spacing_mm=girder_spacing,
-            bridge_length_mm=bridge_length,
+    def test_calc_gamma_L30_D10(self) -> None:
+        """L=30m, D=10m の場合の γ。タスク仕様の例2。"""
+        # γ = D(2L - D) / L² = 10 × (2×30 - 10) / 30² = 10 × 50 / 900 = 0.5556
+        gamma = calc_gamma(L_m=30.0, D_m=10.0)
+        assert gamma == pytest.approx(500 / 900, rel=1e-4)  # 0.5556
+
+    def test_calc_gamma_L_equals_D(self) -> None:
+        """L=D=5m の場合（短支間）。"""
+        # γ = 5(2×5 - 5) / 5² = 5 × 5 / 25 = 1.0
+        gamma = calc_gamma(L_m=5.0, D_m=5.0)
+        assert gamma == pytest.approx(1.0)
+
+    def test_calc_gamma_raises_on_zero_L(self) -> None:
+        """L <= 0 の場合に ValueError が発生すること。"""
+        with pytest.raises(ValueError, match="支間長は正の値"):
+            calc_gamma(L_m=0.0, D_m=10.0)
+
+        with pytest.raises(ValueError, match="支間長は正の値"):
+            calc_gamma(L_m=-5.0, D_m=10.0)
+
+
+class TestCalcBeff:
+    """実効幅 b_eff の計算テスト。"""
+
+    def test_calc_beff_narrow(self) -> None:
+        """b_i < 5.5m の場合（タスク仕様のテスト）。"""
+        # b_i = 2.5m → b_eff = 0.5 × 2.5 + 0.5 × min(2.5, 5.5) = 1.25 + 1.25 = 2.5m
+        b_eff = calc_beff(b_i_m=2.5)
+        assert b_eff == pytest.approx(2.5)
+
+    def test_calc_beff_wide(self) -> None:
+        """b_i > 5.5m の場合（タスク仕様のテスト）。"""
+        # b_i = 8.0m → b_eff = 0.5 × 8.0 + 0.5 × min(8.0, 5.5) = 4.0 + 2.75 = 6.75m
+        b_eff = calc_beff(b_i_m=8.0)
+        assert b_eff == pytest.approx(6.75)
+
+    def test_calc_beff_exactly_5_5(self) -> None:
+        """b_i = 5.5m の場合（境界値）。"""
+        # b_i = 5.5m → b_eff = 0.5 × 5.5 + 0.5 × 5.5 = 5.5m
+        b_eff = calc_beff(b_i_m=5.5)
+        assert b_eff == pytest.approx(5.5)
+
+
+class TestCalcOverhang:
+    """張り出し幅の計算テスト。"""
+
+    def test_calc_overhang_symmetric(self) -> None:
+        """対称配置の張り出し幅。"""
+        # total_width=10000mm, num_girders=4, girder_spacing=2667mm
+        # overhang = (10000 - (4-1) × 2667) / 2 = (10000 - 8001) / 2 = 999.5mm
+        overhang = calc_overhang(total_width_mm=10000.0, num_girders=4, girder_spacing_mm=2667.0)
+        expected = (10000.0 - 3 * 2667.0) / 2
+        assert overhang == pytest.approx(expected)
+
+    def test_calc_overhang_no_overhang(self) -> None:
+        """張り出しがない場合（両端が主桁間隔の半分）。"""
+        # total_width=8000mm, num_girders=5, girder_spacing=2000mm
+        # overhang = (8000 - 4 × 2000) / 2 = 0
+        overhang = calc_overhang(total_width_mm=8000.0, num_girders=5, girder_spacing_mm=2000.0)
+        assert overhang == pytest.approx(0.0)
+
+
+class TestCalcTributaryWidth:
+    """主桁の受け持ち幅 b_i の計算テスト。"""
+
+    def test_calc_tributary_width_edge_girder(self) -> None:
+        """端桁（G1, Gn）の受け持ち幅。"""
+        # overhang=1000mm, girder_spacing=2500mm
+        # b_i = overhang + girder_spacing/2 = 1000 + 1250 = 2250mm
+        b_i_0 = calc_tributary_width(girder_index=0, num_girders=4, overhang_mm=1000.0, girder_spacing_mm=2500.0)
+        b_i_3 = calc_tributary_width(girder_index=3, num_girders=4, overhang_mm=1000.0, girder_spacing_mm=2500.0)
+        assert b_i_0 == pytest.approx(2250.0)
+        assert b_i_3 == pytest.approx(2250.0)
+
+    def test_calc_tributary_width_middle_girder(self) -> None:
+        """中間桁の受け持ち幅。"""
+        # 中間桁は girder_spacing
+        b_i_1 = calc_tributary_width(girder_index=1, num_girders=4, overhang_mm=1000.0, girder_spacing_mm=2500.0)
+        b_i_2 = calc_tributary_width(girder_index=2, num_girders=4, overhang_mm=1000.0, girder_spacing_mm=2500.0)
+        assert b_i_1 == pytest.approx(2500.0)
+        assert b_i_2 == pytest.approx(2500.0)
+
+
+class TestCalcLLiveLoadEffects:
+    """calc_l_live_load_effects 関数のテスト。"""
+
+    def test_basic_calculation(self) -> None:
+        """基本的な計算が正しく行われること。"""
+        result = calc_l_live_load_effects(
+            bridge_length_mm=40000.0,  # 40m
+            total_width_mm=10000.0,  # 10m
+            num_girders=4,
+            girder_spacing_mm=2667.0,
         )
 
-        # 手計算:
-        b_tr_m = girder_spacing / 1000
-        # w_live = 12 * 2.5 = 30 kN/m
-        w_live_kn_m = p_live * b_tr_m
-        # L = 30 m
-        l_m = bridge_length / 1000
-        # M_live = 30 * 30² / 8 = 3375 kN·m = 3.375e9 N·mm
-        expected_m = w_live_kn_m * l_m**2 / 8 * 1e6
-        assert m_live == pytest.approx(expected_m, rel=1e-6)
-        # V_live = 30 * 30 / 2 = 450 kN = 450000 N
-        expected_v = w_live_kn_m * l_m / 2 * 1e3
-        assert v_live == pytest.approx(expected_v, rel=1e-6)
+        # 共通パラメータの確認
+        assert result.L_m == pytest.approx(40.0)
+        assert result.D_m == pytest.approx(10.0)  # min(10, 40) = 10
+        assert result.p2 == pytest.approx(P2_KN_M2)
+        assert result.p1_M == pytest.approx(P1_M_KN_M2)
+        assert result.p1_V == pytest.approx(P1_V_KN_M2)
+
+        # γ = 10 × (2×40 - 10) / 40² = 0.4375
+        assert result.gamma == pytest.approx(0.4375)
+
+        # 等価面圧
+        # p_eq_M = 3.5 + 10 × 0.4375 = 7.875
+        # p_eq_V = 3.5 + 12 × 0.4375 = 8.75
+        assert result.p_eq_M == pytest.approx(3.5 + 10 * 0.4375)
+        assert result.p_eq_V == pytest.approx(3.5 + 12 * 0.4375)
+
+        # 主桁数の確認
+        assert len(result.girder_results) == 4
+
+    def test_girder_results_structure(self) -> None:
+        """各主桁の結果が正しく計算されること。"""
+        result = calc_l_live_load_effects(
+            bridge_length_mm=30000.0,
+            total_width_mm=10000.0,
+            num_girders=4,
+            girder_spacing_mm=2667.0,
+        )
+
+        # 端桁と中間桁で b_i が異なること
+        g0 = result.girder_results[0]
+        g1 = result.girder_results[1]
+        g2 = result.girder_results[2]
+        g3 = result.girder_results[3]
+
+        # 端桁（G0, G3）は同じ
+        assert g0.b_i_m == pytest.approx(g3.b_i_m)
+        # 中間桁（G1, G2）は同じ
+        assert g1.b_i_m == pytest.approx(g2.b_i_m)
+        # 端桁と中間桁は異なる
+        assert g0.b_i_m != pytest.approx(g1.b_i_m)
+
+        # girder_index が正しいこと
+        assert g0.girder_index == 0
+        assert g1.girder_index == 1
+        assert g2.girder_index == 2
+        assert g3.girder_index == 3
+
+    def test_critical_girder_selection(self) -> None:
+        """最厳しい主桁が正しく選択されること。"""
+        result = calc_l_live_load_effects(
+            bridge_length_mm=40000.0,
+            total_width_mm=10000.0,
+            num_girders=4,
+            girder_spacing_mm=2667.0,
+        )
+
+        # 最大 M_live を持つ主桁のインデックス
+        max_M_idx = max(range(4), key=lambda i: result.girder_results[i].M_live)
+        assert result.critical_girder_index_M == max_M_idx
+
+        # 最大 V_live を持つ主桁のインデックス
+        max_V_idx = max(range(4), key=lambda i: result.girder_results[i].V_live)
+        assert result.critical_girder_index_V == max_V_idx
+
+        # M_live_max と V_live_max が正しいこと
+        assert result.M_live_max == pytest.approx(result.girder_results[max_M_idx].M_live)
+        assert result.V_live_max == pytest.approx(result.girder_results[max_V_idx].V_live)
+
+    def test_short_span_D_equals_L(self) -> None:
+        """短支間（L < 10m）の場合、D = L となること。"""
+        result = calc_l_live_load_effects(
+            bridge_length_mm=5000.0,  # 5m
+            total_width_mm=6000.0,
+            num_girders=3,
+            girder_spacing_mm=2500.0,
+        )
+
+        # D = min(10, 5) = 5
+        assert result.D_m == pytest.approx(5.0)
+        # γ = 5(2×5 - 5) / 5² = 1.0
+        assert result.gamma == pytest.approx(1.0)
+
+    def test_raises_not_applicable_error_L_over_80m(self) -> None:
+        """L > 80m の場合に NotApplicableError が発生すること。"""
+        with pytest.raises(NotApplicableError, match="適用範囲外"):
+            calc_l_live_load_effects(
+                bridge_length_mm=81000.0,  # 81m
+                total_width_mm=12000.0,
+                num_girders=4,
+                girder_spacing_mm=3000.0,
+            )
+
+    def test_raises_value_error_L_zero(self) -> None:
+        """L <= 0 の場合に ValueError が発生すること。"""
+        with pytest.raises(ValueError, match="支間長は正の値"):
+            calc_l_live_load_effects(
+                bridge_length_mm=0.0,
+                total_width_mm=10000.0,
+                num_girders=4,
+                girder_spacing_mm=2500.0,
+            )
+
+    def test_boundary_L_80m(self) -> None:
+        """L = 80m の境界値が正常に処理されること。"""
+        result = calc_l_live_load_effects(
+            bridge_length_mm=80000.0,  # 80m（適用範囲内）
+            total_width_mm=12000.0,
+            num_girders=4,
+            girder_spacing_mm=3000.0,
+        )
+
+        assert result.L_m == pytest.approx(80.0)
+        assert result.M_live_max > 0
+        assert result.V_live_max > 0
 
 
 # =============================================================================

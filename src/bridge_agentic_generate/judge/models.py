@@ -12,6 +12,17 @@ from pydantic import BaseModel, Field
 from src.bridge_agentic_generate.designer.models import BridgeDesign, DesignerRagLog
 
 # =============================================================================
+# 例外クラス
+# =============================================================================
+
+
+class NotApplicableError(Exception):
+    """適用範囲外エラー（L > 80m など）。"""
+
+    pass
+
+
+# =============================================================================
 # 鋼種と降伏点
 # =============================================================================
 
@@ -95,32 +106,17 @@ class MaterialsConcrete(BaseModel):
     unit_weight: float = Field(default=25.0e-6, description="単位体積重量 [N/mm³]（25 kN/m³ = 25e-6 N/mm³）")
 
 
-class LoadInput(BaseModel):
-    """活荷重入力。
-
-    Attributes:
-        p_live_equiv: 等価活荷重面圧 [kN/m²]。デフォルト12。
-    """
-
-    p_live_equiv: float = Field(
-        default=12.0,
-        description="等価活荷重面圧 [kN/m²]。デフォルト12、感度解析で6〜12を振る。",
-    )
-
-
 class JudgeInput(BaseModel):
     """Judge に渡す入力。
 
     Attributes:
         bridge_design: BridgeDesign（既存スキーマ）
-        load_input: 活荷重入力
         materials_steel: 鋼材の材料特性
         materials_concrete: コンクリートの材料特性
         judge_params: Judge パラメータ
     """
 
     bridge_design: BridgeDesign
-    load_input: LoadInput = Field(default_factory=LoadInput)
     materials_steel: MaterialsSteel = Field(default_factory=MaterialsSteel)
     materials_concrete: MaterialsConcrete = Field(default_factory=MaterialsConcrete)
     judge_params: JudgeParams = Field(default_factory=JudgeParams)
@@ -164,6 +160,45 @@ class Utilization(BaseModel):
     governing_check: GoverningCheck = Field(..., description="支配的なチェック項目")
 
 
+# =============================================================================
+# L荷重計算結果モデル
+# =============================================================================
+
+
+class GirderLiveLoadResult(BaseModel):
+    """1本の主桁の活荷重計算結果。"""
+
+    girder_index: int = Field(..., description="主桁インデックス（0始まり）")
+    b_i_m: float = Field(..., description="受け持ち幅 [m]")
+    b_eff_m: float = Field(..., description="実効幅 [m]")
+    w_M: float = Field(..., description="曲げ用等価線荷重 [kN/m]")
+    w_V: float = Field(..., description="せん断用等価線荷重 [kN/m]")
+    M_live: float = Field(..., description="活荷重最大曲げモーメント [N·mm]")
+    V_live: float = Field(..., description="活荷重最大せん断力 [N]")
+
+
+class LiveLoadEffectsResult(BaseModel):
+    """全主桁の活荷重計算結果。"""
+
+    # 共通パラメータ
+    L_m: float = Field(..., description="支間長 [m]")
+    D_m: float = Field(..., description="載荷長 [m]")
+    p2: float = Field(..., description="p2 面圧 [kN/m²]")
+    p1_M: float = Field(..., description="曲げ用 p1 面圧 [kN/m²]")
+    p1_V: float = Field(..., description="せん断用 p1 面圧 [kN/m²]")
+    gamma: float = Field(..., description="等価係数（曲げ・せん断共通）")
+    p_eq_M: float = Field(..., description="曲げ用等価面圧 [kN/m²]")
+    p_eq_V: float = Field(..., description="せん断用等価面圧 [kN/m²]")
+    overhang_m: float = Field(..., description="張り出し幅 [m]")
+    # 主桁ごとの結果
+    girder_results: list[GirderLiveLoadResult] = Field(..., description="各主桁の計算結果")
+    # 最厳しい結果（照査用）- 曲げとせん断で別々
+    critical_girder_index_M: int = Field(..., description="曲げで最厳しい主桁のインデックス")
+    critical_girder_index_V: int = Field(..., description="せん断で最厳しい主桁のインデックス")
+    M_live_max: float = Field(..., description="最大活荷重曲げモーメント [N·mm]")
+    V_live_max: float = Field(..., description="最大活荷重せん断力 [N]")
+
+
 class Diagnostics(BaseModel):
     """Judge の中間計算量（デバッグ・説明用）。"""
 
@@ -193,6 +228,7 @@ class Diagnostics(BaseModel):
     deck_thickness_required: float = Field(..., description="必要床版厚 [mm]")
     web_thickness_min_required: float = Field(..., description="必要最小腹板厚 [mm]")
     crossbeam_layout_ok: bool = Field(..., description="横桁配置の整合性")
+    live_load_result: LiveLoadEffectsResult = Field(..., description="L荷重計算結果（詳細）")
 
 
 class PatchActionOp(StrEnum):

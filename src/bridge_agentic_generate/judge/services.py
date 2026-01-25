@@ -19,9 +19,12 @@ from src.bridge_agentic_generate.judge.models import (
     AllowedActionSpec,
     CurrentDesignValues,
     Diagnostics,
+    GirderLiveLoadResult,
     GoverningCheck,
     JudgeInput,
     JudgeReport,
+    LiveLoadEffectsResult,
+    NotApplicableError,
     PatchActionOp,
     PatchPlan,
     RepairContext,
@@ -56,6 +59,28 @@ MAX_PANEL_LENGTH_MM = 20000.0
 # 腹板幅厚比照査の除数（鋼種別）
 WEB_SLENDERNESS_DIVISOR_SM490 = 130
 WEB_SLENDERNESS_DIVISOR_SM400 = 152
+
+# =============================================================================
+# L荷重計算定数（B活荷重）
+# =============================================================================
+
+# 適用限界支間長 [m]
+MAX_APPLICABLE_SPAN_M = 80.0
+
+# 載荷長上限 [m]
+MAX_LOADING_LENGTH_M = 10.0
+
+# p1 面圧（曲げ照査用）[kN/m²]
+P1_M_KN_M2 = 10.0
+
+# p1 面圧（せん断照査用）[kN/m²]
+P1_V_KN_M2 = 12.0
+
+# p2 面圧（支間80m以下）[kN/m²]
+P2_KN_M2 = 3.5
+
+# 主載荷幅 [m]
+MAIN_LOADING_WIDTH_M = 5.5
 
 
 # =============================================================================
@@ -155,45 +180,189 @@ def get_min_web_thickness(grade: SteelGrade, web_height: float) -> float:
 
 
 # =============================================================================
-# 活荷重計算
+# L荷重計算（p1/p2ルール）
 # =============================================================================
 
 
-def calc_live_load_effects(
-    p_live_equiv_kn_m2: float,
-    girder_spacing_mm: float,
-    bridge_length_mm: float,
-) -> tuple[float, float]:
-    """活荷重断面力を計算する（内部計算）。
+def calc_overhang(total_width_mm: float, num_girders: int, girder_spacing_mm: float) -> float:
+    """張り出し幅を計算する。
 
     Args:
-        p_live_equiv_kn_m2: 等価活荷重面圧 [kN/m²]
-        girder_spacing_mm: 主桁間隔（受け持ち幅）[mm]
-        bridge_length_mm: 橋長 [mm]
+        total_width_mm: 橋全幅 [mm]
+        num_girders: 主桁本数
+        girder_spacing_mm: 主桁間隔 [mm]
 
     Returns:
-        (M_live_max, V_live_max) のタプル。
-        M_live_max: 活荷重最大曲げモーメント [N·mm]
-        V_live_max: 活荷重最大せん断力 [N]
+        張り出し幅 [mm]
     """
-    # 受け持ち幅 [m]
-    b_tr_m = girder_spacing_mm / 1000
+    return (total_width_mm - (num_girders - 1) * girder_spacing_mm) / 2
 
-    # 等価線荷重 [kN/m]
-    w_live_kn_m = p_live_equiv_kn_m2 * b_tr_m
 
-    # 橋長 [m]
-    bridge_length_m = bridge_length_mm / 1000
+def calc_tributary_width(
+    girder_index: int,
+    num_girders: int,
+    overhang_mm: float,
+    girder_spacing_mm: float,
+) -> float:
+    """主桁 i の受け持ち幅 b_i を計算する。
 
-    # 単純桁の最大断面力
-    m_live_max_kn_m = w_live_kn_m * bridge_length_m**2 / 8  # [kN·m]
-    v_live_max_kn = w_live_kn_m * bridge_length_m / 2  # [kN]
+    Args:
+        girder_index: 主桁インデックス（0始まり）
+        num_girders: 主桁本数
+        overhang_mm: 張り出し幅 [mm]
+        girder_spacing_mm: 主桁間隔 [mm]
 
-    # 単位変換: kN·m → N·mm, kN → N
-    m_live_max = m_live_max_kn_m * 1e6  # [N·mm]
-    v_live_max = v_live_max_kn * 1e3  # [N]
+    Returns:
+        受け持ち幅 [mm]
+    """
+    # 端桁（最初と最後）
+    if girder_index == 0 or girder_index == num_girders - 1:
+        return overhang_mm + girder_spacing_mm / 2
+    # 中間桁
+    return girder_spacing_mm
 
-    return m_live_max, v_live_max
+
+def calc_beff(b_i_m: float) -> float:
+    """実効幅を計算する。
+
+    主載荷幅 5.5m（100%）+ 残り（1/2）を、最不利に主載荷をその桁に寄せられるとして計算。
+
+    Args:
+        b_i_m: 受け持ち幅 [m]
+
+    Returns:
+        実効幅 [m]
+    """
+    return 0.5 * b_i_m + 0.5 * min(b_i_m, MAIN_LOADING_WIDTH_M)
+
+
+def calc_gamma(L_m: float, D_m: float) -> float:
+    """等価係数を計算する（曲げ・せん断共通）。
+
+    部分載荷を等価な全スパン等分布に換算するための係数。
+
+    Args:
+        L_m: 支間長 [m]
+        D_m: 載荷長 [m]
+
+    Returns:
+        等価係数 γ
+
+    Raises:
+        ValueError: L_m <= 0 の場合
+    """
+    if L_m <= 0:
+        raise ValueError(f"支間長は正の値である必要があります: L_m={L_m}")
+    return D_m * (2 * L_m - D_m) / (L_m**2)
+
+
+def calc_l_live_load_effects(
+    bridge_length_mm: float,
+    total_width_mm: float,
+    num_girders: int,
+    girder_spacing_mm: float,
+) -> LiveLoadEffectsResult:
+    """L荷重（p1/p2ルール）に基づく活荷重を計算し、最も厳しい結果を返す。
+
+    全主桁をループして各桁の M_live, V_live を計算し、
+    最大の断面力を持つ主桁を critical として選定する。
+
+    Args:
+        bridge_length_mm: 橋長 [mm]
+        total_width_mm: 橋全幅 [mm]
+        num_girders: 主桁本数
+        girder_spacing_mm: 主桁間隔 [mm]
+
+    Returns:
+        LiveLoadEffectsResult: 全主桁の結果と最厳しい結果
+
+    Raises:
+        NotApplicableError: L > 80m の場合
+        ValueError: L <= 0 または b_i <= 0 の場合
+    """
+    # 単位変換: mm → m
+    L_m = bridge_length_mm / 1000
+
+    # 適用範囲チェック
+    if L_m <= 0:
+        raise ValueError(f"支間長は正の値である必要があります: L_m={L_m}")
+    if L_m > MAX_APPLICABLE_SPAN_M:
+        raise NotApplicableError(f"支間長 {L_m}m は適用範囲外です（上限: {MAX_APPLICABLE_SPAN_M}m）")
+
+    # 載荷長 D
+    D_m = min(MAX_LOADING_LENGTH_M, L_m)
+
+    # 等価係数 γ
+    gamma = calc_gamma(L_m, D_m)
+
+    # 等価面圧
+    p_eq_M = P2_KN_M2 + P1_M_KN_M2 * gamma  # 曲げ用
+    p_eq_V = P2_KN_M2 + P1_V_KN_M2 * gamma  # せん断用
+
+    # 張り出し幅
+    overhang_mm = calc_overhang(total_width_mm, num_girders, girder_spacing_mm)
+    overhang_m = overhang_mm / 1000
+
+    # 各主桁の計算
+    girder_results: list[GirderLiveLoadResult] = []
+
+    for i in range(num_girders):
+        # 受け持ち幅
+        b_i_mm = calc_tributary_width(i, num_girders, overhang_mm, girder_spacing_mm)
+        b_i_m = b_i_mm / 1000
+
+        if b_i_m <= 0:
+            raise ValueError(f"主桁 {i} の受け持ち幅が0以下です: b_i_m={b_i_m}")
+
+        # 実効幅
+        b_eff_m = calc_beff(b_i_m)
+
+        # 等価線荷重
+        w_M = p_eq_M * b_eff_m  # [kN/m]
+        w_V = p_eq_V * b_eff_m  # [kN/m]
+
+        # 単純梁の最大断面力
+        M_live_kn_m = w_M * L_m**2 / 8  # [kN·m]
+        V_live_kn = w_V * L_m / 2  # [kN]
+
+        # 単位変換: kN·m → N·mm, kN → N
+        M_live = M_live_kn_m * 1e6  # [N·mm]
+        V_live = V_live_kn * 1e3  # [N]
+
+        girder_results.append(
+            GirderLiveLoadResult(
+                girder_index=i,
+                b_i_m=b_i_m,
+                b_eff_m=b_eff_m,
+                w_M=w_M,
+                w_V=w_V,
+                M_live=M_live,
+                V_live=V_live,
+            )
+        )
+
+    # 最厳しい結果を選定（曲げとせん断で別々）
+    critical_girder_index_M = max(range(num_girders), key=lambda i: girder_results[i].M_live)
+    critical_girder_index_V = max(range(num_girders), key=lambda i: girder_results[i].V_live)
+    M_live_max = girder_results[critical_girder_index_M].M_live
+    V_live_max = girder_results[critical_girder_index_V].V_live
+
+    return LiveLoadEffectsResult(
+        L_m=L_m,
+        D_m=D_m,
+        p2=P2_KN_M2,
+        p1_M=P1_M_KN_M2,
+        p1_V=P1_V_KN_M2,
+        gamma=gamma,
+        p_eq_M=p_eq_M,
+        p_eq_V=p_eq_V,
+        overhang_m=overhang_m,
+        girder_results=girder_results,
+        critical_girder_index_M=critical_girder_index_M,
+        critical_girder_index_V=critical_girder_index_V,
+        M_live_max=M_live_max,
+        V_live_max=V_live_max,
+    )
 
 
 # =============================================================================
@@ -308,7 +477,6 @@ def _calculate_utilization_and_diagnostics(
     params = judge_input.judge_params
     steel = judge_input.materials_steel
     concrete = judge_input.materials_concrete
-    load_input = judge_input.load_input
 
     # 寸法・断面
     dims = design.dimensions
@@ -316,18 +484,21 @@ def _calculate_utilization_and_diagnostics(
     deck_thickness = design.components.deck.thickness
 
     # -------------------------------------------------------------------------
-    # 1. 活荷重断面力の内部計算
+    # 1. 活荷重断面力の内部計算（p1/p2ルール）
     # -------------------------------------------------------------------------
-    m_live_max, v_live_max = calc_live_load_effects(
-        p_live_equiv_kn_m2=load_input.p_live_equiv,
-        girder_spacing_mm=dims.girder_spacing,
+    live_load_result = calc_l_live_load_effects(
         bridge_length_mm=dims.bridge_length,
+        total_width_mm=dims.total_width,
+        num_girders=dims.num_girders,
+        girder_spacing_mm=dims.girder_spacing,
     )
+    m_live_max = live_load_result.M_live_max
+    v_live_max = live_load_result.V_live_max
 
     # -------------------------------------------------------------------------
     # 2. 死荷重計算
     # -------------------------------------------------------------------------
-    # 受け持ち幅 = girder_spacing
+    # 受け持ち幅 = girder_spacing（中間桁基準）
     b_tr = dims.girder_spacing
 
     w_deck, w_steel = calc_dead_load(
@@ -470,6 +641,7 @@ def _calculate_utilization_and_diagnostics(
         deck_thickness_required=deck_thickness_required,
         web_thickness_min_required=web_thickness_min_required,
         crossbeam_layout_ok=crossbeam_layout_ok,
+        live_load_result=live_load_result,
     )
 
     return utilization, diagnostics, pass_fail

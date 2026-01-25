@@ -405,9 +405,9 @@ class CLI:
 
     def run_with_repair(
         self,
-        bridge_length_m: float = DEFAULT_BRIDGE_LENGTH_M,
-        total_width_m: float = DEFAULT_TOTAL_WIDTH_M,
-        model_name: LlmModel = LlmModel.GPT_5_MINI,
+        bridge_length_m: float = 20,
+        total_width_m: float = 5,
+        model_name: LlmModel = LlmModel.GPT_5_1,
         top_k: int = TOP_K,
         max_iterations: int = DEFAULT_MAX_ITERATIONS,
     ) -> RunWithRepairResult:

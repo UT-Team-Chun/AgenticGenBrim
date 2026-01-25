@@ -70,16 +70,12 @@ class JudgeReport(BaseModel):
 
 | フィールド | 単位 | 説明 |
 |------------|------|------|
-| `b_tr` | mm | 受け持ち幅（= girder_spacing） |
-| `w_dead` | N/mm | 死荷重線荷重 |
-| `M_dead`, `V_dead` | N·mm, N | 死荷重断面力 |
-| `M_live_max`, `V_live_max` | N·mm, N | 活荷重断面力（L荷重計算結果） |
-| `M_total`, `V_total` | N·mm, N | 合計断面力 |
+| `M_total`, `V_total` | N·mm, N | governing 桁の合計断面力 |
 | `ybar` | mm | 中立軸位置（下端基準） |
 | `moment_of_inertia` | mm⁴ | 断面二次モーメント |
 | `y_top`, `y_bottom` | mm | 上縁距離 / 下縁距離 |
-| `sigma_top`, `sigma_bottom` | N/mm² | 上下縁応力度 |
-| `tau_avg` | N/mm² | 平均せん断応力度 |
+| `sigma_top`, `sigma_bottom` | N/mm² | governing 桁の上下縁応力度 |
+| `tau_avg` | N/mm² | governing 桁の平均せん断応力度 |
 | `delta`, `delta_allow` | mm | たわみ / 許容たわみ |
 | `fy_top_flange`, `fy_bottom_flange`, `fy_web` | N/mm² | 各部位の降伏点 |
 | `sigma_allow_top`, `sigma_allow_bottom` | N/mm² | 上下縁許容曲げ応力度 |
@@ -87,7 +83,9 @@ class JudgeReport(BaseModel):
 | `deck_thickness_required` | mm | 必要床版厚 |
 | `web_thickness_min_required` | mm | 必要最小腹板厚 |
 | `crossbeam_layout_ok` | bool | 横桁配置の整合性 |
-| `live_load_result` | LiveLoadEffectsResult | L荷重計算結果（詳細） |
+| `load_effects` | LoadEffectsResult | 荷重計算結果（詳細） |
+| `governing_girder_index_bend` | int | 曲げで最厳しい桁のインデックス |
+| `governing_girder_index_shear` | int | せん断で最厳しい桁のインデックス |
 
 ## 照査計算の詳細
 
@@ -142,12 +140,31 @@ M_live_max = max(各主桁の M_live)
 V_live_max = max(各主桁の V_live)
 ```
 
-#### LiveLoadEffectsResult
+#### LoadEffectsResult
 
-L荷重計算の詳細結果は `Diagnostics.live_load_result` に格納される。
+荷重計算（死荷重・活荷重統合）の詳細結果は `Diagnostics.load_effects` に格納される。
 
 ```python
-class LiveLoadEffectsResult(BaseModel):
+class GirderLoadResult(BaseModel):
+    """1本の主桁の荷重計算結果（死荷重・活荷重統合）。"""
+    girder_index: int       # 主桁インデックス（0始まり）
+    b_i_m: float            # 受け持ち幅 [m]
+    # 死荷重
+    w_dead: float           # 死荷重線荷重 [N/mm]
+    M_dead: float           # 死荷重曲げモーメント [N·mm]
+    V_dead: float           # 死荷重せん断力 [N]
+    # 活荷重
+    b_eff_m: float          # 実効幅 [m]（活荷重用）
+    w_M: float              # 曲げ用等価線荷重 [kN/m]
+    w_V: float              # せん断用等価線荷重 [kN/m]
+    M_live: float           # 活荷重曲げモーメント [N·mm]
+    V_live: float           # 活荷重せん断力 [N]
+    # 合計
+    M_total: float          # 合計曲げモーメント [N·mm]
+    V_total: float          # 合計せん断力 [N]
+
+class LoadEffectsResult(BaseModel):
+    """全主桁の荷重計算結果（死荷重・活荷重統合）。"""
     L_m: float              # 支間長 [m]
     D_m: float              # 載荷長 [m]
     p2: float               # p2 面圧 [kN/m²]
@@ -157,23 +174,37 @@ class LiveLoadEffectsResult(BaseModel):
     p_eq_M: float           # 曲げ用等価面圧 [kN/m²]
     p_eq_V: float           # せん断用等価面圧 [kN/m²]
     overhang_m: float       # 張り出し幅 [m]
-    girder_results: list[GirderLiveLoadResult]  # 各主桁の結果
-    critical_girder_index_M: int   # 曲げで最厳しい主桁
-    critical_girder_index_V: int   # せん断で最厳しい主桁
-    M_live_max: float       # 最大曲げモーメント [N·mm]
-    V_live_max: float       # 最大せん断力 [N]
+    girder_results: list[GirderLoadResult]  # 各主桁の結果
+    governing_girder_index_bend: int    # 曲げで最厳しい主桁
+    governing_girder_index_shear: int   # せん断で最厳しい主桁
+    M_total_max: float      # 最大合計曲げモーメント [N·mm]
+    V_total_max: float      # 最大合計せん断力 [N]
 ```
 
-### 2. 死荷重断面力
+### 2. 死荷重断面力（桁別計算）
+
+死荷重は各主桁の受け持ち幅に応じて個別に計算される。
 
 ```
-w_deck = γ_c × deck_thickness × girder_spacing [N/mm]
+# 各主桁の受け持ち幅 b_i [m]
+#   端桁: overhang + girder_spacing / 2
+#   中間桁: girder_spacing
+
+# 死荷重線荷重（各主桁）
+w_deck = γ_c × deck_thickness × b_i [N/mm]
 w_steel = γ_s × A_girder [N/mm]
 w_dead = w_deck + w_steel [N/mm]
 
+# 死荷重断面力（各主桁）
 M_dead = w_dead × L² / 8 [N·mm]
 V_dead = w_dead × L / 2 [N]
+
+# 合計断面力（各主桁）
+M_total = M_dead + M_live [N·mm]
+V_total = V_dead + V_live [N]
 ```
+
+曲げとせん断で最厳しい主桁（`governing_girder_index_bend/shear`）が異なる場合がある。
 
 ### 3. 断面諸量（非対称 I 断面）
 

@@ -26,7 +26,7 @@ IFC 出力（BIM/CIM 連携）
 |----------------|------|
 | **RAG** | 道路橋示方書・鋼橋設計の基本等の PDF をテキスト化・埋め込みし、設計時に参照する条文チャンクを検索 |
 | **Designer** | 橋長 L と幅員 B を受け取り、RAG 文脈を踏まえた BridgeDesign（構造化 JSON）を生成 |
-| **Judge** | 決定論的な照査計算（曲げ・せん断・たわみ・床版厚・横桁配置）を行い、不合格時は LLM で PatchPlan を生成 |
+| **Judge** | 決定論的な照査計算（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）を行い、不合格時は LLM で PatchPlan を生成 |
 | **修正ループ** | 不合格時に PatchPlan を適用し、合格するまで Designer-Judge を繰り返す |
 | **IFC Export** | BridgeDesign → Senkei JSON → IFC に変換して BIM/CIM 環境に渡す |
 
@@ -159,9 +159,10 @@ BridgeDesign
 ```
 JudgeReport
 ├── pass_fail: bool
-├── utilization（deck, bend, shear, deflection, max_util, governing_check）
+├── utilization（deck, bend, shear, deflection, web_slenderness, max_util, governing_check）
 ├── diagnostics（中間計算値）
-└── patch_plan（修正提案: actions）
+├── patch_plan（修正提案: actions）
+└── evaluated_candidates（評価済み候補リスト、不合格時のみ）
 ```
 
 詳細は [docs/COMPONENT_JUDGE.md](docs/COMPONENT_JUDGE.md) を参照。

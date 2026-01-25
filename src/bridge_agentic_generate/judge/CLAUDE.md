@@ -119,21 +119,29 @@ M_live_max = max(各主桁の M_live)
 V_live_max = max(各主桁の V_live)
 ```
 
-#### L荷重計算結果モデル
+#### 荷重計算結果モデル（死荷重・活荷重統合）
 
 ```python
-class GirderLiveLoadResult(BaseModel):
-    """1本の主桁の活荷重計算結果。"""
+class GirderLoadResult(BaseModel):
+    """1本の主桁の荷重計算結果（死荷重・活荷重統合）。"""
     girder_index: int    # 主桁インデックス（0始まり）
     b_i_m: float         # 受け持ち幅 [m]
-    b_eff_m: float       # 実効幅 [m]
+    # 死荷重
+    w_dead: float        # 死荷重線荷重 [N/mm]
+    M_dead: float        # 死荷重曲げモーメント [N·mm]
+    V_dead: float        # 死荷重せん断力 [N]
+    # 活荷重
+    b_eff_m: float       # 実効幅 [m]（活荷重用）
     w_M: float           # 曲げ用等価線荷重 [kN/m]
     w_V: float           # せん断用等価線荷重 [kN/m]
-    M_live: float        # 活荷重最大曲げモーメント [N·mm]
-    V_live: float        # 活荷重最大せん断力 [N]
+    M_live: float        # 活荷重曲げモーメント [N·mm]
+    V_live: float        # 活荷重せん断力 [N]
+    # 合計
+    M_total: float       # 合計曲げモーメント [N·mm]
+    V_total: float       # 合計せん断力 [N]
 
-class LiveLoadEffectsResult(BaseModel):
-    """全主桁の活荷重計算結果。"""
+class LoadEffectsResult(BaseModel):
+    """全主桁の荷重計算結果（死荷重・活荷重統合）。"""
     # 共通パラメータ
     L_m: float           # 支間長 [m]
     D_m: float           # 載荷長 [m]
@@ -145,12 +153,12 @@ class LiveLoadEffectsResult(BaseModel):
     p_eq_V: float        # せん断用等価面圧 [kN/m²]
     overhang_m: float    # 張り出し幅 [m]
     # 主桁ごとの結果
-    girder_results: list[GirderLiveLoadResult]
-    # 最厳しい結果（曲げ・せん断別々）
-    critical_girder_index_M: int
-    critical_girder_index_V: int
-    M_live_max: float    # 最大曲げモーメント [N·mm]
-    V_live_max: float    # 最大せん断力 [N]
+    girder_results: list[GirderLoadResult]
+    # governing 桁（曲げ・せん断で別々）
+    governing_girder_index_bend: int
+    governing_girder_index_shear: int
+    M_total_max: float   # 最大合計曲げモーメント [N·mm]
+    V_total_max: float   # 最大合計せん断力 [N]
 ```
 
 ### 1.3 出力：JudgeReport + PatchPlan
@@ -174,21 +182,15 @@ class Utilization(BaseModel):
     governing_check: GoverningCheck
 
 class Diagnostics(BaseModel):
-    b_tr: float                    # 受け持ち幅 [mm]
-    w_dead: float                  # 死荷重線荷重 [N/mm]
-    M_dead: float                  # 死荷重曲げモーメント [N·mm]
-    V_dead: float                  # 死荷重せん断力 [N]
-    M_live_max: float              # 活荷重最大曲げモーメント [N·mm]
-    V_live_max: float              # 活荷重最大せん断力 [N]
-    M_total: float                 # 合計曲げモーメント [N·mm]
-    V_total: float                 # 合計せん断力 [N]
+    M_total: float                 # governing 桁の合計曲げモーメント [N·mm]
+    V_total: float                 # governing 桁の合計せん断力 [N]
     ybar: float                    # 中立軸位置（下端基準）[mm]
     moment_of_inertia: float       # 断面二次モーメント [mm⁴]
     y_top: float                   # 上縁距離 [mm]
     y_bottom: float                # 下縁距離 [mm]
-    sigma_top: float               # 上縁応力度 [N/mm²]
-    sigma_bottom: float            # 下縁応力度 [N/mm²]
-    tau_avg: float                 # 平均せん断応力度 [N/mm²]
+    sigma_top: float               # governing 桁の上縁応力度 [N/mm²]
+    sigma_bottom: float            # governing 桁の下縁応力度 [N/mm²]
+    tau_avg: float                 # governing 桁の平均せん断応力度 [N/mm²]
     delta: float                   # たわみ [mm]
     delta_allow: float             # 許容たわみ [mm]
     fy_top_flange: float           # 上フランジ降伏点 [N/mm²]
@@ -200,7 +202,9 @@ class Diagnostics(BaseModel):
     deck_thickness_required: float # 必要床版厚 [mm]
     web_thickness_min_required: float  # 必要最小腹板厚 [mm]
     crossbeam_layout_ok: bool      # 横桁配置の整合性
-    live_load_result: LiveLoadEffectsResult  # L荷重計算結果（詳細）
+    load_effects: LoadEffectsResult    # 荷重計算結果（詳細）
+    governing_girder_index_bend: int   # 曲げで最厳しい桁のインデックス
+    governing_girder_index_shear: int  # せん断で最厳しい桁のインデックス
 
 class PatchActionOp(StrEnum):
     INCREASE_WEB_HEIGHT = "increase_web_height"
@@ -324,14 +328,24 @@ w_steel (N/mm) = gamma_s (N/mm³) × A (mm²)
 
 ※溶接・リブ等は無視（v1）
 
-### 2.4 死荷重断面力（単純桁・等分布）
+### 2.4 死荷重断面力（桁別・単純桁・等分布）
+
+死荷重は各主桁の受け持ち幅に応じて個別に計算される。
 
 ```
 bridge_length = BridgeDesign.dimensions.bridge_length (mm)
-
-w_dead = w_deck + w_steel（N/mm）
 L = bridge_length（mm）
 
+# 各主桁の受け持ち幅 b_i [m]
+#   端桁: overhang + girder_spacing / 2
+#   中間桁: girder_spacing
+
+# 死荷重線荷重（各主桁）
+w_deck = γ_c × deck_thickness × b_i（N/mm）
+w_steel = γ_s × A_girder（N/mm）
+w_dead = w_deck + w_steel（N/mm）
+
+# 死荷重断面力（各主桁）
 M_dead = w_dead × L² / 8（N·mm）
 V_dead = w_dead × L / 2（N）
 ```
@@ -351,13 +365,21 @@ V_dead = w_dead × L / 2（N）
 `web_height` は腹板高さ（フランジ間距離）。フランジ板厚を含まない。
 簡略的に、合成桁としての床版の剛性寄与を無視する。
 
-### 2.6 合計断面力
+### 2.6 合計断面力（桁別）
+
+各主桁で死荷重と活荷重を合算し、最厳しい主桁を選定する。
 
 ```
-M_total = M_dead + M_live_max
-V_total = V_dead + V_live_max
+# 各主桁の合計断面力
+M_total = M_dead + M_live（N·mm）
+V_total = V_dead + V_live（N）
+
+# 全主桁で最大値を採用（曲げ・せん断で別々に選定）
+M_total_max = max(各主桁の M_total)
+V_total_max = max(各主桁の V_total)
 ```
-M_live_max, V_live_max は L荷重計算で自動的に算出される「最厳しい主桁の断面力」。
+
+曲げとせん断で最厳しい主桁（`governing_girder_index_bend/shear`）が異なる場合がある。
 
 ### 2.7 応力度
 
@@ -665,28 +687,37 @@ def apply_patch_plan(
     """
 ```
 
-### 4.4 calc_l_live_load_effects
+### 4.4 calc_girder_load_effects
 
 ```python
-def calc_l_live_load_effects(
+def calc_girder_load_effects(
     bridge_length_mm: float,
     total_width_mm: float,
     num_girders: int,
     girder_spacing_mm: float,
-) -> LiveLoadEffectsResult:
-    """L荷重（p1/p2ルール）に基づく活荷重を計算し、最も厳しい結果を返す。
+    deck_thickness_mm: float,
+    girder_area_mm2: float,
+    steel_unit_weight: float,
+    concrete_unit_weight: float,
+) -> LoadEffectsResult:
+    """全主桁の荷重計算（死荷重・活荷重統合）を行い、最も厳しい結果を返す。
 
-    全主桁をループして各桁の M_live, V_live を計算し、
-    最大の断面力を持つ主桁を critical として選定する。
+    各主桁の受け持ち幅に応じて死荷重と活荷重を計算し、
+    合計断面力が最大の主桁を governing として選定する
+    （曲げとせん断で別々に選定）。
 
     Args:
         bridge_length_mm: 橋長 [mm]
         total_width_mm: 橋全幅 [mm]
         num_girders: 主桁本数
         girder_spacing_mm: 主桁間隔 [mm]
+        deck_thickness_mm: 床版厚 [mm]
+        girder_area_mm2: 主桁断面積 [mm²]
+        steel_unit_weight: 鋼材単位体積重量 [N/mm³]
+        concrete_unit_weight: コンクリート単位体積重量 [N/mm³]
 
     Returns:
-        LiveLoadEffectsResult: 全主桁の結果と最厳しい結果
+        LoadEffectsResult: 全主桁の結果と最厳しい結果
 
     Raises:
         NotApplicableError: L > 80m の場合
@@ -705,9 +736,10 @@ def calc_l_live_load_effects(
 
 - 既知の寸法で `w_dead`, `M_dead`, `V_dead` が式通りか
 
-### 5.3 単体テスト：L荷重計算
+### 5.3 単体テスト：荷重計算（死荷重・活荷重統合）
 
-- 既知の寸法で `gamma`, `p_eq_M`, `p_eq_V`, `M_live_max`, `V_live_max` が式通りか
+- 既知の寸法で `gamma`, `p_eq_M`, `p_eq_V`, `M_total_max`, `V_total_max` が式通りか
+- 各主桁の `M_dead`, `V_dead`, `M_live`, `V_live`, `M_total`, `V_total` が正しく計算されるか
 - 支間80m超で `NotApplicableError` が発生するか
 
 ### 5.4 統合テスト：既存設計値で 1 回回す
@@ -717,18 +749,20 @@ def calc_l_live_load_effects(
 - `report` が出る
 - `util` が数値で埋まる
 - `governing_check` が決まる
-- `live_load_result` が `diagnostics` に含まれる
+- `load_effects` が `diagnostics` に含まれる
+- `governing_girder_index_bend/shear` が正しく設定される
 
 ---
 
 ## 6. 完了条件（Definition of Done）
 
 - [x] `judge_v1(input: JudgeInput, model: LlmModel) -> JudgeReport` が実装されている
+- [x] 荷重計算（死荷重・活荷重統合、桁別計算）が実装されている
 - [x] L荷重計算（p1/p2ルール）が実装されている
 - [x] 複数候補方式の PatchPlan 生成が実装されている
 - [x] 単体テストが通る
 - [x] fixture（既存設計値）で report が生成できる
-- [x] 主要中間量（`w_dead`, `M_dead`, `moment_of_inertia`, `sigma`, `delta`, `live_load_result`）が `diagnostics` に出て説明可能
+- [x] 主要中間量（`M_total`, `moment_of_inertia`, `sigma`, `delta`, `load_effects`）が `diagnostics` に出て説明可能
 
 ---
 
@@ -737,4 +771,5 @@ def calc_l_live_load_effects(
 - 単位の統一（kN/m³ → N/mm³ 変換）でバグりやすい
 - L荷重計算は支間80m以下が適用範囲。超えると `NotApplicableError` が発生する
 - 曲げとせん断で異なる p1 を使用するため、最厳しい主桁が曲げとせん断で異なる場合がある
-- `M_live_max`, `V_live_max` は正の最大値（gt=0）を入力する前提（符号は扱わない）
+- 死荷重も桁別に計算されるため、端桁と中間桁で断面力が異なる
+- `M_total_max`, `V_total_max` は正の最大値（gt=0）を入力する前提（符号は扱わない）

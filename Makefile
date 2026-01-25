@@ -21,3 +21,6 @@ lint:
 # 未使用インポートを削除
 rm-unused-imports:
 	$(RUFF) check $(TARGETS) --fix --select=F401 $(EXCLUDE)
+
+ifc:
+	$(PYTHON) src/main.py run_with_repair

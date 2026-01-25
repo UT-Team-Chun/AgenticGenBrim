@@ -99,14 +99,16 @@ results = search_text(query="主桁の最小板厚", top_k=5)
 
 #### judge/
 決定論的な照査計算（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）を行い、不合格時は LLM で PatchPlan を生成。
+活荷重は L荷重（p1/p2ルール）に基づいて内部計算される（支間80m以下が適用範囲）。
 
 ```python
 # 使用例
 from src.bridge_agentic_generate.judge.services import judge_v1, apply_patch_plan
 from src.bridge_agentic_generate.judge.models import JudgeInput
+from src.bridge_agentic_generate.llm_client import LlmModel
 
 judge_input = JudgeInput(bridge_design=design)
-report = judge_v1(judge_input)
+report = judge_v1(judge_input, model=LlmModel.GPT_5_MINI)
 
 if not report.pass_fail:
     # PatchPlan を適用して再照査
@@ -124,6 +126,9 @@ if not report.pass_fail:
 - 床版厚 util（required / provided）
 - 腹板幅厚比 util（web_thickness_min_required / web_thickness）
 - 横桁配置チェック（panel_length * num_panels == bridge_length）
+
+**PatchPlan 生成:**
+- 複数候補方式: LLM が3案を生成し、各案を仮適用・評価して最良案を選択
 
 ### bridge_json_to_ifc/
 

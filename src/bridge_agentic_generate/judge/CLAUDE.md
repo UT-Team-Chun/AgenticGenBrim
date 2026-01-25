@@ -2,8 +2,8 @@
 
 ## ゴール
 
-BridgeDesign（床版・主桁・横桁）と活荷重断面力（M_live_max, V_live_max）を入力として、
-**死荷重を内部推定（床版＋鋼桁のみ）** し、主桁の
+BridgeDesign（床版・主桁・横桁）を入力として、
+**活荷重（L荷重・p1/p2ルール）と死荷重を内部計算** し、主桁の
 
 - 曲げ応力度 util
 - せん断応力度 util（平均せん断）
@@ -52,12 +52,8 @@ class MaterialsSteel(BaseModel):
 class MaterialsConcrete(BaseModel):
     unit_weight: float = 25.0e-6  # N/mm³（25 kN/m³ = 25e-6 N/mm³）
 
-class LoadInput(BaseModel):
-    p_live_equiv: float = 12.0  # kN/m² 等価活荷重（デフォルト12、感度解析で6〜12を振る）
-
 class JudgeInput(BaseModel):
     bridge_design: BridgeDesign  # 既存スキーマを参照
-    load_input: LoadInput = Field(default_factory=LoadInput)
     materials_steel: MaterialsSteel = Field(default_factory=MaterialsSteel)
     materials_concrete: MaterialsConcrete = Field(default_factory=MaterialsConcrete)
     judge_params: JudgeParams = Field(default_factory=JudgeParams)
@@ -66,42 +62,96 @@ class JudgeInput(BaseModel):
 > **注:** BridgeDesign は既存の構造化スキーマを使う（dimensions/sections/components が入ってるやつ）。
 >
 > **鋼種と降伏点:** 部材ごとの板厚に応じて降伏点(fy)を動的に決定する。SM490をデフォルトとし、板厚別の降伏点テーブルに基づいて計算する。
-
-### 1.2 活荷重の内部計算
-
-ユーザーは `p_live_equiv`（kN/m²）を入力し、Judge が BridgeDesign の寸法から主桁1本あたりの `M_live_max`, `V_live_max` を内部生成する。
-
-```python
-# 受け持ち幅
-b_tr_m = (total_width_mm / 1000) / num_girders  # m
-
-# 等価線荷重
-w_live_kN_m = p_live_equiv * b_tr_m  # kN/m
-
-# 橋長
-L_m = bridge_length_mm / 1000  # m
-
-# 単純桁の最大断面力
-M_live_max_kN_m = w_live_kN_m * L_m**2 / 8  # kN·m
-V_live_max_kN = w_live_kN_m * L_m / 2       # kN
-
-# 単位変換: kN·m → N·mm, kN → N
-M_live_max = M_live_max_kN_m * 1e6  # N·mm
-V_live_max = V_live_max_kN * 1e3    # N
-```
-
-**p_live_equiv のデフォルト値:**
-- デフォルト: 12 kN/m²（せん断側の方が大きいので保守的）
-- 感度解析: 6〜12 kN/m² を振る
-
-> **注意: v1 の活荷重モデルは簡略化**
 >
-> 本来の L荷重は p1・p2（等分布荷重と集中荷重）、載荷幅（主車線 5.5m 等）、載荷長 D、車線配置ルール込みで複雑な載荷条件を持つ。
-> v1 ではこれを「等価面圧 1 本（p_live_equiv）」に潰しているため、**「道示どおり厳密」ではなく「道示の代表値に基づく概略指標」** として扱う。
-> 詳細設計段階では別途厳密な活荷重計算が必要。
+> **活荷重:** 外部入力（LoadInput）は廃止され、L荷重（p1/p2ルール）に基づいて内部計算される。
 
 > alpha_bend, alpha_shear は v1の簡略パラメータであり、許容応力度法で用いられる鋼材降伏点に対する安全率（概ね 1.6〜1.7）を、σ_allow = α*fy の形に置き換えたものとする。
 v1では安全率 1.7 を想定し、1/1.7 ≈ 0.59 を丸めて α = 0.60 をデフォルトとする。
+
+### 1.2 活荷重の内部計算（L荷重・p1/p2ルール）
+
+道路橋示方書のB活荷重に基づくL荷重計算を内部で自動実行する。
+
+#### L荷重の定数
+
+| 定数 | 値 | 説明 |
+|------|-----|------|
+| `P1_M_KN_M2` | 10.0 kN/m² | 曲げ照査用 p1 面圧 |
+| `P1_V_KN_M2` | 12.0 kN/m² | せん断照査用 p1 面圧 |
+| `P2_KN_M2` | 3.5 kN/m² | p2 面圧（支間80m以下） |
+| `MAIN_LOADING_WIDTH_M` | 5.5 m | 主載荷幅 |
+| `MAX_LOADING_LENGTH_M` | 10.0 m | 載荷長上限 |
+| `MAX_APPLICABLE_SPAN_M` | 80.0 m | 適用限界支間長 |
+
+#### 計算フロー
+
+```python
+# 1. 載荷長 D
+D_m = min(10.0, L_m)
+
+# 2. 等価係数 γ（部分載荷→等価全スパン分布の換算係数）
+gamma = D_m * (2 * L_m - D_m) / L_m²
+
+# 3. 等価面圧
+p_eq_M = P2 + P1_M * gamma  # 曲げ用
+p_eq_V = P2 + P1_V * gamma  # せん断用
+
+# 4. 張り出し幅
+overhang = (total_width - (num_girders - 1) * girder_spacing) / 2
+
+# 5. 各主桁の受け持ち幅 b_i
+#    端桁: overhang + girder_spacing / 2
+#    中間桁: girder_spacing
+
+# 6. 実効幅 b_eff（主載荷5.5mを最不利に配置）
+b_eff = 0.5 * b_i + 0.5 * min(b_i, 5.5)
+
+# 7. 等価線荷重
+w_M = p_eq_M * b_eff  # [kN/m]
+w_V = p_eq_V * b_eff  # [kN/m]
+
+# 8. 断面力（単純桁）
+M_live = w_M * L² / 8  # [kN·m] → [N·mm]
+V_live = w_V * L / 2   # [kN] → [N]
+
+# 9. 全主桁で最大値を採用（曲げ・せん断で別々に選定）
+M_live_max = max(各主桁の M_live)
+V_live_max = max(各主桁の V_live)
+```
+
+#### L荷重計算結果モデル
+
+```python
+class GirderLiveLoadResult(BaseModel):
+    """1本の主桁の活荷重計算結果。"""
+    girder_index: int    # 主桁インデックス（0始まり）
+    b_i_m: float         # 受け持ち幅 [m]
+    b_eff_m: float       # 実効幅 [m]
+    w_M: float           # 曲げ用等価線荷重 [kN/m]
+    w_V: float           # せん断用等価線荷重 [kN/m]
+    M_live: float        # 活荷重最大曲げモーメント [N·mm]
+    V_live: float        # 活荷重最大せん断力 [N]
+
+class LiveLoadEffectsResult(BaseModel):
+    """全主桁の活荷重計算結果。"""
+    # 共通パラメータ
+    L_m: float           # 支間長 [m]
+    D_m: float           # 載荷長 [m]
+    p2: float            # p2 面圧 [kN/m²]
+    p1_M: float          # 曲げ用 p1 [kN/m²]
+    p1_V: float          # せん断用 p1 [kN/m²]
+    gamma: float         # 等価係数
+    p_eq_M: float        # 曲げ用等価面圧 [kN/m²]
+    p_eq_V: float        # せん断用等価面圧 [kN/m²]
+    overhang_m: float    # 張り出し幅 [m]
+    # 主桁ごとの結果
+    girder_results: list[GirderLiveLoadResult]
+    # 最厳しい結果（曲げ・せん断別々）
+    critical_girder_index_M: int
+    critical_girder_index_V: int
+    M_live_max: float    # 最大曲げモーメント [N·mm]
+    V_live_max: float    # 最大せん断力 [N]
+```
 
 ### 1.3 出力：JudgeReport + PatchPlan
 
@@ -150,6 +200,7 @@ class Diagnostics(BaseModel):
     deck_thickness_required: float # 必要床版厚 [mm]
     web_thickness_min_required: float  # 必要最小腹板厚 [mm]
     crossbeam_layout_ok: bool      # 横桁配置の整合性
+    live_load_result: LiveLoadEffectsResult  # L荷重計算結果（詳細）
 
 class PatchActionOp(StrEnum):
     INCREASE_WEB_HEIGHT = "increase_web_height"
@@ -175,9 +226,32 @@ class JudgeReport(BaseModel):
     utilization: Utilization
     diagnostics: Diagnostics
     patch_plan: PatchPlan
+    evaluated_candidates: list[EvaluatedCandidate] | None  # 評価済み候補リスト（不合格時のみ）
 ```
 
-### 1.4 修正ループ結果モデル
+### 1.4 複数候補方式モデル
+
+PatchPlan 生成は複数候補方式を採用している。
+
+```python
+class PatchPlanCandidate(BaseModel):
+    """修正計画の候補1件。"""
+    plan: PatchPlan
+    approach_summary: str  # 例: "桁高増でたわみ改善狙い"
+
+class PatchPlanCandidates(BaseModel):
+    """修正計画の候補リスト（LLMが生成）。"""
+    candidates: list[PatchPlanCandidate]  # 1〜5案
+
+class EvaluatedCandidate(BaseModel):
+    """評価済み候補。"""
+    candidate: PatchPlanCandidate
+    simulated_max_util: float      # シミュレーション後の max_util
+    simulated_utilization: Utilization
+    improvement: float             # 正なら改善
+```
+
+### 1.5 修正ループ結果モデル
 
 ```python
 class RepairIteration(BaseModel):
@@ -283,7 +357,7 @@ V_dead = w_dead × L / 2（N）
 M_total = M_dead + M_live_max
 V_total = V_dead + V_live_max
 ```
-M_live_max, V_live_max は「代表主桁（1本）に生じる最大断面力（活荷重分）」を入力する（橋全体系ではない）。
+M_live_max, V_live_max は L荷重計算で自動的に算出される「最厳しい主桁の断面力」。
 
 ### 2.7 応力度
 
@@ -360,7 +434,20 @@ required_mm = max(30 * L_support_m + 110, 160)
 util_deck   = required_mm / provided_mm
 ```
 
-### 2.11 横桁配置チェック（v1）
+### 2.11 腹板幅厚比照査
+
+鋼種に応じた幅厚比制限から必要最小腹板厚を計算する。
+
+```
+# 必要最小腹板厚
+SM490: t_min = web_height / 130
+SM400: t_min = web_height / 152
+
+# util
+util_web_slenderness = t_min / web_thickness
+```
+
+### 2.12 横桁配置チェック（v1）
 
 `panel_length` と `num_panels` は `BridgeDesign.dimensions` から取得する：
 - `panel_length = dimensions.panel_length`（mm）
@@ -424,39 +511,80 @@ LLMが提案できる操作は以下のみ。
 
 Judgeは util 計算後、LLMに渡すための RepairContext を組み立てる。
 
-**含める情報**（最低限）：
+**含める情報**：
 
 | フィールド | 内容 |
 |------------|------|
-| `utilization` | deck/bend/shear/deflection の util|
+| `utilization` | deck/bend/shear/deflection/web_slenderness の util |
 | `crossbeam_layout_ok` | 横桁配置の整合性（bool） |
 | `governing_check` | max_util の支配項目 |
-| `diagnostics` | 主要中間量（M_total, V_total, moment_of_inertia, y_top/y_bottom, sigma_top/bottom, tau_avg, delta 等） |
+| `diagnostics` | 主要中間量（M_total, V_total, moment_of_inertia, y_top/y_bottom, sigma_top/bottom, tau_avg, delta, web_thickness_min_required 等） |
 | `current_design` | 対象パラメータ（web_height, web_thickness, flange_width/thickness, deck_thickness, panel_length, num_panels） |
 | `allowed_actions` | 3.2の操作一式（操作名＋可能なΔ） |
 | `deck_thickness_required` | 必要床版厚 [mm] |
-| `priorities` | 安全>施工性>鋼重（固定文言で良い） |
+| `priorities` | 安全>施工性>鋼重（固定文言） |
 
-### 3.4 LLMの出力（PatchPlan）
+### 3.4 複数候補方式（v1.1）
 
-LLMは RepairContext を入力として、以下の制約を満たす PatchPlan を返す：
+PatchPlan 生成は複数候補方式を採用：
 
-- actions は**最大3手**まで
-- 急激な変更を避ける（例：最初は +100mm を優先し、必要なら次ループで追加）
-- 支配 util を確実に下げる意図が説明されている
-- 許可された操作以外は禁止
+1. **LLM が3案を生成**: 異なるアプローチ（桁高重視、フランジ厚重視など）
+2. **各案を仮適用・評価**: `apply_patch_plan` → `judge_v1_lightweight` で max_util をシミュレーション
+3. **最良案を選択**: improvement（= 現在の max_util - シミュレーション後の max_util）が最大の案を採用
 
-**PatchPlan のフォーマット**（v1）：
+#### LLMへのシステムプロンプト（抜粋）
+
+```
+あなたは鋼プレートガーダー橋の設計を、照査結果に基づいて修正する担当です。
+目的は「全util ≤ 1.0（できれば0.98以下）に最短で入れる」ことです。
+
+3案を提示し、それぞれ異なるアプローチを取ってください。
+
+## 判断の方針
+- 診断値（sigma_top, sigma_bottom, tau_avg, delta, I 等）に基づいて判断する
+- 曲げが支配なら、sigma_top と sigma_bottom の大きい側を見て、効く変更を選ぶ
+- たわみが支配なら、I（断面二次モーメント）を増やす方向を優先する
+- せん断が支配なら、web_thickness を優先する
+- 腹板幅厚比（web_slenderness）が支配なら、web_thickness を ceil(web_thickness_min_required) 以上に増やす
+
+## 変更量の目安
+- util が大きく超えているとき（> 1.50）: 大きめの刻み
+- util が少し超えているとき（1.10 < util ≤ 1.50）: 中程度の刻み
+- util がギリギリのとき（util ≤ 1.10）: 最小刻み
+```
+
+**PatchPlanCandidates のフォーマット**：
 
 ```json
 {
-  "actions": [
+  "candidates": [
     {
-      "op": "increase_web_height",
-      "path": "sections.girder_standard.web_height",
-      "delta_mm": 100,
-      "reason": "util_deflection が支配的。桁高増はたわみと曲げの両方を改善しやすい。急激変更回避のため+100mmから開始。"
-    }
+      "plan": {
+        "actions": [
+          {
+            "op": "increase_web_height",
+            "path": "sections.girder_standard.web_height",
+            "delta_mm": 200,
+            "reason": "たわみが支配的。桁高増でI増加を狙う。"
+          }
+        ]
+      },
+      "approach_summary": "桁高重視でたわみ改善"
+    },
+    {
+      "plan": {
+        "actions": [
+          {
+            "op": "increase_bottom_flange_thickness",
+            "path": "sections.girder_standard.bottom_flange_thickness",
+            "delta_mm": 4,
+            "reason": "下縁応力が大きい。フランジ厚増で改善。"
+          }
+        ]
+      },
+      "approach_summary": "フランジ厚重視で曲げ改善"
+    },
+    ...
   ]
 }
 ```
@@ -467,9 +595,10 @@ LLMは RepairContext を入力として、以下の制約を満たす PatchPlan 
 |------|----------|------|
 | **Judge**（決定論） | 1 | util計算・合否判定・governing_check決定 |
 | | 2 | RepairContext作成 |
-| **LLM**（判断） | 3 | RepairContextを見て PatchPlan（actions）を選ぶ |
-| **Designer**（適用） | 4 | PatchPlan を BridgeDesign に反映（スキーマに沿って更新） |
-| **Judge**（再照査） | 5 | 更新案を再度評価し、収束 or 次のPatchPlan生成 |
+| **LLM**（判断） | 3 | RepairContextを見て PatchPlanCandidates（3案）を生成 |
+| **Judge**（評価） | 4 | 各案を仮適用・評価し、最良案を選択 |
+| **Designer**（適用） | 5 | 選択された PatchPlan を BridgeDesign に反映 |
+| **Judge**（再照査） | 6 | 更新案を再度評価し、収束 or 次のPatchPlan生成 |
 
 > **注:** JudgeがBridgeDesignを直接書き換えない。修正の適用はDesigner側の責務とする（ログと責務が明確になるため）。
 
@@ -488,7 +617,7 @@ LLMは RepairContext を入力として、以下の制約を満たす PatchPlan 
 ### 4.1 judge_v1
 
 ```python
-def judge_v1(judge_input: JudgeInput, model: LlmModel = LlmModel.GPT_5_MINI) -> JudgeReport:
+def judge_v1(judge_input: JudgeInput, model: LlmModel) -> JudgeReport:
     """Judge v1 メイン関数。
 
     決定論的に util を計算し、合否判定・PatchPlan 生成を行う。
@@ -502,7 +631,21 @@ def judge_v1(judge_input: JudgeInput, model: LlmModel = LlmModel.GPT_5_MINI) -> 
     """
 ```
 
-### 4.2 apply_patch_plan
+### 4.2 judge_v1_lightweight
+
+```python
+def judge_v1_lightweight(judge_input: JudgeInput) -> tuple[Utilization, Diagnostics]:
+    """軽量版Judge（LLM呼び出しなし）。PatchPlanの仮適用評価用。
+
+    Args:
+        judge_input: Judge 入力
+
+    Returns:
+        (Utilization, Diagnostics) のタプル
+    """
+```
+
+### 4.3 apply_patch_plan
 
 ```python
 def apply_patch_plan(
@@ -522,6 +665,34 @@ def apply_patch_plan(
     """
 ```
 
+### 4.4 calc_l_live_load_effects
+
+```python
+def calc_l_live_load_effects(
+    bridge_length_mm: float,
+    total_width_mm: float,
+    num_girders: int,
+    girder_spacing_mm: float,
+) -> LiveLoadEffectsResult:
+    """L荷重（p1/p2ルール）に基づく活荷重を計算し、最も厳しい結果を返す。
+
+    全主桁をループして各桁の M_live, V_live を計算し、
+    最大の断面力を持つ主桁を critical として選定する。
+
+    Args:
+        bridge_length_mm: 橋長 [mm]
+        total_width_mm: 橋全幅 [mm]
+        num_girders: 主桁本数
+        girder_spacing_mm: 主桁間隔 [mm]
+
+    Returns:
+        LiveLoadEffectsResult: 全主桁の結果と最厳しい結果
+
+    Raises:
+        NotApplicableError: L > 80m の場合
+    """
+```
+
 ---
 
 ## 5. テスト（必須）
@@ -534,26 +705,36 @@ def apply_patch_plan(
 
 - 既知の寸法で `w_dead`, `M_dead`, `V_dead` が式通りか
 
-### 5.3 統合テスト：既存設計値で 1 回回す
+### 5.3 単体テスト：L荷重計算
 
-この JSON（既にこのチャットで出たやつ）を fixture として流し、以下を確認する：
+- 既知の寸法で `gamma`, `p_eq_M`, `p_eq_V`, `M_live_max`, `V_live_max` が式通りか
+- 支間80m超で `NotApplicableError` が発生するか
+
+### 5.4 統合テスト：既存設計値で 1 回回す
+
+既存設計値を fixture として流し、以下を確認する：
 
 - `report` が出る
 - `util` が数値で埋まる
 - `governing_check` が決まる
+- `live_load_result` が `diagnostics` に含まれる
 
 ---
 
 ## 6. 完了条件（Definition of Done）
 
 - [x] `judge_v1(input: JudgeInput, model: LlmModel) -> JudgeReport` が実装されている
+- [x] L荷重計算（p1/p2ルール）が実装されている
+- [x] 複数候補方式の PatchPlan 生成が実装されている
 - [x] 単体テストが通る
 - [x] fixture（既存設計値）で report が生成できる
-- [x] 主要中間量（`w_dead`, `M_dead`, `moment_of_inertia`, `sigma`, `delta`）が `diagnostics` に出て説明可能
+- [x] 主要中間量（`w_dead`, `M_dead`, `moment_of_inertia`, `sigma`, `delta`, `live_load_result`）が `diagnostics` に出て説明可能
 
 ---
 
 ## 7. 注意点（落とし穴）
 
 - 単位の統一（kN/m³ → N/mm³ 変換）でバグりやすい
+- L荷重計算は支間80m以下が適用範囲。超えると `NotApplicableError` が発生する
+- 曲げとせん断で異なる p1 を使用するため、最厳しい主桁が曲げとせん断で異なる場合がある
 - `M_live_max`, `V_live_max` は正の最大値（gt=0）を入力する前提（符号は扱わない）

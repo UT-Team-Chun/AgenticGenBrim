@@ -77,8 +77,10 @@ src/
 
 決定論的な照査計算（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）を行い、不合格時は LLM で PatchPlan を生成。
 
-- **入力**: JudgeInput（BridgeDesign + 荷重 + 材料 + パラメータ）
-- **出力**: JudgeReport（pass_fail, utilization, diagnostics, patch_plan）
+- **入力**: JudgeInput（BridgeDesign + 材料 + パラメータ）
+- **活荷重**: L荷重（p1/p2ルール）に基づいて内部計算（支間80m以下が適用範囲）
+- **出力**: JudgeReport（pass_fail, utilization, diagnostics, patch_plan, evaluated_candidates）
+- **PatchPlan 生成**: 複数候補方式（LLM が3案生成 → 仮適用・評価 → 最良案選択）
 - **詳細**: [COMPONENT_JUDGE.md](COMPONENT_JUDGE.md) 参照
 
 ### Designer-Judge ループ

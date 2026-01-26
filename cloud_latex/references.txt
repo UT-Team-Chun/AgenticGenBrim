@@ -1,0 +1,77 @@
+# 参考文献リスト（論文執筆用）
+
+## thebibliographyに登録済み
+
+1. 道路橋示方書
+   - 日本道路協会：道路橋示方書・同解説 I共通編・II鋼橋・鋼部材編，2017.
+   - \bibitem{dosisyo}
+
+2. 鋼橋設計の基本
+   - 日本橋梁建設協会：鋼橋設計の基本，2015.
+   - \bibitem{textbook}
+
+3. 社会資本の老朽化（国交省）
+   - 国土交通省：社会資本の老朽化の現状と将来
+   - \bibitem{mlit_infra}
+   - URL: https://www.mlit.go.jp/sogoseisaku/maintenance/02research/02_01.html
+   - 使用箇所：はじめに（建設後50年超の道路橋）
+
+4. i-Construction（国交省）
+   - 国土交通省：i-Construction
+   - \bibitem{iconstruction}
+   - URL: https://www.mlit.go.jp/tec/tec_tk_000028.html
+   - 使用箇所：はじめに
+
+5. BIM/CIM（国交省）
+   - 国土交通省：BIM/CIM
+   - \bibitem{bimcim}
+   - URL: https://www.mlit.go.jp/tec/tec_tk_000037.html
+   - 使用箇所：はじめに
+
+
+## 追加候補（背景セクション用）
+
+### インフラ老朽化
+- 国土交通省：社会資本の老朽化の現状と将来
+  URL: https://www.mlit.go.jp/sogoseisaku/maintenance/02research/02_01.html
+  内容: 2023年時点で道路橋の37%が建設後50年超、2040年には75%に達する見込み
+
+- 国土交通省：インフラ長寿命化計画
+  URL: https://www.mlit.go.jp/sogoseisaku/maintenance/_pdf/chozyumyou2kaitei_honbun.pdf
+
+### i-Construction / DX
+- 国土交通省：i-Construction 公式ポータル
+  URL: https://www.mlit.go.jp/tec/tec_tk_000028.html
+
+- 国土交通省：i-Construction 2.0 策定（報道資料，2024年4月）
+  URL: https://www.mlit.go.jp/report/press/kanbo08_hh_001085.html
+  内容: 2040年度までに省人化3割・生産性1.5倍向上を目標
+
+- 国土交通省：i-Construction 2.0 概要
+  URL: https://www.mlit.go.jp/tec/constplan/content/001738240.pdf
+  内容: 「施工のオートメーション化」「データ連携のオートメーション化」「施工管理のオートメーション化」の3本柱
+
+### BIM/CIM
+- 国土交通省：BIM/CIM関連 公式ポータル
+  URL: https://www.mlit.go.jp/tec/tec_tk_000037.html
+
+- BIM/CIM導入率：約48%（令和4年12月国交省調査）
+  参考: https://andpad.jp/columns/0001
+
+- 2023年度から小規模工事以外で原則適用
+  参考: https://www.nttpc.co.jp/column/network/bimcim.html
+
+
+## 統計データまとめ
+
+| 項目 | 数値 | 出典 |
+|------|------|------|
+| 建設後50年超の道路橋 | 37%（2023年）→75%（2040年見込み） | 国交省 |
+| BIM導入率 | 約48% | 国交省調査（令和4年12月） |
+| i-Construction 2.0目標 | 省人化3割、生産性1.5倍（2040年） | 国交省 |
+
+
+## 備考
+
+- 「はじめに」セクションでは定性的に記述し、具体的統計は引用しない方針
+- 「背景および関連研究」セクションで引用する際に、上記参考文献を使用

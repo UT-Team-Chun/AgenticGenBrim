@@ -89,36 +89,43 @@ def generate_design_with_rag_log(
 ### 4. バッチ評価 CLI（`src/evaluation/runner.py`）
 
 ```python
+from concurrent.futures import ThreadPoolExecutor
+
 class EvaluationRunner:
-    """評価バッチ実行"""
+    """評価バッチ実行（ThreadPoolExecutor で並列化）"""
 
     def __init__(
         self,
         model_name: LlmModel = LlmModel.GPT_5_1,
         max_iterations: int = 5,
         num_trials: int = 3,
-        concurrency: int = 3,  # 同一条件で3並列
+        max_workers: int = 3,  # 同一条件で3並列
     ):
         pass
 
-    async def run_single_trial(
+    def run_single_trial(
         self,
         case: EvaluationCase,
         use_rag: bool,
         trial: int,
     ) -> TrialResult:
-        """1回の試行を実行"""
+        """1回の試行を実行（同期）"""
         pass
 
-    async def run_case(
+    def run_case(
         self,
         case: EvaluationCase,
         use_rag: bool,
     ) -> list[TrialResult]:
-        """1ケース×1条件を num_trials 回並列実行"""
-        pass
+        """1ケース×1条件を num_trials 回並列実行（ThreadPoolExecutor）"""
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            futures = [
+                executor.submit(self.run_single_trial, case, use_rag, trial)
+                for trial in range(1, self.num_trials + 1)
+            ]
+            return [f.result() for f in futures]
 
-    async def run_all(
+    def run_all(
         self,
         cases: list[EvaluationCase],
     ) -> list[TrialResult]:
@@ -136,7 +143,7 @@ class EvaluationCLI:
         model_name: str = "gpt-5.1",
         max_iterations: int = 5,
         num_trials: int = 3,
-        concurrency: int = 3,
+        max_workers: int = 3,
     ) -> None:
         """全評価ケースを実行"""
         pass
@@ -159,7 +166,7 @@ if __name__ == "__main__":
 
 ```python
 # AppConfig に追加
-generated_evaluation_json_dir: Path  # data/generated_evaluation_json/
+evaluation_dir: Path  # data/evaluation/
 ```
 
 ## ディレクトリ構成
@@ -174,7 +181,23 @@ src/
     └── main.py          # CLI エントリーポイント
 
 data/
-└── generated_evaluation_json/  # 評価結果出力先
+└── evaluation/              # 評価専用フォルダ（新規）
+    ├── designs/             # BridgeDesign JSON
+    │   ├── L30_B6_rag_true_trial_1.json
+    │   └── ...
+    ├── judges/              # JudgeReport JSON
+    │   ├── L30_B6_rag_true_trial_1.json
+    │   └── ...
+    ├── senkeis/             # Senkei JSON
+    │   ├── L30_B6_rag_true_trial_1.senkei.json
+    │   └── ...
+    ├── ifcs/                # IFC ファイル
+    │   ├── L30_B6_rag_true_trial_1.ifc
+    │   └── ...
+    ├── results/             # TrialResult JSON（評価指標）
+    │   ├── L30_B6_rag_true_trial_1.json
+    │   └── ...
+    └── summary.json         # 集計結果
 ```
 
 ## 評価ケース（EVALUATION.md より）
@@ -199,29 +222,39 @@ data/
 ケース1 (L30_B6)
 ├─ RAG あり
 │   ├─ trial 1 ─┐
-│   ├─ trial 2 ─┼─ 3並列
+│   ├─ trial 2 ─┼─ ThreadPoolExecutor(max_workers=3)
 │   └─ trial 3 ─┘
 └─ RAG なし
     ├─ trial 1 ─┐
-    ├─ trial 2 ─┼─ 3並列
+    ├─ trial 2 ─┼─ ThreadPoolExecutor(max_workers=3)
     └─ trial 3 ─┘
 
 ※ ケース間は順次実行（API レート制限考慮）
-※ 同一条件（ケース×RAG条件）内で 3 並列
+※ 同一条件（ケース×RAG条件）内で ThreadPoolExecutor で 3 並列
 ```
 
 ## 出力形式
 
-### 生データ（JSON）
+### 評価専用フォルダ（data/evaluation/）
 
 ```
-data/generated_evaluation_json/
-├── L30_B6_rag_true_trial_1.json
-├── L30_B6_rag_true_trial_2.json
-├── L30_B6_rag_true_trial_3.json
-├── L30_B6_rag_false_trial_1.json
-├── ...
-└── summary.json  # 集計結果
+data/evaluation/
+├── designs/                           # 各試行の BridgeDesign
+│   ├── L30_B6_rag_true_trial_1.json
+│   └── ...
+├── judges/                            # 各試行の最終 JudgeReport
+│   ├── L30_B6_rag_true_trial_1.json
+│   └── ...
+├── senkeis/                           # Senkei JSON
+│   ├── L30_B6_rag_true_trial_1.senkei.json
+│   └── ...
+├── ifcs/                              # IFC ファイル
+│   ├── L30_B6_rag_true_trial_1.ifc
+│   └── ...
+├── results/                           # TrialResult（評価指標）
+│   ├── L30_B6_rag_true_trial_1.json
+│   └── ...
+└── summary.json                       # 集計結果
 ```
 
 ## 実装順序
@@ -250,7 +283,7 @@ uv run python -m src.evaluation.main run
 
 ## 注意事項
 
-- LLM 呼び出しは `asyncio` で並列化するが、API レート制限に注意
+- LLM 呼び出しは `ThreadPoolExecutor` で並列化するが、API レート制限に注意
 - 各試行の `TrialResult` は即座にファイル保存（中断対策）
 - `print` 禁止、`logger` を使用
 - 型アノテーション必須

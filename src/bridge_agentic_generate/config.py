@@ -25,6 +25,7 @@ class AppConfig(BaseModel):
     rag_index_dir_plumber: Path
     rag_index_dir_pymupdf: Path
     env_file: Path
+    evaluation_dir: Path
 
 
 @lru_cache(maxsize=1)
@@ -50,6 +51,7 @@ def get_app_config() -> AppConfig:
         rag_index_dir_plumber=project_root / "rag_index" / "pdfplumber",
         rag_index_dir_pymupdf=project_root / "rag_index" / "pymupdf",
         env_file=project_root / ".env",
+        evaluation_dir=project_root / "data" / "evaluation",
     )
 
 

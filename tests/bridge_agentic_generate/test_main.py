@@ -25,7 +25,6 @@ from src.bridge_agentic_generate.judge.models import (
     PatchAction,
     PatchActionOp,
     PatchPlan,
-    RepairLoopResult,
     Utilization,
 )
 from src.bridge_agentic_generate.main import run_with_repair_loop

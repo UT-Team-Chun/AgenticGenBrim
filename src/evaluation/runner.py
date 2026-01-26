@@ -188,9 +188,11 @@ class EvaluationRunner:
         """出力ディレクトリを作成する。"""
         (self.output_dir / "designs").mkdir(parents=True, exist_ok=True)
         (self.output_dir / "judges").mkdir(parents=True, exist_ok=True)
+        (self.output_dir / "raglogs").mkdir(parents=True, exist_ok=True)
         (self.output_dir / "senkeis").mkdir(parents=True, exist_ok=True)
         (self.output_dir / "ifcs").mkdir(parents=True, exist_ok=True)
         (self.output_dir / "results").mkdir(parents=True, exist_ok=True)
+        (self.output_dir / "design_logs").mkdir(parents=True, exist_ok=True)
 
     def _build_trial_id(self, case: EvaluationCase, use_rag: bool, trial: int) -> str:
         """試行ID を構築する。
@@ -321,11 +323,30 @@ class EvaluationRunner:
             encoding="utf-8",
         )
 
+        # RAGログ（初期設計生成時のRAGコンテキスト）
+        raglog_path = self.output_dir / "raglogs" / f"{trial_id}.json"
+        raglog_path.write_text(
+            loop_result.rag_log.model_dump_json(indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
+
+        # 各イテレーションの設計を保存（断面量の変遷記録用）
+        design_logs_dir = self.output_dir / "design_logs" / trial_id
+        design_logs_dir.mkdir(parents=True, exist_ok=True)
+        for iteration in loop_result.iterations:
+            iter_design_path = design_logs_dir / f"{trial_id}_iter{iteration.iteration}.json"
+            iter_design_path.write_text(
+                iteration.design.model_dump_json(indent=2, ensure_ascii=False),
+                encoding="utf-8",
+            )
+
         logger.info(
-            "_save_trial_results: 保存完了 design=%s, judge=%s, result=%s",
+            "_save_trial_results: 保存完了 design=%s, judge=%s, result=%s, raglog=%s, design_logs=%s",
             design_path,
             judge_path,
             result_path,
+            raglog_path,
+            design_logs_dir,
         )
 
     def run_case(

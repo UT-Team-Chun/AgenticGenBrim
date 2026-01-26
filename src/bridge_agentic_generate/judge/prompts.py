@@ -31,7 +31,7 @@ def build_repair_system_prompt() -> str:
 - たわみが支配なら、I（断面二次モーメント）を増やす方向を優先する
 - せん断が支配なら、web_thickness を優先する
 - 腹板幅厚比（web_slenderness）が支配なら、web_thickness を ceil(web_thickness_min_required) 以上に増やす
-- deck は util_deck が 1.0 を明確に超えるときだけ触る（1.00〜1.02 程度の丸め誤差では触らない）
+- util_deck は床版厚のみに依存するため、 util_deck が 1 を超える場合には、必ず `set_deck_thickness_to_required` を使う。
 
 ## 変更量の目安
 - util が大きく超えているとき（> 1.50）: 大きめの刻み

@@ -8,6 +8,7 @@
 \usepackage[dvipdfmx]{graphicx}
 \usepackage[superscript]{cite}
 \usepackage{url}
+\usepackage{tabularx}
 \usepackage{endnotes}
 \usepackage[savepos]{zref}
 \usepackage[dvipdfmx]{hyperref}
@@ -49,7 +50,65 @@ BrIM, LLM, RAG, Steel Plate Girder Bridge, IFC, Structural Design Automation
 
 \section{背景および関連研究}
 
-（後で記載）
+\subsection{BIM/CIMと橋梁モデリングの現状}
+
+国土交通省は2023年度より小規模工事を除く直轄工事においてBIM/CIM（Building/Construction Information Modeling）の原則適用を開始した\cite{bimcim}．BIM/CIMは設計・施工・維持管理の各段階において3次元モデルと属性情報を一貫して活用する技術であり，建設業の生産性向上に大きく寄与することが期待されている．
+
+BIM/CIMモデルのデータ交換標準としてはIFC（Industry Foundation Classes）が広く採用されている．IFCはbuildingSMART Internationalが策定するオープン標準であり，ベンダー非依存の相互運用性を提供する．特にIFC4x3ではインフラ（橋梁・道路・鉄道等）への対応が強化され，橋梁BIMモデルの標準フォーマットとしての利用が進んでいる\cite{ifc4x3}．
+
+一方で，BIM/CIMの普及には課題も残されている．国土交通省が実施したアンケート調査\cite{mlit_bimcim_questionnaire}によれば，BIM/CIMの導入により「非効率になった」と回答された項目の最多が「モデル作成に手間（時間，費用，人）がかかる」であり，回答者の33\%がこの課題を指摘している．特に橋梁のような複雑な構造物では，3次元モデルの作成に多大な工数を要することがBIM/CIM普及の障壁となっている．本研究はこのモデリング工数の課題に対し，LLMによる自動化アプローチを提案するものである．
+
+\subsection{LLMの建設・土木分野への応用}
+
+近年，大規模言語モデル（LLM）の建設・土木分野への応用に関する研究が活発化している．ここでは，LLMとBIMモデルの連携に関連する先行研究を整理する．
+Nithyananthamら\cite{mcp4ifc}は，LLMでIFCデータをMCP（Model Context Protocol）経由で直接操作するフレームワーク「MCP4IFC」を提案した．このフレームワークにより，自然言語による指示からBIMモデルの作成・編集が可能となるが，対象は壁・部屋など建築向けの汎用的な幾何形状操作が中心である．そのため，橋梁設計において不可欠な構造計算や工学的制約に基づいたモデル生成については考慮されていない．
+Zhengら\cite{mdpi_bridge_checking}は，LLMを用いて設計仕様書から構造化ルールを抽出し，IFCモデルの適合性をチェックする手法を提案した．仕様書からのルール抽出精度は79.5\%, IFCモデルへの適合性チェック精度は84.4\%を達成している．ただし，この研究は既存モデルに対する仕様書テキストとの形式的な適合性チェックを主眼としており，応力照査などの数値計算を含む設計プロセスの自動化や，モデルそのものをゼロから生成するアプローチとは異なる．
+山本ら\cite{yamamoto_genai_ifc}は，GPT-4oを用いて直方体や円柱などの単純形状のIFCファイルを生成する手法を試みている．しかし，IFCファイルは例えばJSON, csvのような世に広く流通している形式ではなく、LLMの学習データに占める割合が小さいことは容易に推察される。実際，この研究ではスキーマ違反などの構文エラーが多発し，単純な形状でさえ生成成功率が30〜60\%程度に留まることが課題として報告されている．これに対し本研究では，LLMの出力を厳密に型定義された構造化データ（JSON/Pydantic）として受け取り，それをpythonプログラムでIFCへ変換する手法をとることで，BIMデータとしての整合性を保証している．
+また，LLMを土木分野に適用する際の課題として，専門知識の不足が指摘されている．箱石ら\cite{hakoishi_bert}は，汎用的な事前学習済みモデルであるBERTが土木分野の専門文書では精度が低下することを示し，土木特化の学習データによるfine-tuningの必要性を指摘した．
+
+\subsection{RAG（検索拡張生成）による専門知識活用}
+
+Lewisら\cite{rag_original}は，外部知識ベースから関連情報を検索し，その情報を基にテキストを生成するRAG（Retrieval-Augmented Generation: 検索拡張生成）を提案した．RAGは以下の手順で動作する：(1) 文書を適当な単位（チャンク）に分割し，各チャンクの埋め込みベクトルを事前に計算してインデックスを構築する，(2) 質問が与えられたとき，質問の埋め込みベクトルと類似度の高いチャンクを検索する，(3) 検索されたチャンクをコンテキストとしてLLMに入力し，回答を生成する．
+
+さて、LLMの専門知識対応には、大きく分けてfine-tuningとRAGの2つのアプローチが存在する．Soudaniら\cite{soudani_rag_vs_ft}は，低頻度かつ専門的な知識に対してはRAGがfine-tuningを大幅に上回る性能を示すことを報告した．道路橋示方書のような専門的な設計規準は学習データ中の出現頻度が低いため，RAGによるアプローチが適していると考えられる．また，fine-tuningは大量の学習データと計算リソースを必要とするのに対し，RAGはインデックス構築のみで対応可能であり，実用面でも優位性がある．
+
+以上を踏まえ、本研究ではRAGを採用することで，(1) LLMのハルシネーション（事実と異なる出力）を設計規準の参照により抑制する，(2) どの文献のどのページを根拠としたかを記録し設計根拠のトレーサビリティを確保する，という2つの効果を期待している．
+
+\subsection{本研究の位置付け}
+
+\subsubsection{先行研究との差分}
+
+先行研究と本研究の関係を表\ref{tab:related_work_comparison}に整理する．
+
+\begin{table*}[t]
+\caption{先行研究と本研究の機能的・技術的比較}
+\label{tab:related_work_comparison}
+\centering
+\small
+\begin{tabularx}{\textwidth}{|l|X|X|}
+\hline
+先行研究 & アプローチと課題 & 本研究の独自性・解決策 \\
+\hline
+MCP4IFC\cite{mcp4ifc} & 幾何形状の直接操作（建築汎用） & 橋梁に特化し、RAGと推論に基づく\textbf{自律的な設計パラメータ決定} \\
+\hline
+Zhengら\cite{mdpi_bridge_checking} & 道路橋のBIMモデルに対して、テキストルールとの照合による形式的な適合性チェック & 力学計算による\textbf{工学的照査}に加え、不適合を解消する\textbf{自動修正ループ} \\
+\hline
+山本ら\cite{yamamoto_genai_ifc} & LLMによるIFCテキスト直接生成（単純形状のみ） & 構文エラーを防ぐため\textbf{JSONでパラメータセットを生成し、pythonでIFCへ変換する}ことで実構造物のBIMを堅牢に生成 \\
+\hline
+\end{tabularx}
+\end{table*}
+
+\subsubsection{本研究の新規性}
+
+本研究の新規性は以下の3点である：
+
+\begin{enumerate}
+  \item \textbf{RAGによる設計根拠の明示}：道路橋示方書等から関連条文を検索し，設計値の根拠をトレース可能とする．LLMのハルシネーションを抑制し，設計者による検証を容易にする．
+
+  \item \textbf{決定論照査とLLM修正のハイブリッド}：照査計算（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）は数式ベースの決定論的処理で確実に実行し，修正提案のみLLMが生成する．これにより，工学的妥当性を担保しつつLLMの柔軟な修正提案能力を活用する．
+
+  \item \textbf{IFC出力までの一貫パイプライン}：橋長・幅員の2パラメータ入力から，設計生成 → 照査・修正ループ → IFC出力までを自動化する．BIM/CIM環境への直接連携を実現し，モデリング工数を大幅に削減する．
+\end{enumerate}
 
 
 \section{提案システム}
@@ -601,7 +660,7 @@ FileNamesUsedForRag：
 \end{enumerate}
 
 
-\begin{thebibliography}{9}
+\begin{thebibliography}{99}
 \bibitem{dosisyo}
 日本道路協会：道路橋示方書・同解説 I共通編・II鋼橋・鋼部材編，2017.
 \bibitem{textbook}
@@ -612,6 +671,22 @@ FileNamesUsedForRag：
 国土交通省：i-Construction，\url{https://www.mlit.go.jp/tec/tec_tk_000028.html}（参照 2025-01-26）.
 \bibitem{bimcim}
 国土交通省：BIM/CIM，\url{https://www.mlit.go.jp/tec/tec_tk_000037.html}（参照 2025-01-26）.
+\bibitem{ifc4x3}
+buildingSMART International: IFC 4.3 (ISO 16739-1:2024) Infrastructure Extensions, \url{https://www.buildingsmart.org/standards/bsi-standards/industry-foundation-classes/} (accessed 2025-01-26).
+\bibitem{mlit_bimcim_questionnaire}
+国土交通省：BIM/CIM原則適用に関するアンケート調査結果，\url{https://www.mlit.go.jp/tec/content/001757200.pdf}（参照 2025-01-26）.
+\bibitem{mcp4ifc}
+Nithyanantham, S., et al.: MCP4IFC: A Framework for Automated IFC Data Manipulation Using Large Language Models and Model Context Protocol, arXiv:2511.05533, 2025.
+\bibitem{mdpi_bridge_checking}
+Zheng, Z., et al.: Automated Checking of Highway Bridge BIM Models Using Large Language Models, Buildings, Vol.15, No.19, 3465, 2025.
+\bibitem{yamamoto_genai_ifc}
+山本浩司，田中秀治，齋藤直樹：生成AIを用いたIFC 4.3データ生成手法の提案と性能評価，土木情報学論文集，Vol.6，No.1，pp.96--103，2025.
+\bibitem{hakoishi_bert}
+箱石裕太，佐藤遼，山口拓郎，中西達也：土木分野における自然言語処理技術の適用に関する基礎的検討，土木学会論文集，Vol.78，No.22，22-22042，2022.
+\bibitem{rag_original}
+Lewis, P., et al.: Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks, Advances in Neural Information Processing Systems, Vol.33, pp.9459--9474, 2020.
+\bibitem{soudani_rag_vs_ft}
+Soudani, H., et al.: Fine-Tuning vs. Retrieval-Augmented Generation for Less Popular Knowledge, arXiv:2403.01432, 2024.
 \end{thebibliography}
 
 \end{document}

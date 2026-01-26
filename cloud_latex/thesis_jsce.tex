@@ -67,7 +67,7 @@ Zhengら\cite{mdpi_bridge_checking}は，LLMを用いて設計仕様書から構
 
 \subsection{RAG（検索拡張生成）による専門知識活用}
 
-LLMの専門知識対応には，大きく分けてfine-tuningとRAGの2つのアプローチが存在する．箱石ら\cite{hakoishi_bert}は，汎用的な事前学習済みモデルであるBERTが土木分野の専門文書では精度が低下することを示しており，GPTやGeminiなどの基盤モデルが大幅に進化した現在でも，いずれかのアプローチによる対応が必須であると考えられる．
+箱石ら\cite{hakoishi_bert}は，汎用的な事前学習済みモデルであるBERTが土木分野の専門文書では精度が低下することを示している．GPTやGeminiなどの基盤モデルが大幅に進化した現在でも，引き続きLLMの性質としての専門分野での精度低下には対応が必要であるが，LLMの専門知識対応には大きく分けてfine-tuningとRAGの2つのアプローチが存在する．
 
 fine-tuningは，事前学習済みモデルを特定ドメインのデータで追加学習させ，専門知識を内部パラメータに埋め込む手法である．しかし，基盤モデルの性能が急速に進化していく2026年1月現在において，フラグシップモデルと呼ばれるような最先端のモデルは公開されておらず，fine-tuningできる状態にないことが多い．さらに，fine-tuningには大量の学習データと計算リソースを必要とし，知識の更新時には再学習が必要となることも課題として大きい．
 
@@ -118,475 +118,185 @@ Zhengら\cite{mdpi_bridge_checking} & 道路橋のBIMモデルに対して、テ
 
 \subsection{システム概要}
 
-\subsubsection{本システムでできること}
+本研究で提案するシステムは，橋長$L$[m]と幅員$B$[m]の2パラメータのみを入力として受け取り，鋼プレートガーダー橋（RC床版）の断面設計を自動生成し，IFC形式の3Dモデルとして出力するエージェント型設計支援システムである．本システムの処理は，RAG（検索拡張生成），Designer（設計生成），Judge（照査・修正提案），IFC変換の4つのサブシステムで構成される．
 
-\begin{enumerate}
-  \item 最小限の入力から断面設計を自動生成
-  \begin{itemize}
-    \item 入力：橋長$L$[m]と幅員$B$[m]の2パラメータのみ
-    \item 出力：主桁本数，桁高，板厚，床版厚など全断面寸法を自動決定
-  \end{itemize}
+システムの全体的な処理フローを図\ref{fig:system_overview}に示す．まずDesignerがRAGを用いて道路橋示方書等から関連条文を検索し，それらを参照しながら主桁本数，桁高，板厚，床版厚などの断面寸法を決定する．次にJudgeが生成された設計に対して曲げ・せん断・たわみなどの照査計算を実行し，不合格の場合はLLMが修正提案（PatchPlan）を生成する．この照査と修正のループを合格するまで繰り返し，最終的な設計をIFC形式で出力する．
 
-  \item 設計根拠の明示（RAGによる文献参照）
-  \begin{itemize}
-    \item 道路橋示方書，鋼橋設計の基本（教科書）から関連条文を自動検索
-    \item どの文献のどのページを根拠にしたかをログに記録
-    \item 設計者が「なぜその寸法になったか」を確認可能
-  \end{itemize}
+本システムの主な技術的特徴は以下の5点である．第一に，Structured Output機能を活用することで，LLMの出力をPydanticスキーマで厳密に定義された構造化データとして受け取り，型安全性を確保している．第二に，設計要素ごとに異なるクエリでRAG検索を実行するマルチクエリRAGにより，幅広い設計知識を効率的に参照している．第三に，照査計算は数式ベースの決定論的処理で実行し，修正提案のみLLMが生成するハイブリッドアプローチにより，工学的妥当性と柔軟な修正提案能力を両立している．第四に，LLMが複数の修正案を生成し，各案をシミュレーション評価して最良案を選択する複数候補方式により，効率的な設計改善を実現している．第五に，設計JSONから中間形式（Senkei JSON）を経てIFCに変換する2段階パイプラインにより，BIM環境との連携を実現している．
 
-  \item 設計ルールの構造化抽出
-  \begin{itemize}
-    \item 「桁高$\approx L/20$」「床版厚$d ≥ 30L + 110$」などの数式を明示
-    \item 各ルールに根拠（文献のrank）または「仮定」を付与
-  \end{itemize}
+本システムの対象は単純桁構造の鋼プレートガーダー橋（RC床版合成桁）であり，橋長30m〜70m，幅員8m〜15m程度を想定している．なお，現時点では断面は全長一定（支点部・中央部の変化なし）とし，照査は概略設計レベル（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）に限定している．座屈・疲労等の詳細照査は今後の課題である．
 
-  \item 決定論的照査と自動修正ループ（Judge）
-  \begin{itemize}
-    \item 曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置の6項目を照査
-    \item 不合格時はLLMが修正提案（PatchPlan）を生成
-    \item 合格するまで自動で設計修正を繰り返す（最大5イテレーション）
-  \end{itemize}
-
-  \item IFC形式での3Dモデル出力
-  \begin{itemize}
-    \item BIM/CIMソフトウェアで表示可能なIFCファイルを生成
-    \item 床版，主桁（I形断面），横桁を3Dモデル化
-    \item BIMvision，Revit，FreeCAD等で即座に可視化可能
-  \end{itemize}
-\end{enumerate}
-
-
-\subsubsection{技術的な特徴}
-
-\begin{itemize}
-  \item LLM + RAGによる設計知識の活用
-  \begin{itemize}
-    \item 道路橋示方書等のPDFから条文を検索し，プロンプトに埋め込み
-  \end{itemize}
-
-  \item Structured Outputによる型安全な出力
-  \begin{itemize}
-    \item Pydanticスキーマで設計値を厳密に定義，バリデーション済み
-  \end{itemize}
-
-  \item マルチクエリRAG
-  \begin{itemize}
-    \item 寸法，主桁配置，主桁断面，床版，横桁の5観点で並行検索
-  \end{itemize}
-
-  \item 決定論計算 + LLMハイブリッド照査
-  \begin{itemize}
-    \item 数式による照査計算は決定論的に実行，修正提案のみLLMが生成
-  \end{itemize}
-
-  \item 荷重計算の自動化
-  \begin{itemize}
-    \item L荷重（p1/p2ルール）に基づく活荷重の内部計算
-    \item 桁別の死荷重計算（端桁・中間桁で受け持ち幅が異なる）
-  \end{itemize}
-
-  \item 複数候補方式PatchPlan生成
-  \begin{itemize}
-    \item LLMが3案を生成し，各案を仮適用・評価して最良案を選択
-  \end{itemize}
-
-  \item Designer-Judge修正ループ
-  \begin{itemize}
-    \item 不合格時はPatchPlanを適用し，合格まで自動で繰り返し
-  \end{itemize}
-
-  \item 2段階のIFC変換
-  \begin{itemize}
-    \item 設計JSON → Senkei JSON → IFCの変換パイプライン
-  \end{itemize}
-\end{itemize}
-
-
-\subsubsection{対象とする橋梁形式}
-
-\begin{itemize}
-  \item 橋梁タイプ：鋼プレートガーダー橋（Steel Plate Girder Bridge）
-  \item 床版形式：RC床版合成桁（Reinforced Concrete Deck Composite Girder）
-  \item 構造形式：単純桁
-  \item 橋長：30m〜70m程度
-  \item 幅員：8m〜15m程度
-\end{itemize}
-
-
-\subsubsection{現時点での制約}
-
-\begin{itemize}
-  \item 対象は鋼プレートガーダー橋（RC床版）のみ
-  \item 断面は全長一定（支点部・中央部の変化なし）
-  \item 照査は概略設計レベル（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）
-  \item 座屈・疲労等の詳細照査は未実装
-\end{itemize}
-
-
-\subsubsection{全体構成}
-
-システムは以下の3層構造で構成される：
-
-\paragraph{ユーザーインターフェース層}
-\begin{description}
-  \item 統合CLI
-  \begin{itemize}
-    \item generate：設計JSON生成
-    \item run：設計JSON生成 → IFC変換まで一括実行
-    \item run\_with\_repair：修正ループ付き実行（各イテレーション保存）
-  \end{itemize}
-\end{description}
-
-\paragraph{コアロジック層}
-\begin{description}
-  \item[RAGサブシステム] PDFテキスト抽出，チャンク化，埋め込み生成，ベクトル検索
-  \item[Designerサブシステム] プロンプト構築，LLM呼び出し，設計生成
-  \item[Judgeサブシステム] 決定論照査計算，PatchPlan生成，修正ループ制御
-  \item[IFC変換サブシステム] Simple → Senkei JSON変換，Senkei JSON → IFC変換
-\end{description}
-
-\paragraph{外部サービス層}
-\begin{description}
-  \item[OpenAI API] Responses API（テキスト生成），Embeddings API（ベクトル埋め込み），Structured Output（構造化出力）
-\end{description}
+\begin{figure}[t]
+\centering
+% TODO: 全体フロー図を挿入
+\fbox{\parbox{0.9\linewidth}{\centering 【システム全体フロー図】\\Designer → Judge Loop → IFC変換}}
+\caption{提案システムの全体フロー}
+\label{fig:system_overview}
+\end{figure}
 
 
 \subsection{RAG（検索拡張生成）サブシステム}
 
-\subsubsection{概要}
+RAGサブシステムは，道路橋示方書や鋼橋設計の教科書から設計に関連する条文・解説を検索し，DesignerのLLMプロンプトに参考文献として提供する機能を担う．本サブシステムは，(1)PDFからのテキスト抽出，(2)テキストのチャンク化，(3)埋め込みベクトル生成，(4)ベクトル検索の4つの処理で構成される．
 
-RAG（Retrieval-Augmented Generation）サブシステムは，道路橋示方書や鋼橋設計の教科書から関連する条文・解説を検索し，DesignerのLLMプロンプトに参考文献として提供する機能を担う．
+\subsubsection{対象ドキュメントとテキスト抽出}
 
-主な機能：
-\begin{itemize}
-  \item PDFドキュメントからのテキスト抽出
-  \item テキストのチャンク化（分割）
-  \item OpenAI Embeddings APIによる埋め込みベクトル生成
-  \item コサイン類似度に基づくベクトル検索
-\end{itemize}
+本システムでは，鋼プレートガーダー橋の設計に必要な知識を網羅するため，道路橋示方書\cite{dosisyo}および「鋼橋設計の基本」\cite{textbook}から抽出した5種類のPDFドキュメントをRAGの知識ベースとして使用している．具体的には，鋼橋の基本概念と設計の考え方を扱う第一章（概論），荷重・応力計算を扱う第四章（鋼橋の設計法），RC床版の厚さ算定式を扱う第六章（床版），プレートガーダー橋の構造・設計を扱う第七章（プレートガーダー橋），および道路橋示方書の鋼橋・鋼部材編である．
 
-
-\subsubsection{対象ドキュメント}
-
-現在RAGで利用しているPDFドキュメント：
-\begin{enumerate}
-  \item 鋼橋設計の基本\_第一章 概論.pdf：鋼橋の基本概念，設計の考え方
-  \item 鋼橋設計の基本\_第四章 鋼橋の設計法.pdf：鋼橋の設計手法，荷重・応力計算
-  \item 鋼橋設計の基本\_第六章 床版.pdf：RC床版の設計，厚さ算定式
-  \item 鋼橋設計の基本\_第七章 プレートガーダー橋.pdf：プレートガーダー橋の構造・設計
-  \item 道路橋示方書\_鋼橋・鋼部材編.pdf：公式の設計基準，条文
-\end{enumerate}
-
-
-\subsubsection{テキスト抽出機能}
-
-PDFからのテキスト抽出には以下の3つの方法を提供している：
-\begin{enumerate}
-  \item pdfplumber（推奨）：テーブル構造の保持に優れる
-  \item pypdf：軽量で高速
-  \item pymupdf4llm：Markdown形式での出力に対応
-\end{enumerate}
-
+PDFからのテキスト抽出にはpdfplumberライブラリを使用している．pdfplumberは表構造の保持に優れており，示方書のような表形式で設計値が示される文書の処理に適している．抽出処理では，PDFの各ページを順次処理し，ページ終了ごとに「[Page N]」形式のマーカーを挿入することで，後続のチャンク化処理でページ情報を保持できるようにしている．
 
 \subsubsection{チャンク化とインデックス構築}
 
-チャンク化処理：
-\begin{itemize}
-  \item 入力：抽出済みテキストファイル（.txt）
-  \item 処理：[Page X]マーカーでページごとに分割，各ページテキストを最大800文字ごとに分割，各チャンクにUUID・ソースファイル名・ページ番号を付与
-  \item 埋め込みモデル：text-embedding-3-small（OpenAI），1536次元
-\end{itemize}
+テキストのチャンク化は2段階で実施される．第一段階では，挿入されたページマーカーに基づいてテキストをページ単位で分割する．第二段階では，各ページのテキストを最大800文字ごとに分割する．この文字数は，LLMのコンテキスト長と検索精度のバランスを考慮して設定した値である．各チャンクには一意なUUID，元PDFのファイル名，ページ番号がメタデータとして付与され，設計根拠のトレーサビリティを確保している．
 
+埋め込みベクトルの生成にはOpenAIのtext-embedding-3-smallモデルを使用している．このモデルは1536次元の埋め込みベクトルを出力し，日本語テキストに対しても高い性能を示す．生成された埋め込みベクトルはL2正規化を施した上で，NumPy配列としてインデックスファイルに保存される．正規化により，ベクトル間の内積がコサイン類似度と等価になり，検索時の計算を効率化できる．数値安定性のため，正規化時には微小値（$\varepsilon = 10^{-8}$）を加算している．
 
-\subsubsection{ベクトル検索機能}
+\subsubsection{ベクトル検索}
 
-search\_text()関数による検索：
-\begin{itemize}
-  \item 入力：クエリ文字列，top\_k（返却する上位件数，デフォルト5）
-  \item 処理：クエリを埋め込みベクトル化，保存済み埋め込み行列とのコサイン類似度を計算，上位top\_k件を抽出
-  \item 出力：SearchResult（チャンクとスコアのペア）のリスト
-\end{itemize}
+検索時には，クエリ文字列を同じ埋め込みモデルでベクトル化し，保存済みの埋め込み行列との内積（正規化済みのためコサイン類似度と等価）を計算する．上位$k$件（デフォルト$k=5$）の抽出にはNumPyのargpartition関数を使用し，全チャンクのソートを回避することで計算効率を確保している．検索結果は，チャンクのテキスト内容，ソースファイル名，ページ番号，類似度スコアを含むSearchResultオブジェクトのリストとして返される．
+
+インデックスは初回ロード後にメモリ上にキャッシュされ，同一セッション内での複数回の検索において再ロードを回避している．これにより，Designerのマルチクエリ検索（後述）においても高速な応答を実現している．
 
 
 \subsection{Designer（設計生成）サブシステム}
 
-\subsubsection{概要}
+Designerサブシステムは，橋長$L$と幅員$B$を入力として受け取り，RAGで取得した参考文献を基にLLMを用いて鋼プレートガーダー橋の断面設計を自動生成する．本サブシステムの特徴は，(1)設計要素ごとに異なるクエリでRAG検索を実行するマルチクエリRAG，(2)Pydanticスキーマによる型安全な構造化出力，(3)適用した設計ルールの明示的抽出の3点である．
 
-Designerサブシステムは，橋長と幅員を入力として受け取り，RAGで取得した参考文献を基にLLM（GPT-5-mini / GPT-5.1）を用いて鋼プレートガーダー橋の断面設計を自動生成する．
+\subsubsection{入出力仕様}
 
-主な特徴：
-\begin{itemize}
-  \item Structured Outputによる型安全な設計データ生成
-  \item マルチクエリRAGによる多面的な参考文献検索
-  \item 設計ルール（DesignRule）の明示的抽出
-  \item 設計根拠（reasoning）の記録
-\end{itemize}
+Designerへの入力は橋長$L$[m]と幅員$B$[m]の2パラメータのみである．この最小限の入力から，LLMがRAGコンテキストを参照しながら，主桁本数，桁間隔，桁高，板厚，床版厚などの全断面寸法を自動決定する．
 
+出力はBridgeDesignと呼ぶPydanticモデルで定義される構造化データである．BridgeDesignは，全体寸法を格納するDimensions（橋長，全幅，主桁本数，主桁間隔，パネル長，パネル数），断面諸元を格納するSections（主桁のI形断面としての腹板高さ・厚さ，上下フランジ幅・厚さ，横桁の断面諸元），および構成要素を格納するComponents（床版厚）の3つのサブモデルで構成される．すべての寸法はmm単位で記録され，Pydanticによるバリデーションにより数値範囲や型の整合性が保証される．
 
-\subsubsection{入力仕様}
+LLMからの直接出力はDesignerOutputモデルで受け取る．このモデルには，BridgeDesignに加えて，設計プロセスの思考・判断根拠を記述したreasoning（文字列），および適用した設計ルールの一覧であるrules（DesignRuleのリスト）が含まれる．これにより，生成された設計値だけでなく，その根拠も記録される．
 
-DesignerInputスキーマ：
-\begin{itemize}
-  \item bridge\_length\_m: float -- 橋長$L$[m]
-  \item total\_width\_m: float -- 幅員$B$[m]
-\end{itemize}
+\subsubsection{マルチクエリRAG}
 
-入力パラメータは最小限の2つのみとし，その他の設計パラメータ（主桁本数，桁高，板厚など）はLLMがRAGコンテキストを参照して自動決定する．
+Designerは設計生成時に，設計要素ごとに異なる5種類のクエリでRAG検索を実行する．第一のクエリは寸法関連（dimensions）であり，「鋼プレートガーダー橋 橋長$L$m 幅員$B$m 桁配置 主桁本数 桁間隔 パネル長」といった内容で，主桁本数や桁間隔の決定に必要な知識を検索する．第二のクエリは主桁配置（girder\_layout）であり，主桁間隔と幅員の関係，幅員と主桁本数の実例を検索する．第三のクエリは主桁断面（girder\_section）であり，経済的桁高の目安（$h/L$比），腹板厚さ，フランジ寸法を検索する．第四のクエリはRC床版（deck）であり，床版厚さの算定式や最小床版厚を検索する．第五のクエリは横桁（crossbeam）であり，横桁の設計方法を検索する．
 
+各クエリで上位5件のチャンクを取得するため，合計最大25チャンクの参考文献がプロンプトに含まれる．プロンプトでは，これらのチャンクにrank番号（1〜25）を付与し，LLMが設計値を決定する際にどのチャンクを根拠としたかをsource\_hit\_ranksとして記録させる．根拠となる文献が見つからない場合は，source\_hit\_ranksを空リストとし，notesに「仮定」「実務目安」と記述させることで，根拠の有無を明確に区別している．
 
-\subsubsection{出力仕様（BridgeDesignスキーマ）}
+\subsubsection{設計ルール抽出}
 
-BridgeDesign構造：
-\begin{itemize}
-  \item dimensions：橋長[mm]，全幅[mm]，主桁本数，主桁間隔[mm]，パネル長[mm]，パネル数
-  \item sections.girder\_standard：腹板高さ・厚さ，上下フランジ幅・厚さ
-  \item sections.crossbeam\_standard：桁高，腹板厚，フランジ幅・厚さ
-  \item components.deck：床版厚[mm]
-\end{itemize}
+Designerは設計値だけでなく，適用した設計ルールを明示的に抽出する．各DesignRuleには，ルールID（R1, R2, ...），カテゴリ（dimensions, girder\_section, deck, crossbeam\_section, other），日本語要約（1〜3文），条件式（例：$h_{\mathrm{web}} \approx L/20 \sim L/25$），LaTeX表現，影響するフィールドパス，根拠となるRAGヒットのrank番号，補足が含まれる．
 
-DesignerOutput構造（LLMからの直接出力）：
-\begin{itemize}
-  \item reasoning: str -- 設計プロセスの思考・判断根拠
-  \item rules: list[DesignRule] -- 適用した設計ルール一覧
-  \item bridge\_design: BridgeDesign -- 生成された設計
-\end{itemize}
+さらに，部材間の依存関係を表すDependencyRuleも抽出する．例えば，横桁高さが主桁高さの80\%程度とする場合，対象フィールド（sections.crossbeam\_standard.total\_height），参照フィールド（sections.girder\_standard.web\_height），係数（0.8）を記録する．この依存関係ルールは，Judge修正ループ（後述）において主桁高さが変更された際に横桁高さを自動更新するために使用される．
 
+\subsubsection{Structured OutputによるLLM呼び出し}
 
-\subsubsection{マルチクエリRAG連携}
-
-Designerは設計生成時に，以下の5種類のクエリでRAG検索を実行する：
-\begin{enumerate}
-  \item 寸法関連（dimensions）
-  \item 主桁配置（girder\_layout）
-  \item 主桁断面（girder\_section）
-  \item RC床版（deck）
-  \item 横桁（crossbeam）
-\end{enumerate}
-
-各クエリでtop\_k件（デフォルト5件）を取得し，合計最大25チャンクの参考文献をプロンプトに含める．
-
-
-\subsubsection{設計ルール抽出機能}
-
-Designerは設計値だけでなく，適用した設計ルールを明示的に抽出する．
-
-DesignRuleCategory：
-\begin{itemize}
-  \item dimensions：橋長・幅員・桁本数・桁間隔・パネル長など全体寸法
-  \item girder\_section：主桁断面
-  \item deck：RC床版
-  \item crossbeam\_section：横桁
-  \item other：その他
-\end{itemize}
+LLMの呼び出しにはOpenAIのResponses APIとStructured Output機能を使用している．Structured Outputは，Pydanticスキーマを指定することでLLMの出力を型安全な構造化データとして受け取る機能である．具体的には，DesignerOutputモデルをスキーマとして指定し，LLMがこのスキーマに準拠したJSONを生成するよう制約する．OpenAI APIが自動でバリデーションとPydanticインスタンス化を行うため，出力の型安全性が保証される．この方式により，山本ら\cite{yamamoto_genai_ifc}が報告したIFCテキスト直接生成時のスキーマ違反や構文エラーの問題を回避している．
 
 
 \subsection{Judge（照査・修正提案）サブシステム}
 
-\subsubsection{概要}
-
-Judgeサブシステムは，Designerが生成したBridgeDesignに対して決定論的な照査計算を行い，不合格時にはLLMを用いて修正提案（PatchPlan）を生成する．
-
-主な特徴：
-\begin{itemize}
-  \item 照査計算は数式ベースの決定論的処理（LLMを使わない）
-  \item 修正提案のみLLMが生成するハイブリッドアプローチ
-  \item 許可されたアクションの範囲内で修正を提案（安全性確保）
-  \item 修正ループにより合格するまで自動で繰り返し
-\end{itemize}
-
+Judgeサブシステムは，Designerが生成したBridgeDesignに対して決定論的な照査計算を行い，不合格時にはLLMを用いて修正提案（PatchPlan）を生成する．本サブシステムの特徴は，(1)照査計算を数式ベースの決定論的処理で実行しLLMを使用しない点，(2)修正提案のみLLMが生成するハイブリッドアプローチ，(3)許可されたアクションの範囲内で修正を提案することで安全性を確保している点，(4)照査と修正のループにより合格するまで自動で繰り返す点である．
 
 \subsubsection{荷重計算}
 
-\paragraph{活荷重計算（L荷重・p1/p2ルール）}
+照査計算に先立ち，死荷重と活荷重の断面力を計算する．活荷重には道路橋示方書\cite{dosisyo}のB活荷重に基づくL荷重を適用する．L荷重は，部分載荷を全スパン等分布荷重に換算する等価係数$\gamma$を用いて計算される．
 
-道路橋示方書のB活荷重に基づくL荷重計算を内部で自動実行する．
+まず載荷長$D$を$D = \min(10.0, L)$で定め，等価係数を式(\ref{eq:gamma})で算出する．
+\begin{equation}
+\gamma = \frac{D(2L - D)}{L^2}
+\label{eq:gamma}
+\end{equation}
+次に，等価面圧$p_{\mathrm{eq}}$を式(\ref{eq:peq})で計算する．
+\begin{equation}
+p_{\mathrm{eq}} = p_2 + p_1 \times \gamma
+\label{eq:peq}
+\end{equation}
+ここで，$p_2 = 3.5$ kN/m$^2$（支間80m以下の場合），$p_1 = 10.0$ kN/m$^2$（曲げ照査用）または$p_1 = 12.0$ kN/m$^2$（せん断照査用）である．
 
-定数：
-\begin{itemize}
-  \item $P_{1M} = 10.0$ kN/m$^2$（曲げ照査用p1面圧）
-  \item $P_{1V} = 12.0$ kN/m$^2$（せん断照査用p1面圧）
-  \item $P_2 = 3.5$ kN/m$^2$（p2面圧，支間80m以下）
-  \item 主載荷幅 = 5.5 m，載荷長上限 = 10.0 m
-\end{itemize}
+各主桁の受け持ち幅$b_i$は，端桁と中間桁で異なる．張り出し幅$c$を$c = (B - (n_g - 1) \times s_g) / 2$（$B$: 全幅，$n_g$: 主桁本数，$s_g$: 主桁間隔）として，端桁は$b_i = c + s_g / 2$，中間桁は$b_i = s_g$となる．さらに，主載荷幅5.5mを考慮した実効幅$b_{\mathrm{eff}}$を式(\ref{eq:beff})で計算する．
+\begin{equation}
+b_{\mathrm{eff}} = 0.5 \times b_i + 0.5 \times \min(b_i, 5.5)
+\label{eq:beff}
+\end{equation}
+活荷重による等価線荷重$w_{\mathrm{live}}$は$w_{\mathrm{live}} = p_{\mathrm{eq}} \times b_{\mathrm{eff}}$となり，単純桁として曲げモーメント$M_{\mathrm{live}} = w_{\mathrm{live}} L^2 / 8$，せん断力$V_{\mathrm{live}} = w_{\mathrm{live}} L / 2$を算出する．
 
-計算フロー：
-\begin{enumerate}
-  \item 載荷長 $D = \min(10.0, L)$
-  \item 等価係数 $\gamma = D(2L - D) / L^2$
-  \item 等価面圧 $p_{eq} = P_2 + P_1 \times \gamma$
-  \item 張り出し幅 = (全幅 - (桁本数-1)$\times$桁間隔) / 2
-  \item 受け持ち幅 $b_i$（端桁：張り出し + 桁間隔/2，中間桁：桁間隔）
-  \item 実効幅 $b_{eff} = 0.5 \times b_i + 0.5 \times \min(b_i, 5.5)$
-  \item 等価線荷重 $w = p_{eq} \times b_{eff}$
-  \item 断面力（単純桁）$M = wL^2/8$, $V = wL/2$
-\end{enumerate}
-
-\paragraph{死荷重計算（桁別計算）}
-
-死荷重は各主桁の受け持ち幅に応じて個別に計算される．端桁と中間桁で受け持ち幅が異なるため，断面力も異なる．
-
+死荷重については，床版のRC重量と主桁の鋼重量を各主桁の受け持ち幅に応じて個別に計算する．床版による線荷重$w_{\mathrm{deck}}$は$w_{\mathrm{deck}} = \gamma_c \times t_d \times b_i$（$\gamma_c$: コンクリート単位体積重量，$t_d$: 床版厚）であり，主桁の鋼重量$w_{\mathrm{steel}}$は断面積と鋼の単位体積重量から算出する．
 
 \subsubsection{照査項目}
 
-Judgeは以下の6項目について照査を実行する：
+Judgeは6項目の照査を実行し，各項目について需要と許容値の比（utilization ratio）を算出する．すべての項目でutilization ratioが1.0以下であれば合格とする．
 
-\begin{enumerate}
-  \item \textbf{曲げ応力度照査}
-  \begin{itemize}
-    \item 計算式：$\sigma = M_{total} \times y / I$
-    \item 判定：$\sigma_{actual} / \sigma_{allow} \leq 1.0$（上下フランジ別に評価）
-    \item 許容応力度：$\sigma_{allow} = \alpha_{bend} \times f_y$（$\alpha_{bend} = 0.6$）
-  \end{itemize}
+第一に，曲げ応力度照査を行う．死荷重と活荷重による全曲げモーメント$M_{\mathrm{total}}$に対し，上縁および下縁の曲げ応力度$\sigma$を式(\ref{eq:sigma})で計算する．
+\begin{equation}
+\sigma = \frac{M_{\mathrm{total}} \times y}{I}
+\label{eq:sigma}
+\end{equation}
+ここで，$y$は中立軸から上縁または下縁までの距離，$I$は断面二次モーメントである．許容曲げ応力度$\sigma_{\mathrm{allow}}$は$\sigma_{\mathrm{allow}} = \alpha_{\mathrm{bend}} \times f_y$（$\alpha_{\mathrm{bend}} = 0.6$，$f_y$: 降伏点）とし，上縁と下縁それぞれについてutilization ratioを評価する．
 
-  \item \textbf{せん断応力度照査}
-  \begin{itemize}
-    \item 計算式：$\tau_{avg} = V_{total} / (t_{web} \times h_{web})$
-    \item 判定：$\tau_{avg} / \tau_{allow} \leq 1.0$
-    \item 許容応力度：$\tau_{allow} = \alpha_{shear} \times (f_y / \sqrt{3})$（$\alpha_{shear} = 0.6$）
-  \end{itemize}
+第二に，せん断応力度照査を行う．平均せん断応力度$\tau_{\mathrm{avg}}$を式(\ref{eq:tau})で計算する．
+\begin{equation}
+\tau_{\mathrm{avg}} = \frac{V_{\mathrm{total}}}{t_{\mathrm{web}} \times h_{\mathrm{web}}}
+\label{eq:tau}
+\end{equation}
+許容せん断応力度$\tau_{\mathrm{allow}}$は$\tau_{\mathrm{allow}} = \alpha_{\mathrm{shear}} \times (f_y / \sqrt{3})$（$\alpha_{\mathrm{shear}} = 0.6$）である．
 
-  \item \textbf{たわみ照査}
-  \begin{itemize}
-    \item 計算式：$\delta = 5 \times w_{eq\_live} \times L^4 / (384 \times E \times I)$
-    \item 判定：$\delta_{actual} / \delta_{allow} \leq 1.0$
-    \item 許容たわみ：道示準拠（支間長により$L/2000$〜$L/500$）
-  \end{itemize}
+第三に，たわみ照査を行う．活荷重によるたわみ$\delta$を式(\ref{eq:delta})で計算する．
+\begin{equation}
+\delta = \frac{5 w_{\mathrm{live}} L^4}{384 E I}
+\label{eq:delta}
+\end{equation}
+許容たわみ$\delta_{\mathrm{allow}}$は道路橋示方書に基づき，支間長$L \leq 10$mで$L/2000$，$10$m$< L \leq 40$mで$L^2/20000$，$L > 40$mで$L/500$とする．
 
-  \item \textbf{床版厚照査}
-  \begin{itemize}
-    \item 要求床版厚：$d_{required} = 30 \times L_{support} + 110$ [mm]
-    \item 判定：deck.thickness $\geq d_{required}$
-  \end{itemize}
+第四に，床版厚照査を行う．要求床版厚$t_{\mathrm{req}}$を$t_{\mathrm{req}} = \max(30 L_{\mathrm{support}} + 110, 160)$[mm]（$L_{\mathrm{support}}$: 床版支間[m]）で算出し，設計床版厚がこれ以上であることを確認する．
 
-  \item \textbf{腹板幅厚比照査}
-  \begin{itemize}
-    \item 要求腹板厚：$t_{web,min} = h_{web} / 130$（SM490の場合）
-    \item 判定：$t_{web} \geq t_{web,min}$
-  \end{itemize}
+第五に，腹板幅厚比照査を行う．SM490鋼の場合，要求腹板厚$t_{\mathrm{web,min}}$を$t_{\mathrm{web,min}} = h_{\mathrm{web}} / 130$で算出し，設計腹板厚がこれ以上であることを確認する．
 
-  \item \textbf{横桁配置照査}
-  \begin{itemize}
-    \item 判定：$panel\_length \times num\_panels \approx bridge\_length$（許容誤差0.1\%）
-  \end{itemize}
-\end{enumerate}
-
+第六に，横桁配置照査を行う．パネル長とパネル数の積が橋長とほぼ一致すること（許容誤差1.0mm以内），およびパネル長が20m以下であることを確認する．
 
 \subsubsection{PatchPlan生成}
 
-不合格時にLLMが生成する修正提案．複数候補方式を採用し，最良案を自動選択．
+照査で不合格となった場合，LLMが修正提案（PatchPlan）を生成する．PatchPlanは，許可されたアクションの組み合わせで構成される．許可されるアクションは，腹板高さの増加（+100, +200, +300, +500mm），腹板厚の増加（+2, +4, +6mm），上下フランジ厚の増加（+2, +4, +6mm），上下フランジ幅の増加（+50, +100mm），床版厚を要求値に設定，横桁配置の修正の8種類である．各PatchPlanには最大3件のアクションを含めることができる．
 
-\paragraph{許可アクション（ALLOWED\_ACTIONS）}
-\begin{itemize}
-  \item increase\_web\_height：腹板高さを増加（$\Delta$: +100, +200, +300, +500 mm）
-  \item increase\_web\_thickness：腹板厚を増加（$\Delta$: +2, +4, +6 mm）
-  \item increase\_top\_flange\_thickness：上フランジ厚を増加
-  \item increase\_bottom\_flange\_thickness：下フランジ厚を増加
-  \item set\_deck\_thickness\_to\_required：床版厚を要求値に設定
-  \item fix\_crossbeam\_layout：num\_panelsまたはpanel\_lengthを修正
-\end{itemize}
+LLMへのプロンプトでは，照査結果（各項目のutilization ratio，支配的な照査項目）と現在の設計値を提示し，max\_util（全項目のutilization ratioの最大値）を1.0以下（できれば0.98以下）にするための修正案を要求する．プロンプトには判断の方針も示しており，例えば曲げが支配的な場合はフランジ厚または腹板高さの増加を，たわみが支配的な場合は断面二次モーメントを増やす方向（腹板高さ増加）を，せん断が支配的な場合は腹板厚の増加を優先するよう指示している．
 
-\paragraph{複数候補方式の処理フロー}
-\begin{enumerate}
-  \item LLMが3案を生成（異なるアプローチ：桁高重視，フランジ厚重視など）
-  \item 各案を仮適用・評価（judge\_v1\_lightweightでmax\_utilをシミュレーション）
-  \item improvement（= 現在のmax\_util - シミュレーション後max\_util）が最大の案を選択
-\end{enumerate}
+本システムでは複数候補方式を採用している．LLMが3つの異なるアプローチ（例：腹板高さ重視，フランジ厚重視，バランス型）による修正案を同時に生成し，各案を仮適用して照査計算をシミュレーションする．そして，改善度（improvement = 現在のmax\_util - シミュレーション後のmax\_util）が最大となる案を選択する．この方式により，LLMの提案の不確実性を軽減し，効率的な設計改善を実現している．
 
+\subsubsection{修正ループ}
 
-\subsubsection{Designer-Judge修正ループ}
+Designer-Judge修正ループの処理フローを以下に示す．まずDesignerが初期設計を生成し，Judgeが照査を実行する．合格（max\_util $\leq$ 1.0かつ横桁配置OK）であれば終了する．不合格の場合，LLMがPatchPlanを生成し，設計に適用する．さらに，Designerが抽出した依存関係ルール（例：横桁高さが主桁高さの80\%）を適用し，部材間の整合性を維持する．その後，再度Judgeが照査を実行する．このループを合格するまで，または最大イテレーション数（デフォルト5回）に達するまで繰り返す．
 
-run\_with\_repair\_loop()の処理フロー：
-\begin{enumerate}
-  \item 初期設計生成（Designer）
-  \item 照査実行（Judge v1）
-  \item pass\_fail == True → 収束・終了
-  \item PatchPlanをBridgeDesignに適用（apply\_patch\_plan）
-  \item 依存関係ルール適用（apply\_dependency\_rules）：例：主桁腹板高さ変更時に横桁高さを連動
-  \item 次イテレーションへ（Step 2に戻る）
-  \item max\_iterations到達後も不合格 → converged=Falseで終了
-\end{enumerate}
+修正ループの結果はRepairLoopResultとして記録される．これには，収束フラグ（converged），全イテレーションの履歴（各イテレーションの設計値，照査結果，適用したPatchPlan），最終設計（final\_design），最終照査結果（final\_report），およびRAG検索ログ（rag\_log）が含まれる．これにより，設計改善のプロセス全体を追跡可能としている．
 
 
 \subsection{IFC変換サブシステム}
 
-\subsubsection{概要}
-
-IFC変換サブシステムは，Designer（またはJudge修正後）のBridgeDesign JSONをIFC（Industry Foundation Classes）形式に変換し，BIM/CIMソフトウェアで利用可能な3Dモデルを出力する．
-
-変換は2段階で行われる（推奨パイプライン）：
-\begin{enumerate}
-  \item BridgeDesign JSON → Senkei JSON（中間形式）
-  \item Senkei JSON → IFCファイル
-\end{enumerate}
-
+IFC変換サブシステムは，Designerが生成した（またはJudge修正後の）BridgeDesign JSONをIFC（Industry Foundation Classes）形式に変換し，BIM/CIMソフトウェアで利用可能な3Dモデルを出力する．変換は2段階のパイプラインで行われる．第一段階でBridgeDesign JSONを中間形式であるSenkei JSONに変換し，第二段階でSenkei JSONをIFCファイルに変換する．この2段階方式により，橋梁BIMの既存エコシステムとの接続性を確保しつつ，将来的な拡張にも対応可能な設計としている．
 
 \subsubsection{BridgeDesignからSenkei JSONへの変換}
 
-BridgeDesignからSenkei JSONへの変換では，以下の座標計算を行う：
-\begin{enumerate}
-  \item 主桁配置のX座標計算
-  \begin{itemize}
-    \item 主桁の総スパン：(num\_girders - 1) $\times$ girder\_spacing
-    \item Xオフセット：(total\_width - 総スパン) / 2
-    \item 各主桁のX座標：x\_offset + $i \times$ girder\_spacing
-  \end{itemize}
-  \item パネル分割のY座標計算
-  \begin{itemize}
-    \item Y座標リスト：[0, panel\_length, 2$\times$panel\_length, ..., bridge\_length]
-  \end{itemize}
-  \item 横桁の配置計算
-  \begin{itemize}
-    \item 横桁本数：num\_panels - 1（端部を除く）
-    \item 縦方向ピッチ：panel\_length
-    \item 初期位置：panel\_length
-  \end{itemize}
-\end{enumerate}
+Senkei JSONは，橋梁の3次元形状を線形（Senkei）ベースで定義する中間形式である．BridgeDesignの断面諸元から，主桁・横桁・床版の3次元位置を具体的な座標値として算出する．
 
+主桁の配置では，まず全主桁の総スパン$(n_g - 1) \times s_g$を計算し，全幅との差から張り出し幅（Xオフセット）を求める．各主桁のX座標（幅員方向位置）はXオフセット$+ i \times s_g$（$i = 0, 1, ..., n_g - 1$）となる．さらに，各主桁について6本の線形を定義する．これらは上フランジの左端・中央・右端，下フランジの左端・中央・右端に対応し，フランジ幅と腹板高さに基づいてY座標（横方向）とZ座標（鉛直方向）を決定する．
+
+橋軸方向（X座標）の分割は，パネル長に基づいて行う．始端（S1, $x = 0$）から終端（E1, $x = L$）まで，パネル長ごとに断面位置（C1, C2, ...）を設定する．これにより，主桁は複数のブロック（パネル）に分割され，各ブロックが独立したIFC要素として生成される．
+
+横桁は，隣接する主桁間を接続する形で配置される．横桁の縦方向位置はパネル位置（C1, C2, ...）に一致し，両端部を除く$n_{\mathrm{panels}} - 1$箇所に配置される．各横桁の断面諸元（高さ，腹板厚，フランジ寸法）はBridgeDesignのcrossbeam\_standardから取得する．
+
+床版は，橋梁の四隅を頂点とする矩形として定義される．厚さはBridgeDesignのdeck.thicknessから取得し，床版上面をZ=0とする座標系を採用している．
 
 \subsubsection{Senkei JSONからIFCへの変換}
 
-ifcopenshellライブラリを使用してIFCファイルを生成する．
+第二段階では，ifcopenshellライブラリを使用してSenkei JSONをIFCファイルに変換する．ifcopenshellはPythonバインディングを提供するIFC操作ライブラリであり，IFC2x3およびIFC4x3の両方に対応している．
 
-主な処理：
-\begin{enumerate}
-  \item IFCコンテキストのセットアップ：プロジェクト，サイト，建物，スパンの階層構造を作成
-  \item 床版の生成（Brep）：2Dポリゴンを押し出して直方体を生成
-  \item 主桁の生成（SweptSolid）：I形断面プロファイルを定義，断面をパネルごとに押し出し
-  \item 横桁の生成（SweptSolid）：I形断面プロファイルを定義，各主桁間に配置
-\end{enumerate}
+変換処理では，まずIFCの階層構造（IfcProject → IfcSite → IfcBuilding → IfcBuildingStorey）をセットアップする．次に，Senkei JSONの各要素を対応するIFCエンティティに変換する．
 
+床版はIfcPlateエンティティとして生成し，形状表現にはBrep（境界表現）を使用する．2Dポリゴン（四隅の座標）を床版厚さ分だけ押し出すことで直方体を生成する．
 
-\subsubsection{生成されるIFC要素}
+主桁はIfcBeamエンティティとして生成する．形状表現にはSweptSolid（断面押し出し）を使用し，I形断面プロファイル（IfcIShapeProfileDef）を定義した上で，各パネル長さ分だけ押し出す．各主桁パネルには「G\{桁番号\}B\{ブロック番号\}W」（ウェブ），「G\{桁番号\}B\{ブロック番号\}UF」（上フランジ），「G\{桁番号\}B\{ブロック番号\}LF」（下フランジ）といった命名規則で一意な名前を付与する．
 
-IFCエンティティ：
-\begin{itemize}
-  \item IfcProject：プロジェクト情報
-  \item IfcSite：敷地情報
-  \item IfcBuilding：建物（橋梁）情報
-  \item IfcBridgePartTypeEnum.SPAN：橋梁スパン
-  \item IfcBeam：構造部材（床版，主桁，横桁）
-\end{itemize}
+横桁も同様にIfcBeamエンティティとして生成し，I形断面の押し出しで形状を表現する．横桁の押し出し方向は主桁と直交する方向（幅員方向）となる．命名規則は「CB\_G\{桁i\}\_G\{桁i+1\}\_C\{断面番号\}」である．
 
-形状表現：
-\begin{itemize}
-  \item Brep：床版（境界表現による直方体）
-  \item SweptSolid：主桁・横桁（断面押し出し）
-\end{itemize}
+材料属性（SM490A等）はIfcMaterialエンティティとして定義し，各構造要素に関連付ける．これにより，BIMビューワーでの属性表示や数量計算が可能となる．
 
-命名規則：
-\begin{itemize}
-  \item 床版："Deck"
-  \item 主桁："Girder\_\{桁番号\}\_Seg\_\{セグメント番号\}"
-  \item 横桁："Crossbeam\_Row\{行番号\}\_Gap\{間隔番号\}"
-\end{itemize}
+\subsubsection{座標系と出力形式}
 
-3Dモデルの座標系：
-\begin{itemize}
-  \item X軸：橋軸直角方向（幅員方向）
-  \item Y軸：橋軸方向（橋長方向）
-  \item Z軸：鉛直方向（上向き正）
-  \item 原点：床版左下角（X=0, Y=0, Z=床版上面=0）
-\end{itemize}
+3Dモデルの座標系は，X軸を橋軸方向（橋長方向），Y軸を橋軸直角方向（幅員方向），Z軸を鉛直方向（上向き正）とする．原点は床版上面の角（X=0, Y=0, Z=0）に設定している．この座標系は道路橋の一般的な表現に準拠している．
+
+生成されるIFCファイルはIFC2x3形式またはIFC4x3形式で出力可能である．IFC4x3ではインフラ向けの拡張（IfcBridgePartTypeEnum等）が利用可能であり，橋梁BIMとしてより適切な表現が可能となる．出力されたIFCファイルは，BIMvision，Revit，FreeCADなどの汎用BIMビューワーで即座に可視化・検証できる．
 
 
 \section{評価実験}
@@ -683,9 +393,9 @@ Nithyanantham, S., et al.: MCP4IFC: A Framework for Automated IFC Data Manipulat
 \bibitem{mdpi_bridge_checking}
 Zheng, Z., et al.: Automated Checking of Highway Bridge BIM Models Using Large Language Models, Buildings, Vol.15, No.19, 3465, 2025.
 \bibitem{yamamoto_genai_ifc}
-山本浩司，田中秀治，齋藤直樹：生成AIを用いたIFC 4.3データ生成手法の提案と性能評価，土木情報学論文集，Vol.6，No.1，pp.96--103，2025.
+山本 敦大，緒方 陸，藤井 純一郎，山本 一浩：生成 AI による単純形状 3 次元データモデルの対話的な生成手法の一考察，AI・データサイエンス論文集，6巻1号，pp.96--106，2025.
 \bibitem{hakoishi_bert}
-箱石裕太，佐藤遼，山口拓郎，中西達也：土木分野における自然言語処理技術の適用に関する基礎的検討，土木学会論文集，Vol.78，No.22，22-22042，2022.
+箱石 健太, 一言 正之, 菅田 大輔：土木分野における 事前学習モデル BERT による精度検証，土木学会論文集，Vol.79，No.22，22-22042，2023.
 \bibitem{rag_original}
 Lewis, P., et al.: Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks, Advances in Neural Information Processing Systems, Vol.33, pp.9459--9474, 2020.
 \bibitem{soudani_rag_vs_ft}

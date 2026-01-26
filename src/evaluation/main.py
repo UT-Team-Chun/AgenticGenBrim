@@ -84,7 +84,7 @@ class EvaluationCLI:
     def run(
         self,
         output_dir: str | None = None,
-        model_name: str = "gpt-5.1",
+        model_name: LlmModel = LlmModel.GPT_5_MINI,
         max_iterations: int = 5,
         num_trials: int = 3,
         max_workers: int = 3,

@@ -6,6 +6,8 @@
 \usepackage[varg]{newtxmath}
 \usepackage{bm}
 \usepackage[dvipdfmx]{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,shapes.geometric}
 \usepackage[superscript]{cite}
 \usepackage{url}
 \usepackage{tabularx}
@@ -129,20 +131,45 @@ Zhengら\cite{mdpi_bridge_checking} & 道路橋のBIMモデルに対して、テ
 
 \begin{figure}[t]
 \centering
-% TODO: 全体フロー図を挿入
-\fbox{\parbox{0.9\linewidth}{\centering 【システム全体フロー図】\\Designer → Judge Loop → IFC変換}}
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw,rounded corners,align=center,inner sep=4pt,minimum height=8mm,text width=22mm},
+  lab/.style={font=\scriptsize,fill=white,inner sep=1.5pt},
+  arrow/.style={-Latex,thick},
+  node distance=8mm and 12mm
+]
+  \node[box] (input) {入力\\橋長 $L$\\幅員 $B$};
+  \node[box, right=of input] (rag) {RAG\\検索};
+  \node[box, right=of rag] (designer) {Designer\\(設計生成)};
+  \node[box, right=of designer] (judge) {Judge\\(照査)};
+  \node[box, right=of judge] (ifc) {IFC変換};
+  \node[box, right=of ifc] (viewer) {BIM\\ビューア};
+
+  \node[box, above=12mm of rag] (pdf) {PDF\\知識ベース};
+  \node[box, above=12mm of designer] (openai) {OpenAI API};
+
+  \draw[arrow] (input) -- (rag);
+  \draw[arrow] (rag) -- node[above,lab]{コンテキスト} (designer);
+  \draw[arrow] (designer) -- node[above,lab]{設計JSON} (judge);
+  \draw[arrow] (judge) -- node[above,lab]{合格} (ifc);
+  \draw[arrow] (ifc) -- (viewer);
+
+  \draw[arrow] (pdf) -- (rag);
+  \draw[arrow] (openai) -- (rag);
+  \draw[arrow] (openai) -- (designer);
+  \draw[arrow] (openai) -- (judge);
+
+  % Judge repair loop
+  \draw[arrow,dashed] (judge.south) -- ++(0,-8mm) node[below,lab]{不合格} -| node[near start,below,lab]{PatchPlan} (designer.south);
+\end{tikzpicture}
+}%
 \caption{提案システムの全体フロー}
 \label{fig:system_overview}
 \end{figure}
 
 
 \subsection{RAG（検索拡張生成）サブシステム}
-
-RAGサブシステムは，道路橋示方書や鋼橋設計の教科書から設計に関連する条文・解説を検索し，DesignerのLLMプロンプトに参考文献として提供する機能を担う．本サブシステムは，(1)PDFからのテキスト抽出，(2)テキストのチャンク化，(3)埋め込みベクトル生成，(4)ベクトル検索の4つの処理で構成される．
-
-\subsubsection{対象ドキュメントとテキスト抽出}
-
-本システムでは，鋼プレートガーダー橋の設計に必要な知識を網羅するため，道路橋示方書\cite{dosisyo}および「鋼橋設計の基本」\cite{textbook}から抽出した5種類のPDFドキュメントをRAGの知識ベースとして使用している．具体的な対象文書を表\ref{tab:rag_documents}に示す．
 
 \begin{table}[t]
 \caption{RAG知識ベースの対象ドキュメント}
@@ -165,6 +192,12 @@ RAGサブシステムは，道路橋示方書や鋼橋設計の教科書から�
 \hline
 \end{tabularx}
 \end{table}
+
+RAGサブシステムは，道路橋示方書や鋼橋設計の教科書から設計に関連する条文・解説を検索し，DesignerのLLMプロンプトに参考文献として提供する機能を担う．本サブシステムは，(1)PDFからのテキスト抽出，(2)テキストのチャンク化，(3)埋め込みベクトル生成，(4)ベクトル検索の4つの処理で構成される．
+
+\subsubsection{対象ドキュメントとテキスト抽出}
+
+本システムでは，鋼プレートガーダー橋の設計に必要な知識を網羅するため，道路橋示方書\cite{dosisyo}および「鋼橋設計の基本」\cite{textbook}から抽出した5種類のPDFドキュメントをRAGの知識ベースとして使用している．具体的な対象文書を表\ref{tab:rag_documents}に示す．
 
 PDFからのテキスト抽出にはpdfplumber\cite{pdfplumber_docs}ライブラリを使用している．pdfplumberはPDFの内部構造を解析してテキストを抽出するPythonライブラリであり，特に表構造の保持に優れている．示方書のような表形式で設計値が示される文書の処理に適しており，表中の数値と周囲のテキストの対応関係を維持したまま抽出できる．
 
@@ -201,6 +234,47 @@ s_i = \bm{q}_{\mathrm{norm}}^{\top} \bm{v}_i
 検索結果は，Pydanticモデル（SearchResult）のリストとして返される．各SearchResultには，マッチしたチャンク（IndexChunk）と類似度スコア（score）が含まれる．
 
 インデックスは初回ロード後にモジュールレベルのグローバル変数としてメモリ上にキャッシュされ，同一セッション内での複数回の検索において再ロードを回避している．これにより，Designerのマルチクエリ検索（後述）においても高速な応答を実現している．
+
+\begin{figure}[t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw,rounded corners,align=center,inner sep=4pt,minimum height=8mm,text width=30mm},
+  arrow/.style={-Latex,thick},
+  node distance=7mm and 18mm
+]
+  \node[box] (pdf) {PDF文書};
+  \node[box, below=of pdf] (extract) {テキスト抽出\\(pdfplumber)};
+  \node[box, below=of extract] (chunk) {チャンク化\\(最大800文字)};
+  \node[box, below=of chunk] (emb) {埋め込み生成\\(Embeddings)};
+  \node[box, below=of emb] (index) {ベクトル\\インデックス};
+
+  \node[box, right=55mm of extract] (query) {検索クエリ};
+  \node[box, below=of query] (qemb) {クエリ埋め込み};
+  \node[box, below=of qemb] (search) {類似度検索\\(cosine, top\_k)};
+  \node[box, below=of search] (chunks) {上位チャンク\\(本文+出典+score)};
+  \node[box, below=of chunks] (prompt) {LLMプロンプト\\へ挿入};
+
+  \draw[arrow] (pdf) -- (extract);
+  \draw[arrow] (extract) -- (chunk);
+  \draw[arrow] (chunk) -- (emb);
+  \draw[arrow] (emb) -- (index);
+
+  \draw[arrow] (query) -- (qemb);
+  \draw[arrow] (qemb) -- (search);
+  \draw[arrow] (search) -- (chunks);
+  \draw[arrow] (chunks) -- (prompt);
+
+  \draw[arrow] (index.east) -- (search.west);
+
+  \node[draw,dashed,rounded corners,fit=(pdf)(index),inner sep=8pt,label={[font=\scriptsize]above:{事前処理（インデックス構築）}}] {};
+  \node[draw,dashed,rounded corners,fit=(query)(prompt),inner sep=8pt,label={[font=\scriptsize]above:{検索時（クエリ実行）}}] {};
+\end{tikzpicture}
+}%
+\caption{RAGの検索パイプライン}
+\label{fig:rag_pipeline}
+\end{figure}
 
 
 \subsection{Designer（設計生成）サブシステム}
@@ -282,7 +356,55 @@ RC床版 & RC床版合成桁 床版厚さ 最小床版厚 \\
 \end{tabularx}
 \end{table}
 
-各クエリで上位5件のチャンクを取得するため，合計最大25チャンクの参考文献がプロンプトに含まれる．プロンプトでは，これらのチャンクにrank番号（1〜25）を付与し，LLMが設計値を決定する際にどのチャンクを根拠としたかをsource\_hit\_ranksとして記録させる．
+各クエリで上位5件のチャンクを取得するため，合計最大25チャンクの参考文献がプロンプトに含まれる．プロンプトでは，これらのチャンクにrank番号（1〜25）を付与し，LLMが設計値を決定する際にどのチャンクを根拠としたかをsource\_hit\_ranksとして記録させる．マルチクエリRAGの処理フローを図\ref{fig:multiquery_rag}に示す．
+
+\begin{figure}[t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\scriptsize,
+  box/.style={draw,rounded corners,align=center,inner sep=3pt,minimum height=7mm,text width=18mm},
+  arrow/.style={-Latex,semithick},
+  node distance=6mm and 8mm
+]
+  \node[box, text width=12mm] (inp) {入力\\$L, B$};
+  \node[box, right=8mm of inp] (q1) {寸法};
+  \node[box, below=of q1] (q2) {主桁配置};
+  \node[box, below=of q2] (q3) {主桁断面};
+  \node[box, below=of q3] (q4) {床版};
+  \node[box, below=of q4] (q5) {横桁};
+
+  \node[box, right=8mm of q3] (rag) {RAG検索\\(各top\_k=5)};
+  \node[box, right=8mm of rag, text width=20mm] (ctx) {統合コンテキスト\\(最大25チャンク)};
+  \node[box, right=8mm of ctx, text width=14mm] (llm) {Designer\\(LLM)};
+  \node[box, right=8mm of llm, text width=14mm] (out) {設計JSON\\+ログ};
+
+  \coordinate (inpa) at ($(inp.north east)!0.15!(inp.south east)$);
+  \coordinate (inpb) at ($(inp.north east)!0.32!(inp.south east)$);
+  \coordinate (inpc) at ($(inp.north east)!0.50!(inp.south east)$);
+  \coordinate (inpd) at ($(inp.north east)!0.68!(inp.south east)$);
+  \coordinate (inpe) at ($(inp.north east)!0.85!(inp.south east)$);
+
+  \draw[arrow] (inpa) |- (q1.west);
+  \draw[arrow] (inpb) |- (q2.west);
+  \draw[arrow] (inpc) |- (q3.west);
+  \draw[arrow] (inpd) |- (q4.west);
+  \draw[arrow] (inpe) |- (q5.west);
+
+  \draw[arrow] (q1) -- (rag);
+  \draw[arrow] (q2) -- (rag);
+  \draw[arrow] (q3) -- (rag);
+  \draw[arrow] (q4) -- (rag);
+  \draw[arrow] (q5) -- (rag);
+
+  \draw[arrow] (rag) -- (ctx);
+  \draw[arrow] (ctx) -- (llm);
+  \draw[arrow] (llm) -- (out);
+\end{tikzpicture}
+}%
+\caption{マルチクエリRAG（5観点）とDesignerへの統合}
+\label{fig:multiquery_rag}
+\end{figure}
 
 プロンプトには以下の重要な指示を含めている：
 \begin{itemize}
@@ -583,12 +705,31 @@ Designer-Judge修正ループの処理フローを図\ref{fig:repair_loop}に示
 
 \begin{figure}[t]
 \centering
-\fbox{\parbox{0.9\linewidth}{\centering 【修正ループフロー図】\\
-1. Designer初期設計生成 → 2. Judge照査 → \\
-3. 合格なら終了 / 不合格ならPatchPlan生成 → \\
-4. PatchPlan適用 → 5. DependencyRule適用 → \\
-6. 2に戻る（最大5回）
-}}
+\begin{tikzpicture}[
+  font=\scriptsize,
+  box/.style={draw,rounded corners,align=center,inner sep=3pt,minimum height=6mm,text width=22mm},
+  decision/.style={draw,diamond,align=center,inner sep=1pt,aspect=1.8,font=\scriptsize},
+  arrow/.style={-Latex,semithick},
+  node distance=7mm
+]
+  \node[box] (design) {Designer\\初期設計生成};
+  \node[box, below=of design] (judge) {Judge照査計算};
+  \node[decision, below=9mm of judge] (check) {合格？};
+  \node[box, right=14mm of check] (end) {最終設計出力};
+  \node[box, below=9mm of check] (patch) {PatchPlan生成\\（複数候補）};
+  \node[box, below=of patch] (sim) {各候補を\\シミュレーション};
+  \node[box, below=of sim] (apply) {最良案を適用};
+  \node[box, below=of apply] (dep) {DependencyRule\\適用};
+
+  \draw[arrow] (design) -- (judge);
+  \draw[arrow] (judge) -- (check);
+  \draw[arrow] (check) -- node[above,font=\tiny]{Yes} (end);
+  \draw[arrow] (check) -- node[right,font=\tiny]{No} (patch);
+  \draw[arrow] (patch) -- (sim);
+  \draw[arrow] (sim) -- (apply);
+  \draw[arrow] (apply) -- (dep);
+  \draw[arrow] (dep.west) -- ++(-12mm,0) |- node[near start,left,font=\tiny]{最大5回} (judge.west);
+\end{tikzpicture}
 \caption{Designer-Judge修正ループの処理フロー}
 \label{fig:repair_loop}
 \end{figure}
@@ -600,7 +741,27 @@ Designer-Judge修正ループの処理フローを図\ref{fig:repair_loop}に示
 
 \subsection{IFC変換サブシステム}
 
-IFC変換サブシステムは，Designerが生成した（またはJudge修正後の）BridgeDesign JSONをIFC（Industry Foundation Classes）形式に変換し，BIM/CIMソフトウェアで利用可能な3Dモデルを出力する．変換は2段階のパイプラインで行われる．第一段階でBridgeDesign JSONを中間形式であるSenkei JSONに変換し，第二段階でSenkei JSONをifcopenshell\cite{ifcopenshell_docs}によりIFCファイルに変換する．この2段階方式により，橋梁BIMの既存エコシステムとの接続性を確保しつつ，将来的な拡張にも対応可能な設計としている．
+IFC変換サブシステムは，Designerが生成した（またはJudge修正後の）BridgeDesign JSONをIFC（Industry Foundation Classes）形式に変換し，BIM/CIMソフトウェアで利用可能な3Dモデルを出力する．変換は2段階のパイプラインで行われる（図\ref{fig:ifc_pipeline}）．第一段階でBridgeDesign JSONを中間形式であるSenkei JSONに変換し，第二段階でSenkei JSONをifcopenshell\cite{ifcopenshell_docs}によりIFCファイルに変換する．この2段階方式により，橋梁BIMの既存エコシステムとの接続性を確保しつつ，将来的な拡張にも対応可能な設計としている．
+
+\begin{figure}[t]
+\centering
+\resizebox{0.7\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw,rounded corners,align=center,inner sep=4pt,minimum width=24mm,minimum height=8mm,text width=24mm},
+  arrow/.style={-Latex,thick},
+  node distance=16mm
+]
+  \node[box] (simple) {BridgeDesign\\JSON};
+  \node[box, right=of simple] (senkei) {Senkei\\JSON};
+  \node[box, right=of senkei] (ifc) {IFC};
+  \draw[arrow] (simple) -- node[above, align=center, font=\scriptsize]{座標計算・\\部材分割} (senkei);
+  \draw[arrow] (senkei) -- node[above, align=center, font=\scriptsize]{ifcopenshell} (ifc);
+\end{tikzpicture}
+}%
+\caption{IFC変換の2段階パイプライン}
+\label{fig:ifc_pipeline}
+\end{figure}
 
 \subsubsection{BridgeDesignからSenkei JSONへの変換}
 
@@ -672,9 +833,25 @@ IFC（Industry Foundation Classes）は建設プロジェクトのデータ交�
 
 \begin{figure}[t]
 \centering
-\fbox{\parbox{0.9\linewidth}{\centering 【IFC階層構造】\\
-IfcProject → IfcSite → IfcBuilding → IfcBuildingStorey → 構造要素
-}}
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw,rounded corners,align=center,inner sep=3pt,minimum height=7mm},
+  arrow/.style={-Latex,thick},
+  level distance=11mm,
+  sibling distance=28mm,
+  edge from parent/.style={arrow}
+]
+  \node[box] {IfcProject}
+    child { node[box] {IfcSite}
+      child { node[box] {IfcBuilding}
+        child { node[box] {IfcBuildingStorey}
+          child { node[box] {IfcPlate\\(床版)} }
+          child { node[box] {IfcBeam\\(主桁)} }
+          child { node[box] {IfcBeam\\(横桁)} }
+        }
+      }
+    };
+\end{tikzpicture}
 \caption{IFCモデルの階層構造}
 \label{fig:ifc_hierarchy}
 \end{figure}
@@ -714,11 +891,57 @@ IfcProject → IfcSite → IfcBuilding → IfcBuildingStorey → 構造要素
 
 \subsubsection{座標系と出力形式}
 
-3Dモデルの座標系は，X軸を橋軸方向（橋長方向），Y軸を橋軸直角方向（幅員方向），Z軸を鉛直方向（上向き正）とする右手系である．原点は床版上面の角（X=0, Y=0, Z=0）に設定している．主桁は床版下面から下方に配置されるため，主桁のZ座標は負の値となる．この座標系は道路橋の一般的な表現に準拠している．
+3Dモデルの座標系は，X軸を橋軸方向（橋長方向），Y軸を橋軸直角方向（幅員方向），Z軸を鉛直方向（上向き正）とする右手系である．原点は床版上面の角（X=0, Y=0, Z=0）に設定している．主桁は床版下面から下方に配置されるため，主桁のZ座標は負の値となる．この座標系は道路橋の一般的な表現に準拠している．座標系と主桁配置の模式図を図\ref{fig:coord_girders}に示す．
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[scale=0.55,
+  font=\scriptsize,
+  arrow/.style={-Latex,semithick},
+  dim/.style={Latex-Latex,semithick},
+  girder/.style={draw,semithick},
+]
+  % Deck (plan view)
+  \draw[semithick] (0,0) rectangle (10,4);
+
+  % Axes
+  \draw[arrow] (0,0) -- (11,0) node[below] {Y（幅員方向）};
+  \draw[arrow] (0,0) -- (0,5) node[left] {X（橋軸方向）};
+  \draw[arrow] (10.8,4.2) -- (10.8,5.1) node[right] {Z};
+
+  % Girders (4 lines)
+  \draw[girder] (2,0) -- (2,4);
+  \draw[girder] (4,0) -- (4,4);
+  \draw[girder] (6,0) -- (6,4);
+  \draw[girder] (8,0) -- (8,4);
+  \node[anchor=south] at (5,4) {\tiny 主桁（例：4本）};
+
+  % Dimensions
+  \draw[dim] (0,-0.6) -- node[below,font=\tiny]{overhang} (2,-0.6);
+  \draw[dim] (2,-1.2) -- node[below,font=\tiny]{girder\_spacing} (4,-1.2);
+  \draw[dim] (0,-1.8) -- node[below,font=\tiny]{total\_width} (10,-1.8);
+\end{tikzpicture}
+\caption{座標系と主桁配置の模式図（平面図）}
+\label{fig:coord_girders}
+\end{figure}
 
 生成されるIFCファイルはIFC2x3形式またはIFC4x3形式で出力可能である．IFC4x3\cite{ifc4x3}ではインフラ向けの拡張（IfcBridgePartTypeEnum等）が利用可能であり，橋梁BIMとしてより適切なセマンティクス表現が可能となる．
 
-出力されたIFCファイルは，BIMvision，Autodesk Revit，FreeCAD，Blender（BIM Add-on使用）などの汎用BIMビューワーで即座に可視化・検証できる．これにより，生成された設計が意図通りの形状となっているかを視覚的に確認でき，さらにBIM/CIMワークフローへの統合が可能となる．
+出力されたIFCファイルは，BIMvision，Autodesk Revit，FreeCAD，Blender（BIM Add-on使用）などの汎用BIMビューワーで即座に可視化・検証できる．これにより，生成された設計が意図通りの形状となっているかを視覚的に確認でき，さらにBIM/CIMワークフローへの統合が可能となる．図\ref{fig:bim_model}に生成されたIFCモデルのBIMビューワーでの表示例を，図\ref{fig:bim_component}に部材別の色分け表示例を示す．
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{images/bim_model.png}
+\caption{BIMビューワーで表示したIFCモデル}
+\label{fig:bim_model}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{images/bim_component.png}
+\caption{BIMビューワーでの部材別表示（色分け例）}
+\label{fig:bim_component}
+\end{figure}
 
 
 \section{評価実験}

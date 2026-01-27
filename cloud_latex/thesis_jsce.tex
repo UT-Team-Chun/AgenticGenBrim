@@ -792,25 +792,12 @@ Designer-Judge修正ループの処理フローを図\ref{fig:repair_loop}に示
 
 IFC変換サブシステムは，Designerが生成した（またはJudge修正後の）BridgeDesign JSONをIFC（Industry Foundation Classes）形式に変換し，BIM/CIMソフトウェアで利用可能な3Dモデルを出力する．変換は2段階のパイプラインで行われる（図\ref{fig:ifc_pipeline}）．第一段階でBridgeDesign JSONを中間形式であるSenkei JSONに変換し，第二段階でSenkei JSONをifcopenshell\cite{ifcopenshell_docs}によりIFCファイルに変換する．この2段階方式により，橋梁BIMの既存エコシステムとの接続性を確保しつつ，将来的な拡張にも対応可能な設計としている．
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\resizebox{0.7\linewidth}{!}{%
-\begin{tikzpicture}[
-  font=\small,
-  box/.style={draw,rounded corners,align=center,inner sep=4pt,minimum width=24mm,minimum height=8mm,text width=24mm},
-  arrow/.style={-Latex,thick},
-  node distance=16mm
-]
-  \node[box] (simple) {BridgeDesign\\JSON};
-  \node[box, right=of simple] (senkei) {Senkei\\JSON};
-  \node[box, right=of senkei] (ifc) {IFC};
-  \draw[arrow] (simple) -- node[above, align=center, font=\scriptsize]{座標計算・\\部材分割} (senkei);
-  \draw[arrow] (senkei) -- node[above, align=center, font=\scriptsize]{ifcopenshell} (ifc);
-\end{tikzpicture}
-}%
+\includegraphics[width=\textwidth]{images/ifc_convert.png}
 \caption{IFC変換の2段階パイプライン}
 \label{fig:ifc_pipeline}
-\end{figure}
+\end{figure*}
 
 \subsubsection{BridgeDesignからSenkei JSONへの変換}
 

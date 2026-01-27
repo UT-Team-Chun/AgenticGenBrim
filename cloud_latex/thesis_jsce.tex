@@ -451,7 +451,7 @@ category & カテゴリ（dimensions, girder\_section, deck, crossbeam\_section,
 \hline
 summary & 日本語要約（1〜3文） \\
 \hline
-condition\_expression & 条件式（例：$h \approx L/20 \sim L/25$） \\
+condition\_expression & 条件式 \\
 \hline
 formula\_latex & LaTeX形式の数式表現 \\
 \hline
@@ -878,6 +878,14 @@ Senkei JSONへの変換では，将来的な維持管理情報の
 これはBIM/CIMを活用した維持管理において，
 損傷の位置を3次元モデル上で特定し，
 補修履歴を蓄積するための基盤となる．
+図\ref{fig:divided_bim}に，厚み方向に2分割された主桁部材のBIMモデル表示例を示す．画像において、ウェブの左半分と下フランジの上半分が選択されて緑色に表示されており、厚さ方向に分割されていることが確認できる。
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.5\linewidth]{images/divided_bim.png}
+\caption{厚み方向に2分割された主桁部材のBIMモデル表示例}
+\label{fig:divided_bim}
+\end{figure}
 
 \subsubsection{Senkei JSONからIFCへの変換}
 
@@ -945,6 +953,15 @@ IFC（Industry Foundation Classes）は建設プロジェクトのデータ交�
 
 材料属性はIfcMaterialエンティティとして定義し，IfcRelAssociatesMaterialを通じて各構造要素に関連付ける．本システムではデフォルトでSM490Aを使用する．これにより，BIMビューワーでの属性表示や数量計算が可能となる．
 
+図\ref{fig:raw_ifc}に，出力されたIFCファイルの実データ抜粋を示す．この例は主桁1の第1ブロックウェブ（G1B1W\_T0\_X0）を構成するエンティティ群であり，色定義（IFCCOLOURRGB）→表面スタイル（IFCSURFACESTYLE）→形状表現（IFCSHAPEREPRESENTATION, Brep）→配置（IFCLOCALPLACEMENT）→要素本体（IFCBEAM）→空間格納（IFCRELCONTAINEDINSPATIALSTRUCTURE）という積み上げ構造でIFCエンティティが構成されている．IFCBEAM の名称「G1B1W\_T0\_X0」は，主桁1（G1），ブロック1（B1），ウェブ（W），厚み分割区分（T0），橋軸方向セグメント（X0）を表す命名規則に従っている．最終行のIFCRELCONTAINEDINSPATIALSTRUCTUREにより，この要素がIfcBuildingStorey（\#6）に紐付けられ，空間階層と幾何情報がRelationship（Rel）エンティティで結ばれるというIFCの基本構造が実現されている．
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{images/raw_ifc.png}
+\caption{出力IFCファイルの実データ抜粋（主桁ウェブ要素）}
+\label{fig:raw_ifc}
+\end{figure}
+
 \subsubsection{座標系と出力形式}
 
 3Dモデルの座標系は，X軸を橋軸方向（橋長方向），Y軸を橋軸直角方向（幅員方向），Z軸を鉛直方向（上向き正）とする右手系である．原点は床版上面の角（X=0, Y=0, Z=0）に設定している．主桁は床版下面から下方に配置されるため，主桁のZ座標は負の値となる．この座標系は道路橋の一般的な表現に準拠している．座標系と主桁配置の模式図を図\ref{fig:coord_girders}に示す．
@@ -981,9 +998,7 @@ IFC（Industry Foundation Classes）は建設プロジェクトのデータ交�
 \label{fig:coord_girders}
 \end{figure}
 
-生成されるIFCファイルはIFC2x3形式またはIFC4x3形式で出力可能である．IFC4x3\cite{ifc4x3}ではインフラ向けの拡張（IfcBridgePartTypeEnum等）が利用可能であり，橋梁BIMとしてより適切なセマンティクス表現が可能となる．
-
-出力されたIFCファイルは，BIMvision，Autodesk Revit，FreeCAD，Blender（BIM Add-on使用）などの汎用BIMビューワーで即座に可視化・検証できる．これにより，生成された設計が意図通りの形状となっているかを視覚的に確認でき，さらにBIM/CIMワークフローへの統合が可能となる．図\ref{fig:bim_model}に生成されたIFCモデルのBIMビューワーでの表示例を，図\ref{fig:bim_component}に部材別の色分け表示例を示す．
+生成されるIFCファイルはIFC2x3形式またはIFC4x3形式で出力可能であり，BIMvision，Autodesk Revit，FreeCAD，Blender（BIM Add-on使用）などの汎用BIMビューワーで即座に可視化・検証できる．これにより，生成された設計が意図通りの形状となっているかを視覚的に確認でき，さらにBIM/CIMワークフローへの統合が可能となる．図\ref{fig:bim_model}に生成されたIFCモデルのBIMビューワーでの表示例を示す．
 
 \begin{figure}[t]
 \centering
@@ -991,14 +1006,6 @@ IFC（Industry Foundation Classes）は建設プロジェクトのデータ交�
 \caption{BIMビューワーで表示したIFCモデル}
 \label{fig:bim_model}
 \end{figure}
-
-\begin{figure}[t]
-\centering
-\includegraphics[width=0.92\linewidth]{images/bim_component.png}
-\caption{BIMビューワーでの部材別表示（色分け例）}
-\label{fig:bim_component}
-\end{figure}
-
 
 \section{評価実験}
 

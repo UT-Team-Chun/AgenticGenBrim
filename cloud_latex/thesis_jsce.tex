@@ -111,7 +111,7 @@ fine-tuningは，事前学習済みモデルを特定ドメインのデータで
 \begin{enumerate}
   \item \textbf{RAGによる設計根拠の明示}：道路橋示方書等から関連条文を検索し，設計値の根拠をトレース可能とする．LLMのハルシネーションを抑制し，設計者による検証を容易にする．
 
-  \item \textbf{決定論照査とLLM修正のハイブリッド}：照査計算（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）は数式ベースの決定論的処理で確実に実行し，修正提案のみLLMが生成する．これにより，工学的妥当性を担保しつつLLMの柔軟な修正提案能力を活用する．
+  \item \textbf{決定論照査とLLM修正のハイブリッド}：近年の研究では，LLMは数学問題で高い正答率を示す一方，計算ミス（calculation error）が主要かつ難しい誤りとして残存することが報告されている\cite{li2024math_error}．本システムでは，照査計算（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）は数式ベースの決定論的処理で確実に実行し，修正提案のみLLMが生成する．これにより，工学的妥当性を担保しつつLLMの柔軟な修正提案能力を活用する．
 
   \item \textbf{IFC出力までの一貫パイプライン}：橋長・幅員の2パラメータ入力から，設計生成 → 照査・修正ループ → IFC出力までを自動化する．BIM/CIM環境への直接連携を実現し，モデリング工数を大幅に削減する．
 \end{enumerate}
@@ -125,48 +125,16 @@ fine-tuningは，事前学習済みモデルを特定ドメインのデータで
 
 システムの全体的な処理フローを図\ref{fig:system_overview}に示す．まずDesignerがRAGを用いて道路橋示方書等から関連条文を検索し，それらを参照しながら主桁本数，桁高，板厚，床版厚などの断面寸法を決定する．次にJudgeが生成された設計に対して曲げ・せん断・たわみなどの照査計算を実行し，不合格の場合はLLMが修正提案（PatchPlan）を生成する．この照査と修正のループを合格するまで繰り返し，最終的な設計をIFC形式で出力する．
 
-本システムの主な技術的特徴は以下の5点である．第一に，OpenAI APIのStructured Output機能\cite{openai_structured_output}を活用することで，LLMの出力をPydantic\cite{pydantic_docs}スキーマで厳密に定義された構造化データとして受け取り，型安全性を確保している．第二に，設計要素ごとに異なるクエリでRAG検索を実行するマルチクエリRAGにより，幅広い設計知識を効率的に参照している．第三に，照査計算は数式ベースの決定論的処理で実行し，修正提案のみLLMが生成するハイブリッドアプローチにより，工学的妥当性と柔軟な修正提案能力を両立している．第四に，LLMが複数の修正案を生成し，各案をシミュレーション評価して最良案を選択する複数候補方式により，効率的な設計改善を実現している．第五に，設計JSONから中間形式（Senkei JSON）を経てifcopenshell\cite{ifcopenshell_docs}によりIFCに変換する2段階パイプラインにより，BIM環境との連携を実現している．
+本システムの主な技術的特徴は以下の5点である．第一に，OpenAI APIのStructured Output機能\cite{openai_structured_output}を活用することで，LLMの出力をPydantic\cite{pydantic_docs}スキーマで厳密に定義された構造化データとして受け取り，型安全性を確保している．これにより、LLMからの応答を常にIFC変換しやすいJSON形式で受け取ることが可能となる。第二に，設計要素ごとに異なるクエリでRAG検索を実行するマルチクエリRAGにより，幅広い設計知識を効率的に参照している．第三に，照査計算は数式ベースの決定論的処理で実行し，修正提案のみLLMが生成するハイブリッドアプローチにより，工学的妥当性と柔軟な修正提案能力を両立している．第四に，LLMが複数の修正案を生成し，各案をシミュレーション評価して最良案を選択する複数候補方式により，効率的な設計改善を実現している．第五に，設計JSONから中間形式（Senkei JSON）を経てifcopenshell\cite{ifcopenshell_docs}によりIFCに変換する2段階パイプラインにより，BIM環境との連携を実現している．
 
-本システムの対象は単純桁構造の鋼プレートガーダー橋（RC床版合成桁）であり，橋長30m〜70m，幅員8m〜15m程度を想定している．なお，現時点では断面は全長一定（支点部・中央部の変化なし）とし，照査は概略設計レベル（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）に限定している．座屈・疲労等の詳細照査は今後の課題である．
+本システムの対象は単純桁構造の鋼プレートガーダー橋（RC床版合成桁）であり，橋長20m〜70m，幅員8m〜24m程度を想定している．なお，現時点では断面は全長一定（支点部・中央部の変化なし）とし，照査はあくまで概略設計レベル（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）に限定している．座屈・疲労等の詳細照査などは今後の課題である．
 
-\begin{figure}[t]
+\begin{figure*}[t]
 \centering
-\resizebox{\linewidth}{!}{%
-\begin{tikzpicture}[
-  font=\small,
-  box/.style={draw,rounded corners,align=center,inner sep=4pt,minimum height=8mm,text width=22mm},
-  lab/.style={font=\scriptsize,fill=white,inner sep=1.5pt},
-  arrow/.style={-Latex,thick},
-  node distance=8mm and 12mm
-]
-  \node[box] (input) {入力\\橋長 $L$\\幅員 $B$};
-  \node[box, right=of input] (rag) {RAG\\検索};
-  \node[box, right=of rag] (designer) {Designer\\(設計生成)};
-  \node[box, right=of designer] (judge) {Judge\\(照査)};
-  \node[box, right=of judge] (ifc) {IFC変換};
-  \node[box, right=of ifc] (viewer) {BIM\\ビューア};
-
-  \node[box, above=12mm of rag] (pdf) {PDF\\知識ベース};
-  \node[box, above=12mm of designer] (openai) {OpenAI API};
-
-  \draw[arrow] (input) -- (rag);
-  \draw[arrow] (rag) -- node[above,lab]{コンテキスト} (designer);
-  \draw[arrow] (designer) -- node[above,lab]{設計JSON} (judge);
-  \draw[arrow] (judge) -- node[above,lab]{合格} (ifc);
-  \draw[arrow] (ifc) -- (viewer);
-
-  \draw[arrow] (pdf) -- (rag);
-  \draw[arrow] (openai) -- (rag);
-  \draw[arrow] (openai) -- (designer);
-  \draw[arrow] (openai) -- (judge);
-
-  % Judge repair loop
-  \draw[arrow,dashed] (judge.south) -- ++(0,-8mm) node[below,lab]{不合格} -| node[near start,below,lab]{PatchPlan} (designer.south);
-\end{tikzpicture}
-}%
+\includegraphics[width=\textwidth]{images/research_overview.png}
 \caption{提案システムの全体フロー}
 \label{fig:system_overview}
-\end{figure}
+\end{figure*}
 
 
 \subsection{RAG（検索拡張生成）サブシステム}
@@ -992,8 +960,12 @@ Zheng, Z., et al.: Automated Checking of Highway Bridge BIM Models Using Large L
 Lewis, P., et al.: Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks, Advances in Neural Information Processing Systems, Vol.33, pp.9459--9474, 2020.
 \bibitem{soudani_rag_vs_ft}
 Soudani, H., et al.: Fine-Tuning vs. Retrieval-Augmented Generation for Less Popular Knowledge, arXiv:2403.01432, 2024.
+\bibitem{li2024math_error}
+X. Li, W. Wang, M. Li, J. Guo, Y. Zhang, and F. Feng: Evaluating Mathematical Reasoning of Large Language Models: A Focus on Error Identification and Correction, Findings of ACL, 2024.
 \bibitem{openai_structured_output}
 OpenAI: Structured Outputs - OpenAI API Documentation, \url{https://platform.openai.com/docs/guides/structured-outputs} (accessed 2025-01-26).
+\bibitem{pydantic_docs}
+Pydantic: Pydantic Documentation - Data validation using Python type hints, \url{https://docs.pydantic.dev/} (accessed 2025-01-26).
 \bibitem{dosisyo}
 日本道路協会：道路橋示方書・同解説 I共通編・II鋼橋・鋼部材編，2017.
 \bibitem{textbook}
@@ -1006,8 +978,6 @@ OpenAI: Embeddings - OpenAI API Documentation, \url{https://platform.openai.com/
 NumPy: NumPy Documentation - The fundamental package for scientific computing with Python, \url{https://numpy.org/doc/} (accessed 2025-01-26).
 \bibitem{openai_responses}
 OpenAI: Responses API - OpenAI API Documentation, \url{https://platform.openai.com/docs/api-reference/responses} (accessed 2025-01-26).
-\bibitem{pydantic_docs}
-Pydantic: Pydantic Documentation - Data validation using Python type hints, \url{https://docs.pydantic.dev/} (accessed 2025-01-26).
 \bibitem{ifcopenshell_docs}
 IfcOpenShell: IfcOpenShell Documentation, \url{https://ifcopenshell.org/} (accessed 2025-01-26).
 \end{thebibliography}

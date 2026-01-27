@@ -237,9 +237,24 @@ Components & deck.thickness & 床版厚 [mm] \\
 \end{tabularx}
 \end{table}
 
-主桁断面（GirderSection）は，腹板高さ（web\_height），腹板厚（web\_thickness），上フランジ幅・厚（top\_flange\_width, top\_flange\_thickness），下フランジ幅・厚（bottom\_flange\_width, bottom\_flange\_thickness）の6パラメータで定義される．横桁断面（CrossbeamSection）は，桁高（total\_height），腹板厚（web\_thickness），フランジ幅・厚（flange\_width, flange\_thickness）の4パラメータで定義される．すべての寸法はmm単位で記録され，Pydanticによるバリデーションにより数値範囲や型の整合性が保証される．
+主桁断面（GirderSection）は，腹板高さ，腹板厚，
+上フランジ幅・厚，下フランジ幅・厚の
+6パラメータで定義される．
+横桁断面（CrossbeamSection）は，桁高，腹板厚，
+フランジ幅・厚の4パラメータで定義される．
+すべての寸法はmm単位で記録され，
+Pydanticによるバリデーションにより
+数値範囲や型の整合性が保証される．
 
-LLMからの直接出力はDesignerOutputモデルで受け取る．このモデルには，BridgeDesignに加えて，設計プロセスの思考・判断根拠を記述したreasoning（文字列），適用した設計ルールの一覧であるrules（DesignRuleのリスト），および部材間の依存関係を表すdependency\_rules（DependencyRuleのリスト）が含まれる．これにより，生成された設計値だけでなく，その根拠も記録される．
+LLMからの直接出力はDesignerOutputモデルで受け取る．
+このモデルには，BridgeDesignに加えて，
+設計プロセスの思考・判断根拠を記述したreasoning，
+適用した設計ルールの一覧であるrules
+（DesignRuleのリスト），
+および部材間の依存関係を表すdependency\_rules
+（DependencyRuleのリスト）が含まれる．
+これにより，生成された設計値だけでなく，
+その根拠も記録される．
 
 \subsubsection{マルチクエリRAG}
 
@@ -555,7 +570,7 @@ LLMへのプロンプトでは，照査結果（各項目のutilization ratio，
   \item 曲げが支配的な場合：フランジ厚または腹板高さの増加を優先
   \item せん断が支配的な場合：腹板厚の増加を優先
   \item たわみが支配的な場合：断面二次モーメントを増やす方向（腹板高さ増加）を優先
-  \item 床版厚が支配的な場合：SET\_DECK\_THICKNESS\_TO\_REQUIREDを必ず使用
+  \item 床版厚が支配的な場合：床版厚を必要厚に設定するアクションを必ず使用
 \end{itemize}
 
 本システムでは複数候補方式を採用している．LLMが最大5つの異なるアプローチ（例：腹板高さ重視，フランジ厚重視，バランス型など）による修正案を同時に生成し，各案を仮適用して照査計算をシミュレーションする．シミュレーションは決定論的な照査計算を再実行するのみであり，LLMは使用しない．そして，改善度（improvement = 現在のmax\_util - シミュレーション後のmax\_util）が最大となる案を選択する．この方式により，LLMの提案の不確実性を軽減し，効率的な設計改善を実現している．
@@ -621,7 +636,31 @@ Shouban & 床版パネル \\
 
 横桁は，隣接する主桁間を接続する形で配置される．横桁の橋軸方向位置はパネル境界位置（C1, C2, ...）に一致し，両端部（S1, E1）を除く$n_{\mathrm{panels}} - 1$箇所に配置される．横桁の命名規則は「CB\_G\{左桁番号\}\_G\{右桁番号\}\_C\{断面番号\}」であり，例えば「CB\_G1\_G2\_C1」は第1主桁と第2主桁の間のC1位置に配置される横桁を表す．各横桁の断面諸元（高さ，腹板厚，フランジ寸法）はBridgeDesignのcrossbeam\_standardから取得する．
 
-床版は，橋梁の四隅を頂点とする矩形として定義される．line属性には床版の外周を定義する4本の線形名（TG1L, TG1R, TG*R, TG*L）が指定される．厚さはBridgeDesignのdeck.thicknessから取得し，overhangの値も記録して床版端部の位置を明確にする．
+床版は，橋梁の四隅を頂点とする矩形として定義される．
+line属性には床版の外周を定義する4本の線形名
+（TG1L, TG1R, TG*R, TG*L）が指定される．
+厚さはBridgeDesignのdeck.thicknessから取得し，
+overhangの値も記録して床版端部の位置を明確にする．
+
+\subsubsection{部材の厚み方向分割}
+
+Senkei JSONへの変換では，将来的な維持管理情報の
+格納を考慮し，各部材を厚み方向に分割して
+個別の要素として出力する．
+具体的には，主桁パネル（ウェブ，上フランジ，
+下フランジ）はそれぞれ板厚を2等分した
+2枚の板要素に分割される．
+例えば板厚$t$のウェブは，厚さ$t/2$の2枚の
+パネルとして記録される．
+床版についても同様に厚み方向に2分割される．
+
+この分割により，IFCモデル上の各要素が
+橋梁部材の表裏面に対応するため，
+点検記録や劣化情報を部材の表裏ごとに
+個別に紐付けることが可能となる．
+これはBIM/CIMを活用した維持管理において，
+損傷の位置を3次元モデル上で特定し，
+補修履歴を蓄積するための基盤となる．
 
 \subsubsection{Senkei JSONからIFCへの変換}
 

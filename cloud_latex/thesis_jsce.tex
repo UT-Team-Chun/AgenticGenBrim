@@ -677,6 +677,15 @@ t_{\mathrm{web,min}} = \frac{h_{\mathrm{web}}}{130}
 
 第六に，横桁配置照査を行う．パネル長とパネル数の積が橋長とほぼ一致すること（許容誤差1.0mm以内），およびパネル長が20m以下であることを確認する．
 
+照査結果はJudgeReportとしてJSON形式で出力される．図\ref{fig:judge_log}に不合格時の出力例を示す．\texttt{pass\_fail}は合否判定，\texttt{utilization}は各照査項目のutilization ratioと支配的な照査項目（\texttt{governing\_check}），\texttt{diagnostics}は照査計算の中間値（断面力・応力度・たわみ等）を記録する．この例では曲げのutilization ratioが1.33と1.0を超過しており，曲げが支配的照査項目となっている．この照査結果がPatchPlan生成時にLLMへ入力され，修正方針の判断根拠となる．
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.7\linewidth]{images/judge_log.png}
+\caption{Judge照査結果の出力例（不合格時）}
+\label{fig:judge_log}
+\end{figure}
+
 \subsubsection{PatchPlan生成}
 
 照査で不合格となった場合，LLMが修正提案（PatchPlan）を生成する．PatchPlanは，許可されたアクション（PatchAction）の組み合わせで構成される．各PatchActionには操作種別（op），対象フィールドパス（path），変更量（delta\_mm），変更理由（reason）が含まれる．
@@ -719,9 +728,25 @@ LLMへのプロンプトでは，照査結果（各項目のutilization ratio，
   \item 床版厚が支配的な場合：床版厚を必要厚に設定するアクションを必ず使用
 \end{itemize}
 
-本システムでは複数候補方式を採用している．LLMが最大5つの異なるアプローチ（例：腹板高さ重視，フランジ厚重視，バランス型など）による修正案を同時に生成し，各案を仮適用して照査計算をシミュレーションする．シミュレーションは決定論的な照査計算を再実行するのみであり，LLMは使用しない．そして，改善度（improvement = 現在のmax\_util - シミュレーション後のmax\_util）が最大となる案を選択する．この方式により，LLMの提案の不確実性を軽減し，効率的な設計改善を実現している．
+図\ref{fig:patch_plan}に，図\ref{fig:judge_log}の不合格結果に対してLLMが生成したPatchPlanの出力例を示す．曲げが支配的照査項目であるため，上フランジ厚を6mm増加させるアクションと上フランジ幅を100mm拡大するアクションの2つが提案されている．各アクションには対象フィールドのパス，変更量，および変更理由が自然言語で記述されており，LLMが照査結果を解釈して適切な修正方針を導出していることがわかる．
 
-評価済み候補はEvaluatedCandidateモデルとして記録され，各候補のPatchPlan，シミュレーション後のmax\_util，シミュレーション後のUtilization，改善量が含まれる．これによりLLMの提案がどのように評価されたかを追跡できる．
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.7\linewidth]{images/patch_plan.png}
+\caption{PatchPlanの出力例（曲げ支配時）}
+\label{fig:patch_plan}
+\end{figure}
+
+また、本システムでは複数候補方式を採用している．LLMが最大3つの異なるアプローチ（例：腹板高さ重視，フランジ厚重視，バランス型など）による修正案を同時に生成し，各案を仮適用して照査計算をシミュレーションする．シミュレーションは決定論的な照査計算を再実行するのみであり，LLMは使用しない．そして，改善度（improvement = 現在のmax\_util - シミュレーション後のmax\_util）が最大となる案を選択する．この方式により，LLMの提案の不確実性を軽減し，効率的な設計改善を実現している．
+
+評価済み候補はEvaluatedCandidateモデルとして記録され，各候補のPatchPlan，シミュレーション後のmax\_util，シミュレーション後のUtilization，改善量が含まれる．これによりLLMの提案がどのように評価されたかを追跡できる．図\ref{fig:patch_candidates}に評価済み候補の出力例を示す．\texttt{candidate}にはPatchPlanとアプローチの要約（\texttt{approach\_summary}）が含まれ，\texttt{simulated\_max\_util}と\texttt{simulated\_utilization}にはこの修正案を仮適用した場合の照査シミュレーション結果が記録される．この例では，修正前のmax\_utilが1.33（図\ref{fig:judge_log}）であったのに対し，シミュレーション後は1.05に低下しており，\texttt{improvement}として0.28の改善が得られている．なお，たわみのutilization ratioが1.00とぎりぎりであり，1回の修正では完全に合格に至っていないことも読み取れる．このような場合，修正ループが継続して追加の修正を行う．
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.75\linewidth]{images/patch_candidates.png}
+\caption{評価済み候補（EvaluatedCandidate）の出力例}
+\label{fig:patch_candidates}
+\end{figure}
 
 \subsubsection{修正ループ}
 

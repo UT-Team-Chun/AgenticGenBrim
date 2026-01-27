@@ -471,9 +471,7 @@ LLMの呼び出しにはOpenAI Responses API\cite{openai_responses}とStructured
 \texttt{)}
 \end{quote}
 
-OpenAI APIが自動でバリデーションを行い，response.output\_parsedとしてPydanticインスタンスを返すため，出力の型安全性が保証される．この方式により，山本ら\cite{yamamoto_genai_ifc}が報告したIFCテキスト直接生成時のスキーマ違反や構文エラーの問題を回避している．
-
-Pydantic\cite{pydantic_docs}はPythonのデータバリデーションライブラリであり，型ヒントを用いてデータモデルを定義し，実行時にバリデーションを行う．Pydanticモデルは自動的にJSONスキーマに変換されるため，OpenAI APIとの連携が容易である．また，model\_dump\_json()メソッドにより，ensure\_ascii=Falseを指定して日本語を含むJSONを適切に出力できる．
+OpenAI APIが自動でバリデーションを行い，response.output\_parsedとしてPydanticインスタンスを返すため，出力の型安全性が保証される．ここで，Pydantic\cite{pydantic_docs}はPythonのデータバリデーションライブラリであり，型ヒントを用いてデータモデルを定義し実行時にバリデーションを行う．PydanticモデルはJSONスキーマへ自動変換されるため，前述のDesignerOutputモデルをそのままStructured Outputのスキーマとして指定できる．この出力をさらにPythonで決定的にIFCに変換することで，山本ら\cite{yamamoto_genai_ifc}が報告したIFCテキスト直接生成時のスキーマ違反や構文エラーの問題を回避することが可能になる．
 
 
 \subsection{Judge（照査・修正提案）サブシステム}
@@ -489,7 +487,7 @@ Judgeへの入力はJudgeInputモデルで定義され，BridgeDesignに加え�
 \label{tab:judge_materials}
 \centering
 \small
-\begin{tabular}{|l|l|l|}
+\begin{tabularx}{\linewidth}{|l|l|X|}
 \hline
 パラメータ & 値 & 説明 \\
 \hline
@@ -505,7 +503,7 @@ $\alpha_{\mathrm{bend}}$ & 0.6 & 曲げ許容応力度係数 \\
 \hline
 $\alpha_{\mathrm{shear}}$ & 0.6 & せん断許容応力度係数 \\
 \hline
-\end{tabular}
+\end{tabularx}
 \end{table}
 
 降伏点$f_y$は鋼種と板厚に応じて表\ref{tab:steel_fy}により決定される．

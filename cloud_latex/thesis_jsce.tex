@@ -12,6 +12,7 @@
 \usepackage{url}
 \usepackage{tabularx}
 \usepackage{multirow}
+\usepackage{subcaption}
 \usepackage{endnotes}
 \usepackage[savepos]{zref}
 \usepackage[dvipdfmx]{hyperref}
@@ -168,36 +169,46 @@ RAGサブシステムは，道路橋示方書や鋼橋設計の教科書から�
 \end{table}
 
 PDFからのテキスト抽出にはpdfplumber\cite{pdfplumber_docs}ライブラリを使用している．pdfplumberはPDFの内部構造を解析してテキストを抽出するPythonライブラリであり，特に表構造の保持に優れている．示方書のような表形式で設計値が示される文書の処理に適しており，表中の数値と周囲のテキストの対応関係を維持したまま抽出できる．元PDFの例を図\ref{fig:pdf_master}に，pdfplumberによる抽出結果を図\ref{fig:pdf_extraction}に示す．図\ref{fig:pdf_master}では鋼材の物理定数が表形式で記載されており，表中の数値とその見出しの対応関係を正確に抽出することが求められる．図\ref{fig:pdf_extraction}に示すように，pdfplumberによる抽出結果では表構造が保持されており，「鋼及び鋳鋼のヤング係数」「2.00×10\textsuperscript{5}N/mm\textsuperscript{2}」のように，項目名と数値の対応関係が維持されたままテキスト化されている．この特性により，後続のチャンク化・RAG検索において設計値を正確に参照することが可能となる．
-なお，一般的にPDFからのテキスト抽出は，フォント埋め込みやレイアウトの複雑さにより困難を伴う場合が多い．pdfplumberについても例外ではなく，図\ref{fig:pdf_fail_master}に示す数式を含むページでは，図\ref{fig:pdf_extraction_fail}のようにギリシャ文字や微分記号が正しく抽出されず文字化けが生じるケースがある．このような抽出失敗は，元PDFにおけるフォントの埋め込み方式に起因しており，本システムではこうした不完全な抽出結果もそのままチャンク化・インデックス化しているため，数式を含む設計根拠の検索精度には限界がある点に注意が必要である．
+なお，一般的にPDFからのテキスト抽出は，フォント埋め込みやレイアウトの複雑さにより困難を伴う場合が多い．pdfplumberについても例外ではなく，図\ref{fig:pdf_fail_master}に示す数式を含むページでは，図\ref{fig:pdf_extraction_fail}のようにギリシャ文字や微分記号が正しく抽出されず文字化けが生じるケースがある．このような抽出失敗は，元PDFにおけるフォントの埋め込み方式に起因しており，本システムではこうした不完全な抽出結果もそのままチャンク化・インデックス化しているため，数式を含む設計根拠の検索精度には限界がある点に注意が必要である．なお、本研究の範囲においては、ギリシャ文字を含む複雑な数式を必要としないことが多かったため、この限界を許容している。検索結果で実際に使いたい式がうまく抽出できていない場合には、テキストを直接LLMに渡さずに、該当部分のPDFをマルチモーダルなモデルに渡すことである程度の改善が予想されるが、本研究ではそのような手法は採用していない。
 
 抽出処理では，PDFの各ページを順次処理し，ページ終了ごとに「[Page N]」形式のマーカーを挿入することで，後続のチャンク化処理でページ情報を保持できるようにしている．これにより，設計値の根拠となる文献のページ番号を追跡可能としている．
 
 \begin{figure}[t]
 \centering
+\begin{subfigure}[t]{\linewidth}
+\centering
 \includegraphics[width=0.85\linewidth]{images/pdf_plumber_master.png}
-\caption{RAG知識ベースの元PDF例（道路橋示方書 鋼橋・鋼部材編 4.2.2節）}
+\caption{元PDF（道路橋示方書 鋼橋・鋼部材編 4.2.2節）}
 \label{fig:pdf_master}
-\end{figure}
-
-\begin{figure}[t]
+\end{subfigure}
+\vspace{1mm}
+\begin{subfigure}[t]{\linewidth}
 \centering
 \includegraphics[width=0.85\linewidth]{images/pdf_plumber_extraction.png}
-\caption{pdfplumberによるテキスト抽出結果の例（図\ref{fig:pdf_master}と同一ページ）}
+\caption{pdfplumberによる抽出結果（(a)と同一ページ）}
 \label{fig:pdf_extraction}
+\end{subfigure}
+\caption{表構造を含むPDFの抽出成功例}
+\label{fig:pdf_extraction_success}
 \end{figure}
 
 \begin{figure}[t]
+\centering
+\begin{subfigure}[t]{\linewidth}
 \centering
 \includegraphics[width=0.85\linewidth]{images/pdfplumber_fail_master.png}
-\caption{抽出が困難なPDFページの例（鋼橋設計の基本 第六章）}
+\caption{元PDF（鋼橋設計の基本 第六章）}
 \label{fig:pdf_fail_master}
-\end{figure}
-
-\begin{figure}[t]
+\end{subfigure}
+\vspace{1mm}
+\begin{subfigure}[t]{\linewidth}
 \centering
 \includegraphics[width=0.85\linewidth]{images/pdfplumber_fail_extracted.png}
-\caption{図\ref{fig:pdf_fail_master}に対するpdfplumberの抽出結果}
+\caption{pdfplumberによる抽出結果（(a)と同一ページ）}
 \label{fig:pdf_extraction_fail}
+\end{subfigure}
+\caption{数式を含むPDFの抽出失敗例}
+\label{fig:pdf_extraction_failure}
 \end{figure}
 
 \subsubsection{チャンク化とインデックス構築}

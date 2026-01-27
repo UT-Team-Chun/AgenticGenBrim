@@ -115,6 +115,10 @@ DESIGNER_PROMPT = """
     - 文献（RAG）から panel_length の明確根拠が取れない場合は、
             panel_length=5000mm を「仮定（実務目安）」として採用し、rules に source_hit_ranks=[] で明記する。
 
+   - **腹板幅厚比の制約**: `web_thickness ≥ web_height / 130`を満たすこと。
+     - 例: web_height=1500mm → web_thickness ≥ 1500/130 ≈ 11.5mm → 12mm 以上
+     - この制約を満たさないと腹板幅厚比の照査で不合格となる。
+
    - すべての長さ・厚さは **mm 単位** で出力すること。
 
 出力は定義されたスキーマ (DesignerOutput) に従ってください。

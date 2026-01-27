@@ -414,6 +414,15 @@ RC床版 & RC床版合成桁 床版厚さ 最小床版厚 \\
 \label{fig:multiquery_rag}
 \end{figure*}
 
+図\ref{fig:raglog_example}に，実際のRAG検索ヒット結果の例を示す．各ヒットにはrank番号，コサイン類似度スコア（score），出典ドキュメント名（source），ページ番号（page），および抽出されたテキスト（text）が含まれる．この例では，「鋼橋設計の基本\_第七章 プレートガーダー橋.pdf」や「鋼橋設計の基本\_第一章 概論.pdf」など複数の文献から，プレートガーダー橋の設計に関連するチャンクが類似度順に取得されている．Designerはこれらのヒットを参照しながら設計値を決定し，採用した根拠のrank番号をsource\_hit\_ranksとして記録する．
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{images/raglog.png}
+\caption{RAG検索ヒット結果の例（rank 3〜7）}
+\label{fig:raglog_example}
+\end{figure}
+
 プロンプトには以下の重要な指示を含めている：
 \begin{itemize}
   \item source\_hit\_ranksにはRAG検索のhitsのrank番号のみを記載すること
@@ -457,6 +466,15 @@ notes & 補足（仮定の場合はその旨を記載） \\
 
 さらに，部材間の依存関係を表すDependencyRuleも抽出する．例えば，横桁高さが主桁高さの80\%程度とする場合，対象フィールド（target\_field: crossbeam.total\_height），参照フィールド（source\_field: girder.web\_height），係数（factor: 0.8）を記録する．この依存関係ルールは，Judge修正ループ（後述）において主桁高さが変更された際に横桁高さを自動更新するために使用される．DependencyRuleの抽出条件として，RAGコンテキストに「横桁高さは主桁の〇〇\%」等の記述がある場合のみ抽出し，係数が読み取れない場合は抽出しないよう指示している．
 
+図\ref{fig:design_rule_example}に，Designerが実際に抽出した設計ルールの例を示す．reasoningフィールドにはLLMの設計方針が記述され，rulesリストには個々のルールが構造化されている．例えばルールR1はRC床版の最小全厚に関する標準式（$d = 30L_{\mathrm{support}} + 110$）を示し，applies\_to\_fieldsにより適用先がdeck（床版）の厚さであることが明示されている．また，source\_hit\_ranksによりRAG検索のrank 17番のチャンクが根拠であることが追跡可能である．ルールR2は主桁高さの経験式（$h \approx L/20$）を示し，notesには文献の示唆内容と採用理由が記録されている．このように，各設計値の決定根拠が構造化データとして保持されるため，設計者による事後検証が容易となる．
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{images/design_rule.png}
+\caption{Designerが抽出した設計ルールの例（R1: 床版厚，R2: 主桁高さ）}
+\label{fig:design_rule_example}
+\end{figure}
+
 \subsubsection{Structured OutputによるLLM呼び出し}
 
 LLMの呼び出しにはOpenAI Responses API\cite{openai_responses}とStructured Output機能\cite{openai_structured_output}を使用している．Structured Outputは，JSONスキーマまたはPydanticスキーマを指定することでLLMの出力を型安全な構造化データとして受け取る機能である．
@@ -480,7 +498,7 @@ Judgeサブシステムは，Designerが生成したBridgeDesignに対して決�
 
 \subsubsection{入出力仕様}
 
-Judgeへの入力はJudgeInputモデルで定義され，BridgeDesignに加えて材料特性と照査パラメータを含む．材料特性は表\ref{tab:judge_materials}に示すデフォルト値を持つ．
+Judgeへの入力はJudgeInputモデルで定義され，BridgeDesignに加えて材料特性と照査パラメータを含む．材料特性は表\ref{tab:judge_materials}に示すデフォルト値を持つ．これらの物性値は基本的に道路橋示方書の規定に沿ったものを採用している。
 
 \begin{table}[t]
 \caption{Judge照査の材料特性デフォルト値}
@@ -569,7 +587,7 @@ w_{\mathrm{deck}} = \gamma_c \times t_d \times b_i
 
 \subsubsection{照査項目}
 
-Judgeは6項目の照査を実行し，各項目について需要と許容値の比（utilization ratio）を算出する．すべての項目でutilization ratioが1.0以下であれば合格とする．表\ref{tab:judge_checks}に照査項目の一覧を示す．
+Judgeは6項目の照査を実行し，各項目について需要と許容値の比（utilization ratio）を算出する．すべての項目でutilization ratioが1.0以下であれば合格とする．なお、あくまで簡易的な照査であり、疲労などの照査や厳密な照査は行なっていないことに注意が必要である。表\ref{tab:judge_checks}に照査項目の一覧を示す．
 
 \begin{table}[t]
 \caption{Judge照査項目}

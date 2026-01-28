@@ -38,7 +38,7 @@
 \usepackage{jsce_template/jjsce-macros}
 
 \begin{document}
-\jtitle{LLMを用いた鋼プレートガーダー橋BIMモデルの自動生成手法の提案}
+\jtitle{LLMを用いた鋼プレートガーダー橋BIMモデルの自動生成手法の考察}
 \authorlist{%
  \authorentry{阿部 大樹}{Hiroki ABE}{UTokyo}
 }
@@ -477,6 +477,7 @@ RC床版 & RC床版合成桁 床版厚さ 最小床版厚 \\
   \item 主桁本数の候補$\{3, 4, 5, 6\}$を列挙し，各候補について桁間隔と床版厚を評価した上で最終案を選択すること
   \item 床版厚は10mm刻みで設計し，必要厚に余裕を持たせること
   \item パネル長は$\{4000, 5000, 6000\}$mmから選択し，パネル数が整数になるものを優先すること
+  \item 腹板幅厚比の制約として$t_{\mathrm{web}} \geq h_{\mathrm{web}} / 130$を満たすこと（例：$h_{\mathrm{web}} = 1500$\,mmの場合，$t_{\mathrm{web}} \geq 1500/130 \approx 11.5$\,mm → 12\,mm以上）．この制約を満たさない場合，Judge照査の腹板幅厚比で不合格となる
 \end{itemize}
 
 \subsubsection{設計ルール抽出}

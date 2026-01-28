@@ -160,7 +160,7 @@ RAGサブシステムは，道路橋示方書や鋼橋設計の教科書から�
 
 \subsubsection{対象ドキュメントとテキスト抽出}
 
-本システムでは，鋼プレートガーダー橋の設計に必要な知識を網羅するため，道路橋示方書\cite{dosisyo}および「鋼橋設計の基本」\cite{textbook}から抽出した5種類のPDFドキュメントをRAGの知識ベースとして使用している．具体的な対象文書を表\ref{tab:rag_documents}に示す．
+本システムでは，鋼プレートガーダー橋の設計に必要な知識を網羅するため，道路橋示方書\cite{dosisyo}および「鋼橋設計の基礎」\cite{textbook}から抽出した5種類のPDFドキュメントをRAGの知識ベースとして使用している．具体的な対象文書を表\ref{tab:rag_documents}に示す．
 
 \begin{table}[t]
 \caption{RAG知識ベースの対象ドキュメント}
@@ -213,7 +213,7 @@ PDFからのテキスト抽出にはpdfplumber\cite{pdfplumber_docs}ライブラ
 \begin{subfigure}[t]{\linewidth}
 \centering
 \includegraphics[width=0.85\linewidth]{images/pdfplumber_fail_master.png}
-\caption{元PDF（鋼橋設計の基本 第六章）}
+\caption{元PDF（鋼橋設計の基礎 第六章）}
 \label{fig:pdf_fail_master}
 \end{subfigure}
 \vspace{1mm}
@@ -430,38 +430,38 @@ RC床版 & RC床版合成桁 床版厚さ 最小床版厚 \\
 \label{fig:multiquery_rag}
 \end{figure*}
 
-図\ref{fig:raglog_example}に，実際のRAG検索ヒット結果の例を示す．各ヒットにはrank番号，コサイン類似度スコア（score），出典ドキュメント名（source），ページ番号（page），および抽出されたテキスト（text）が含まれる．この例では，「鋼橋設計の基本\_第七章 プレートガーダー橋.pdf」や「鋼橋設計の基本\_第一章 概論.pdf」など複数の文献から，プレートガーダー橋の設計に関連するチャンクが類似度順に取得されている．Designerはこれらのヒットを参照しながら設計値を決定し，採用した根拠のrank番号をsource\_hit\_ranksとして記録する．
+図\ref{fig:raglog_example}に，実際のRAG検索ヒット結果の例を示す．各ヒットにはrank番号，コサイン類似度スコア（score），出典ドキュメント名（source），ページ番号（page），および抽出されたテキスト（text）が含まれる．この例では，「鋼橋設計の基礎\_第七章 プレートガーダー橋.pdf」や「鋼橋設計の基礎\_第一章 概論.pdf」など複数の文献から，プレートガーダー橋の設計に関連するチャンクが類似度順に取得されている．Designerはこれらのヒットを参照しながら設計値を決定し，採用した根拠のrank番号をsource\_hit\_ranksとして記録する．
 
 \begin{figure}[t]
 \centering
 \begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
 {
   "rank": 3, "score": 0.694,
-  "source": "鋼橋設計の基本_第七章 プレートガーダー橋.pdf",
+  "source": "鋼橋設計の基礎_第七章 プレートガーダー橋.pdf",
   "page": 0,
   "text": "7 プレートガーダー橋 7.1 概 説 プレートガーダー(plate girder) 橋は、橋梁として..."
 },
 {
   "rank": 4, "score": 0.682,
-  "source": "鋼橋設計の基本_第七章 プレートガーダー橋.pdf",
+  "source": "鋼橋設計の基礎_第七章 プレートガーダー橋.pdf",
   "page": 108,
   "text": "7.5 主桁断面の設計 223 7.5 主桁断面の設計 プレートガーダー橋の設計手順をまとめて..."
 },
 {
   "rank": 5, "score": 0.679,
-  "source": "鋼橋設計の基本_第一章 概論.pdf",
+  "source": "鋼橋設計の基礎_第一章 概論.pdf",
   "page": 2,
   "text": "1.3 橋梁の種類 ①腹板Web plate 10 2 上フランジ Upper flange ③下フランジ Low..."
 },
 {
   "rank": 6, "score": 0.662,
-  "source": "鋼橋設計の基本_第七章 プレートガーダー橋.pdf",
+  "source": "鋼橋設計の基礎_第七章 プレートガーダー橋.pdf",
   "page": 110,
   "text": "7.5 主桁断面の設計 225 なく、数回の試算で逐次収束するようにする。したがって、数値..."
 },
 {
   "rank": 7, "score": 0.659,
-  "source": "鋼橋設計の基本_第七章 プレートガーダー橋.pdf",
+  "source": "鋼橋設計の基礎_第七章 プレートガーダー橋.pdf",
   "page": 60,
   "text": "7.3 断面力の解析 175 本主桁の単純格子桁を考える。まず、曲げによる垂 P=1 直応力度..."
 }

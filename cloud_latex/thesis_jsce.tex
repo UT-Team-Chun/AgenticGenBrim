@@ -17,6 +17,22 @@
 \usepackage[savepos]{zref}
 \usepackage[dvipdfmx]{hyperref}
 \usepackage{pxjahyper}
+\usepackage{listings}
+\lstdefinelanguage{json}{
+  basicstyle=\ttfamily\scriptsize,
+  string=[s]{"}{"},
+  stringstyle=\color[rgb]{0.25,0.44,0.63},
+  comment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  literate=
+    *{:}{{{\color[rgb]{0.56,0.35,0.01}{:}}}}{1}
+    {,}{{{\color[rgb]{0.56,0.35,0.01}{,}}}}{1}
+    {\{}{{{\color[rgb]{0.56,0.35,0.01}{\{}}}}{1}
+    {\}}{{{\color[rgb]{0.56,0.35,0.01}{\}}}}}{1}
+    {[}{{{\color[rgb]{0.56,0.35,0.01}{[}}}}{1}
+    {]}{{{\color[rgb]{0.56,0.35,0.01}{]}}}}{1}
+}
+\usepackage{color}
 \aboveEtitlesep20mm
 
 \usepackage{jsce_template/jjsce-macros}
@@ -418,8 +434,39 @@ RC床版 & RC床版合成桁 床版厚さ 最小床版厚 \\
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{images/raglog.png}
-\caption{RAG検索ヒット結果の例（rank 3〜7）}
+\begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+{
+  "rank": 3, "score": 0.694,
+  "source": "鋼橋設計の基本_第七章 プレートガーダー橋.pdf",
+  "page": 0,
+  "text": "7 プレートガーダー橋 7.1 概 説 プレートガーダー(plate girder) 橋は、橋梁として..."
+},
+{
+  "rank": 4, "score": 0.682,
+  "source": "鋼橋設計の基本_第七章 プレートガーダー橋.pdf",
+  "page": 108,
+  "text": "7.5 主桁断面の設計 223 7.5 主桁断面の設計 プレートガーダー橋の設計手順をまとめて..."
+},
+{
+  "rank": 5, "score": 0.679,
+  "source": "鋼橋設計の基本_第一章 概論.pdf",
+  "page": 2,
+  "text": "1.3 橋梁の種類 ①腹板Web plate 10 2 上フランジ Upper flange ③下フランジ Low..."
+},
+{
+  "rank": 6, "score": 0.662,
+  "source": "鋼橋設計の基本_第七章 プレートガーダー橋.pdf",
+  "page": 110,
+  "text": "7.5 主桁断面の設計 225 なく、数回の試算で逐次収束するようにする。したがって、数値..."
+},
+{
+  "rank": 7, "score": 0.659,
+  "source": "鋼橋設計の基本_第七章 プレートガーダー橋.pdf",
+  "page": 60,
+  "text": "7.3 断面力の解析 175 本主桁の単純格子桁を考える。まず、曲げによる垂 P=1 直応力度..."
+}
+\end{lstlisting}
+\caption{RAG検索ヒット結果の例（rank 3〜7）．スコアは小数第3位で四捨五入した．textは冒頭のみ表示している．}
 \label{fig:raglog_example}
 \end{figure}
 
@@ -470,8 +517,36 @@ notes & 補足（仮定の場合はその旨を記載） \\
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{images/design_rule.png}
-\caption{Designerが抽出した設計ルールの例（R1: 床版厚，R2: 主桁高さ）}
+\begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+"reasoning": "重視点と全体方針:\n- 参考文献では「桁高は支間に対して経験的に h/L ≒ 1/20 程度が目安」(図7.134, 主 ... （以下省略）",
+"rules": [
+  {
+    "rule_id": "R1",
+    "category": "deck",
+    "summary": "RC床版の最小全厚・支間による標準式（道路橋示方書）",
+    "condition_expression": "d = 30 * L_support + 110",
+    "formula_latex": "d = 30L + 110\\quad(\\text{連続版})",
+    "applies_to_fields": ["components.deck.thickness"],
+    "source_hit_ranks": [17],
+    "notes": "道路橋示方書 表-11.5.1 に基づく。床版の最小全厚は160 mmの下限規定も適用する（参照: [19]）。"
+  },
+  {
+    "rule_id": "R2",
+    "category": "girder_section",
+    "summary": "主桁高さの経験式（スパン比の目安: h/L ≒ 1/15 〜 1/20）",
+    "condition_expression": "h ≈ L / 20",
+    "formula_latex": "h \\approx \\dfrac{L}{20}",
+    "applies_to_fields": [
+      "sections.girder_standard.web_height",
+      "dimensions.bridge_length"
+    ],
+    "source_hit_ranks": [13],
+    "notes": "文献は h/L ≒ 1/20 を示唆しているため、30m 支間では h ≈ 1500 mm を一次採用とする。"
+  },
+  ...
+]
+\end{lstlisting}
+\caption{Designerが抽出した設計ルールの例（R1: 床版厚，R2: 主桁高さ）．reasoningフィールドは紙面の都合上一部のみ掲載した．}
 \label{fig:design_rule_example}
 \end{figure}
 
@@ -681,8 +756,33 @@ t_{\mathrm{web,min}} = \frac{h_{\mathrm{web}}}{130}
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.7\linewidth]{images/judge_log.png}
-\caption{Judge照査結果の出力例（不合格時）}
+\begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+"pass_fail": false,
+"utilization": {
+  "deck": 0.950,
+  "bend": 1.332,
+  "shear": 0.229,
+  "deflection": 1.193,
+  "web_slenderness": 0.962,
+  "max_util": 1.332,
+  "governing_check": "bend"
+},
+"diagnostics": {
+  "M_total": 7789900000.000,
+  "V_total": 825662.5,
+  "ybar": 869.819,
+  "moment_of_inertia": 36675237661.791,
+  "y_top": 1185.181,
+  "y_bottom": 869.819,
+  "sigma_top": 251.735,
+  "sigma_bottom": 184.751,
+  "tau_avg": 25.802,
+  "delta": 95.444,
+  "delta_allow": 80.0,
+  ...
+}
+\end{lstlisting}
+\caption{Judge照査結果の出力例（不合格時）．数値は小数第3位で四捨五入した．}
 \label{fig:judge_log}
 \end{figure}
 
@@ -732,7 +832,24 @@ LLMへのプロンプトでは，照査結果（各項目のutilization ratio，
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.7\linewidth]{images/patch_plan.png}
+\begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+{
+  "actions": [
+    {
+      "op": "increase_top_flange_thickness",
+      "path": "sections.girder_standard.top_flange_thickness",
+      "delta_mm": 6.0,
+      "reason": "上フランジの断面係数を大きく増やし、 sigma_top を直接低減するため。"
+    },
+    {
+      "op": "increase_top_flange_width",
+      "path": "sections.girder_standard.top_flange_width",
+      "delta_mm": 100.0,
+      "reason": "上フランジ幅を拡大して断面係数をさらに増し、曲げ支配をフランジ強化で解消するため。"
+    }
+  ]
+}
+\end{lstlisting}
 \caption{PatchPlanの出力例（曲げ支配時）}
 \label{fig:patch_plan}
 \end{figure}
@@ -743,8 +860,41 @@ LLMへのプロンプトでは，照査結果（各項目のutilization ratio，
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.75\linewidth]{images/patch_candidates.png}
-\caption{評価済み候補（EvaluatedCandidate）の出力例}
+\begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+{
+  "candidate": {
+    "plan": {
+      "actions": [
+        {
+          "op": "increase_top_flange_thickness",
+          "path": "sections.girder_standard.top_flange_thickness",
+          "delta_mm": 6.0,
+          "reason": "上フランジの断面係数を大きく増やし、 sigma_top を直接低減するため。"
+        },
+        {
+          "op": "increase_top_flange_width",
+          "path": "sections.girder_standard.top_flange_width",
+          "delta_mm": 100.0,
+          "reason": "上フランジ幅を拡大して断面係数をさらに増し、曲げ支配をフランジ強化で解消するため。"
+        }
+      ]
+    },
+    "approach_summary": "支配: 曲げ（上フランジ）。方針: フランジ強化（厚さ・幅）で断面係数を大幅増..."
+  },
+  "simulated_max_util": 1.053,
+  "simulated_utilization": {
+    "deck": 0.950,
+    "bend": 1.053,
+    "shear": 0.231,
+    "deflection": 1.010,
+    "web_slenderness": 0.962,
+    "max_util": 1.053,
+    "governing_check": "bend"
+  },
+  "improvement": 0.279
+}
+\end{lstlisting}
+\caption{評価済み候補（EvaluatedCandidate）の出力例．数値は小数第3位で四捨五入した．}
 \label{fig:patch_candidates}
 \end{figure}
 
@@ -831,7 +981,18 @@ Shouban & 床版パネル \\
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=0.45\linewidth]{images/senkei_point.png}
+\begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+{
+  "Name": "TG4R",
+  "Point": [
+    { "Name": "S1", "X": 0.0, "Y": 8251.0, "Z": 2000.0 },
+    { "Name": "C1", "X": 5000.0, "Y": 8251.0, "Z": 2000.0 },
+    { "Name": "C2", "X": 10000.0, "Y": 8251.0, "Z": 2000.0 },
+    { "Name": "C3", "X": 15000.0, "Y": 8251.0, "Z": 2000.0 },
+    ...
+  ]
+}
+\end{lstlisting}
 \caption{Senkei JSONにおける線形点列（SenkeiPoint）の出力例}
 \label{fig:senkei_point}
 \end{figure}
@@ -865,7 +1026,7 @@ Senkei JSONへの変換では，将来的な維持管理情報の
 これはBIM/CIMを活用した維持管理において，
 損傷の位置を3次元モデル上で特定し，
 補修履歴を蓄積するための基盤となる．
-図\ref{fig:divided_bim}に，厚み方向に2分割された主桁部材のBIMモデル表示例を示す．画像において、ウェブの左半分と下フランジの上半分が選択されて緑色に表示されており、厚さ方向に分割されていることが確認できる。
+図\ref{fig:divided_bim}に，厚み方向に2分割された主桁部材のBIMモデル表示例を示す．画像において、ウェブの左半分と下フランジの上半分が選択されて緑色に表示されており、厚さ方向に分割されていることが確認できる。なお、ビュアーには Open IFC Viewer を使用している。
 
 \begin{figure}[t]
 \centering
@@ -944,8 +1105,23 @@ IFC（Industry Foundation Classes）は建設プロジェクトのデータ交�
 
 \begin{figure}[t]
 \centering
-\includegraphics[width=\linewidth]{images/raw_ifc.png}
-\caption{出力IFCファイルの実データ抜粋（主桁ウェブ要素）}
+\begin{lstlisting}[basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+#717=IFCCOLOURRGB($,0.675,0.812,0.925);
+#718=IFCSURFACESTYLESHADING(#717,$);
+#719=IFCSURFACESTYLE($,.BOTH.,(#718));
+#720=IFCSTYLEDITEM(#56,(#719),$);
+#721=IFCSHAPEREPRESENTATION(#12,'Body','Brep',(#56));
+#722=IFCPRODUCTDEFINITIONSHAPE($,$,(#721));
+#723=IFCCARTESIANPOINT((0.,0.,0.));
+#724=IFCAXIS2PLACEMENT3D(#723,$,$);
+#725=IFCLOCALPLACEMENT($,#724);
+#726=IFCBEAM('1acce528-f9dd-11f0-9600-9626031620ab',
+     $,'G1B1W_T0_X0',$,$,#725,#722,$,.USERDEFINED.);
+#727=IFCRELCONTAINEDINSPATIALSTRUCTURE(
+     '1acce6a4-f9dd-11f0-9600-9626031620ab',
+     $,$,$,(#726),#6);
+\end{lstlisting}
+\caption{出力IFCファイルの実データ抜粋（主桁ウェブ要素）．RGB値は小数第3位で四捨五入した．}
 \label{fig:raw_ifc}
 \end{figure}
 

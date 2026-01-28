@@ -1175,11 +1175,89 @@ IFC（Industry Foundation Classes）は建設プロジェクトのデータ交�
 
 \subsection{実験設定}
 
-（後で記載）
+提案システムの有効性を検証するため，橋長$L$と幅員$B$の組み合わせを変化させた192件の評価実験を実施した．
+
+\subsubsection{評価ケースの構成}
+
+評価ケースは，32種類の$L \times B$条件に対してRAG有無の2水準，各条件3試行の計$32 \times 2 \times 3 = 192$件である．橋長は20m〜70mの11段階（5m刻み），幅員は8m, 10m, 12m, 16m, 20m, 24mの6段階を設定した．ただし，すべての$L \times B$の組み合わせではなく，実務的に想定される32条件を選定した（表\ref{tab:eval_conditions}）．短スパン（$L = 20$〜$45$m）では狭幅員（$B = 8$〜$20$m），長スパン（$L = 50$〜$70$m）では広幅員（$B = 10$〜$24$m）を中心に選定しており，これは実際の道路橋設計において，短い支間では比較的狭い幅員の橋梁が多く，長支間では広幅員となる傾向を反映したものである．
+
+\begin{table}[t]
+\caption{評価対象とした$L \times B$の組み合わせ（$\checkmark$が評価対象）}
+\label{tab:eval_conditions}
+\centering
+\small
+\begin{tabular}{|c|c|c|c|c|c|c|}
+\hline
+$L$ [m] $\backslash$ $B$ [m] & 8 & 10 & 12 & 16 & 20 & 24 \\
+\hline
+20 & $\checkmark$ & $\checkmark$ & & & & \\
+\hline
+25 & $\checkmark$ & $\checkmark$ & $\checkmark$ & & & \\
+\hline
+30 & $\checkmark$ & $\checkmark$ & $\checkmark$ & & & \\
+\hline
+35 & $\checkmark$ & $\checkmark$ & & $\checkmark$ & & \\
+\hline
+40 & $\checkmark$ & $\checkmark$ & & & $\checkmark$ & \\
+\hline
+45 & $\checkmark$ & $\checkmark$ & & & $\checkmark$ & \\
+\hline
+50 & & $\checkmark$ & & $\checkmark$ & & $\checkmark$ \\
+\hline
+55 & & $\checkmark$ & & $\checkmark$ & & $\checkmark$ \\
+\hline
+60 & & $\checkmark$ & & $\checkmark$ & & $\checkmark$ \\
+\hline
+65 & & & $\checkmark$ & $\checkmark$ & & $\checkmark$ \\
+\hline
+70 & & & $\checkmark$ & $\checkmark$ & & $\checkmark$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{実験パラメータ}
+
+LLMにはgpt-5.1を使用した．Designer--Judgeの修正ループにおける最大イテレーション数は5回とした．すなわち，Designerが初期設計を生成した後，Judgeによる照査で不合格となった場合，最大5回まで修正と再照査を繰り返す．5回の修正で合格に至らなかった場合は不合格として記録する．各条件について3試行を実施しているのは，LLMの出力の確率的な変動を考慮し，結果の安定性を評価するためである．
+
+RAG有無の2水準は，RAGを有効にした場合（道路橋示方書等の関連条文をプロンプトに付与）と無効にした場合（関連条文なしでLLMの事前学習知識のみに依拠）を比較するものであり，RAGが設計品質に与える効果を定量的に評価することを目的としている．
 
 \subsection{評価指標}
 
-（後で記載）
+\subsubsection{照査項目}
+
+Judgeサブシステムが実行する照査項目は表\ref{tab:eval_checks}に示す5項目である．各項目について合格（pass）または不合格（fail）を判定し，すべての項目に合格した場合のみ設計全体を合格とする．なお、あくまで簡易的な照査であり、実際の設計業務における詳細な照査を代替するものではない。
+
+\begin{table}[t]
+\caption{評価に用いる照査項目}
+\label{tab:eval_checks}
+\centering
+\small
+\begin{tabularx}{\linewidth}{|l|X|}
+\hline
+照査項目 & 内容 \\
+\hline
+deck & 床版厚チェック（必要厚 $\leq$ 実厚） \\
+\hline
+bend & 曲げ応力チェック（$\sigma \leq \sigma_{\mathrm{allow}}$） \\
+\hline
+shear & せん断応力チェック（$\tau \leq \tau_{\mathrm{allow}}$） \\
+\hline
+deflection & たわみチェック（$\delta \leq \delta_{\mathrm{allow}}$） \\
+\hline
+web\_slenderness & 腹板幅厚比チェック \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsubsection{評価指標の定義}
+
+評価実験では以下の指標を用いて提案システムの性能を評価する．
+
+\begin{itemize}
+  \item \textbf{合格率}：全試行に対する最終的に全照査項目に合格した試行の割合．RAG有無・橋長・幅員ごとに集計する．
+  \item \textbf{項目別合格率}：各照査項目について，合格した試行の割合．どの照査項目が設計生成の困難さに影響しているかを分析する．
+  \item \textbf{収束までのイテレーション数}：合格に至った試行について，Designer--Judgeの修正ループが何回で収束したかを集計する．イテレーション数が少ないほど，初期設計の品質が高いことを示す．
+\end{itemize}
 
 \subsection{結果}
 

@@ -8,6 +8,7 @@ dependencies = [
     "colorama>=0.4.6",
     "fire>=0.7.1",
     "ifcopenshell>=0.8.4",
+    "matplotlib>=3.10.8",
     "numpy>=2.3.5",
     "openai>=2.9.0",
     "pandas>=2.3.3",

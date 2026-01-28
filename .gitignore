@@ -18,7 +18,10 @@ __pycache__/
 EOF
 
 # data
-data/
+data/*
+!data/evaluation_v4/
+data/evaluation_v4/*
+!data/evaluation_v4/report.md
 rag_index/
 
 # env

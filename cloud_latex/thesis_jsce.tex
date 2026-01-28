@@ -1112,7 +1112,7 @@ IFC（Industry Foundation Classes）は建設プロジェクトのデータ交�
     child { node[box] {IfcSite}
       child { node[box] {IfcBuilding}
         child { node[box] {IfcBuildingStorey}
-          child { node[box] {IfcPlate\\(床版)} }
+          child { node[box] {IfcBeam\\(床版)} }
           child { node[box] {IfcBeam\\(主桁)} }
           child { node[box] {IfcBeam\\(横桁)} }
         }
@@ -1134,25 +1134,25 @@ IFC（Industry Foundation Classes）は建設プロジェクトのデータ交�
 \hline
 構造要素 & IFCエンティティ & 形状表現 \\
 \hline
-床版 & IfcPlate & Brep（境界表現） \\
+床版 & IfcBeam & Brep（境界表現） \\
 \hline
-主桁 & IfcBeam & SweptSolid（断面押し出し） \\
+主桁 & IfcBeam & Brep（境界表現） \\
 \hline
-横桁 & IfcBeam & SweptSolid（断面押し出し） \\
+横桁 & IfcBeam & Brep（境界表現） \\
 \hline
 \end{tabularx}
 \end{table}
 
-床版はIfcPlateエンティティとして生成し，形状表現にはBrep（Boundary Representation：境界表現）を使用する．2Dポリゴン（四隅の座標）を床版厚さ分だけ押し出すことで直方体を生成する．
+床版はIfcBeamエンティティとして生成し，形状表現にはBrep（Boundary Representation：境界表現）を使用する．床版の外形を定義する頂点座標から閉じた多面体（IfcFacetedBrep）を生成することで直方体を表現する．
 
-主桁はIfcBeamエンティティとして生成する．形状表現にはSweptSolid（断面押し出し）を使用し，I形断面プロファイル（IfcIShapeProfileDef）を定義した上で，各パネル長さ分だけ押し出す．IfcIShapeProfileDefには，全高（OverallDepth），フランジ幅（OverallWidth），腹板厚（WebThickness），フランジ厚（FlangeThickness）を指定する．各主桁パネルには以下の命名規則で一意な名前を付与する：
+主桁もIfcBeamエンティティとして生成する．形状表現にはBrep（境界表現）を使用し，ウェブ・上フランジ・下フランジの各板要素を個別のIfcFacetedBrepとして生成する．各主桁パネルには以下の命名規則で一意な名前を付与する：
 \begin{itemize}
   \item ウェブ：G\{桁番号\}B\{ブロック番号\}W
   \item 上フランジ：G\{桁番号\}B\{ブロック番号\}UF
   \item 下フランジ：G\{桁番号\}B\{ブロック番号\}LF
 \end{itemize}
 
-横桁も同様にIfcBeamエンティティとして生成し，I形断面の押し出しで形状を表現する．横桁の押し出し方向は主桁と直交する方向（幅員方向）となる．
+横桁も同様にIfcBeamエンティティとBrep形状表現で生成する．横桁は隣接する主桁間を橋軸直角方向（幅員方向）に接続する形で配置される．
 
 材料属性はIfcMaterialエンティティとして定義し，IfcRelAssociatesMaterialを通じて各構造要素に関連付ける．本システムではデフォルトでSM490Aを使用する．これにより，BIMビューワーでの属性表示や数量計算が可能となる．
 
@@ -1604,7 +1604,7 @@ Designer--Judge修正ループにより，全体の収束率は80.2\%に達し�
 また，不収束38件のうち24件（63\%）は最終利用率が1.0--1.1の範囲にあり，合格に近い状態で修正回数上限に達している．最大修正回数の引き上げ（5回$\rightarrow$7--10回）によってこれらのケースの収束が期待される．ただし，$B=24$\,mで5本桁が選択されたケースのように，断面増加のみでは原理的に収束困難な場合も存在しており，桁本数を含む設計変数の修正が可能なループ構造への拡張が今後の課題である．
 
 
-\section{おわりに}
+\section{まとめと今後の課題・展望}
 
 （後で記載）
 

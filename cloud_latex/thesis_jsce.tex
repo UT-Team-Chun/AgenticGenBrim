@@ -934,9 +934,9 @@ Designer-Judge修正ループの処理フローを図\ref{fig:repair_loop}に示
 \label{fig:repair_loop}
 \end{figure}
 
-まずDesignerが初期設計を生成し，Judgeが照査を実行する．合格（max\_util $\leq$ 1.0かつ横桁配置OK）であれば終了する．不合格の場合，LLMがPatchPlanを生成し，設計に適用する．さらに，Designerが抽出した依存関係ルール（例：横桁高さが主桁高さの80\%）を適用し，部材間の整合性を維持する．その後，再度Judgeが照査を実行する．このループを合格するまで，または最大イテレーション数（デフォルト5回）に達するまで繰り返す．
+まずDesignerが初期設計を生成し，Judgeが照査を実行する．合格（max\_util $\leq$ 1.0かつ横桁配置OK）であれば終了する．不合格の場合，LLMがPatchPlanを生成し，設計に適用する．さらに，Designerが抽出した依存関係ルール（例：横桁高さが主桁高さの80\%）を適用し，部材間の整合性を維持する．その後，再度Judgeが照査を実行する．このループを合格するまで，または最大修正回数（デフォルト5回）に達するまで繰り返す．
 
-修正ループの結果はRepairLoopResultモデルとして記録される．これには，収束フラグ（converged: 合格に到達したか），全イテレーションの履歴（iterations: RepairIterationのリスト），最終設計（final\_design: BridgeDesign），最終照査結果（final\_report: JudgeReport），およびRAG検索ログ（rag\_log: DesignerRagLog）が含まれる．各RepairIterationにはイテレーション番号，その時点のBridgeDesign，JudgeReportが記録される．これにより，設計改善のプロセス全体を追跡可能としている．
+修正ループの結果はRepairLoopResultモデルとして記録される．これには，収束フラグ（converged: 合格に到達したか），全修正ループの履歴（iterations: RepairIterationのリスト），最終設計（final\_design: BridgeDesign），最終照査結果（final\_report: JudgeReport），およびRAG検索ログ（rag\_log: DesignerRagLog）が含まれる．各RepairIterationにはイテレーション番号，その時点のBridgeDesign，JudgeReportが記録される．これにより，設計改善のプロセス全体を追跡可能としている．
 
 
 \subsection{IFC変換サブシステム}
@@ -1217,7 +1217,7 @@ $L$ [m] $\backslash$ $B$ [m] & 8 & 10 & 12 & 16 & 20 & 24 \\
 
 \subsubsection{実験パラメータ}
 
-LLMにはgpt-5.1を使用した．Designer--Judgeの修正ループにおける最大イテレーション数は5回とした．すなわち，Designerが初期設計を生成した後，Judgeによる照査で不合格となった場合，最大5回まで修正と再照査を繰り返す．5回の修正で合格に至らなかった場合は不合格として記録する．各条件について3試行を実施しているのは，LLMの出力の確率的な変動を考慮し，結果の安定性を評価するためである．
+LLMにはgpt-5.1を使用した．Designer--Judgeの修正ループにおける最大修正回数は5回とした．すなわち，Designerが初期設計を生成した後，Judgeによる照査で不合格となった場合，最大5回まで修正と再照査を繰り返す．5回の修正で合格に至らなかった場合は不合格として記録する．各条件について3試行を実施しているのは，LLMの出力の確率的な変動を考慮し，結果の安定性を評価するためである．
 
 RAG有無の2水準は，RAGを有効にした場合（道路橋示方書等の関連条文をプロンプトに付与）と無効にした場合（関連条文なしでLLMの事前学習知識のみに依拠）を比較するものであり，RAGが設計品質に与える効果を定量的に評価することを目的としている．
 
@@ -1256,7 +1256,7 @@ web\_slenderness & 腹板幅厚比チェック \\
 \begin{itemize}
   \item \textbf{合格率}：全試行に対する最終的に全照査項目に合格した試行の割合．RAG有無・橋長・幅員ごとに集計する．
   \item \textbf{項目別合格率}：各照査項目について，合格した試行の割合．どの照査項目が設計生成の困難さに影響しているかを分析する．
-  \item \textbf{収束までのイテレーション数}：合格に至った試行について，Designer--Judgeの修正ループが何回で収束したかを集計する．イテレーション数が少ないほど，初期設計の品質が高いことを示す．
+  \item \textbf{収束までの修正回数}：合格に至った試行について，Designer--Judgeの修正ループが何回で収束したかを集計する．修正回数が少ないほど，初期設計の品質が高いことを示す．
 \end{itemize}
 
 \subsection{結果}

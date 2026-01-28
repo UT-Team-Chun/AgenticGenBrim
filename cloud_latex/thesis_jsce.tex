@@ -1092,7 +1092,7 @@ Senkei JSONへの変換では，将来的な維持管理情報の
 
 \subsubsection{Senkei JSONからIFCへの変換}
 
-第二段階では，ifcopenshell\cite{ifcopenshell_docs}ライブラリを使用してSenkei JSONをIFCファイルに変換する．ifcopenshellはPythonバインディングを提供するオープンソースのIFC操作ライブラリであり，buildingSMART\cite{ifc4x3}が策定するIFC2x3およびIFC4x3の両方に対応している．
+第二段階では，ifcopenshell\cite{ifcopenshell_docs}ライブラリを使用してSenkei JSONをIFCファイルに変換する．ifcopenshellはPythonバインディングを提供するオープンソースのIFC操作ライブラリであり，buildingSMART\cite{ifc4x3}が策定するIFC2x3およびIFC4x3の両方に対応している．本システムではIFC4X3スキーマを使用する．
 
 IFC（Industry Foundation Classes）は建設プロジェクトのデータ交換のためのオープン標準であり，3次元形状と属性情報を統合的に記述できる．IFCファイルはISO 10303-21形式（STEP物理ファイル形式）のテキストファイルとして出力される．
 
@@ -1112,7 +1112,7 @@ IFC（Industry Foundation Classes）は建設プロジェクトのデータ交�
     child { node[box] {IfcSite}
       child { node[box] {IfcBuilding}
         child { node[box] {IfcBuildingStorey}
-          child { node[box] {IfcBeam\\(床版)} }
+          child { node[box] {IfcPlate\\(床版)} }
           child { node[box] {IfcBeam\\(主桁)} }
           child { node[box] {IfcBeam\\(横桁)} }
         }
@@ -1143,7 +1143,7 @@ IFC（Industry Foundation Classes）は建設プロジェクトのデータ交�
 \end{tabularx}
 \end{table}
 
-床版はIfcBeamエンティティとして生成し，形状表現にはBrep（Boundary Representation：境界表現）を使用する．床版の外形を定義する頂点座標から閉じた多面体（IfcFacetedBrep）を生成することで直方体を表現する．
+床版はIfcBeamエンティティとして生成し，形状表現にはBrep（Boundary Representation：境界表現）を使用する．床版の外形を定義する頂点座標から閉じた多面体（IfcFacetedBrep）を生成することで直方体を表現する．床版は厚さ方向（T），橋軸方向（X），幅員方向（Y）の3軸で分割され，各セグメントにはDeck\_T\{厚み番号\}\_X\{橋軸番号\}\_Y\{幅員番号\}の命名規則で一意な名前を付与する．
 
 主桁もIfcBeamエンティティとして生成する．形状表現にはBrep（境界表現）を使用し，ウェブ・上フランジ・下フランジの各板要素を個別のIfcFacetedBrepとして生成する．各主桁パネルには以下の命名規則で一意な名前を付与する：
 \begin{itemize}
@@ -1152,9 +1152,9 @@ IFC（Industry Foundation Classes）は建設プロジェクトのデータ交�
   \item 下フランジ：G\{桁番号\}B\{ブロック番号\}LF
 \end{itemize}
 
-横桁も同様にIfcBeamエンティティとBrep形状表現で生成する．横桁は隣接する主桁間を橋軸直角方向（幅員方向）に接続する形で配置される．
+横桁も同様にIfcBeamエンティティとBrep形状表現で生成する．横桁は隣接する主桁間を橋軸直角方向（幅員方向）に接続する形で配置される．主桁と同様に，横桁もウェブ・上フランジ・下フランジの3要素に分割し，さらに厚さ方向の分割を行う．各要素にはCB\{横桁番号\}\_\{W/UF/LF\}\_T\{厚み番号\}\_X\{橋軸番号\}の命名規則で一意な名前を付与する．
 
-材料属性はIfcMaterialエンティティとして定義し，IfcRelAssociatesMaterialを通じて各構造要素に関連付ける．本システムではデフォルトでSM490Aを使用する．これにより，BIMビューワーでの属性表示や数量計算が可能となる．
+生成されたIfcBeam要素はIfcRelContainedInSpatialStructureを通じてIfcBuildingStoreyに格納される．なお，材料情報（SM490A等）はSenkei JSONに記録されているが，現時点ではIFCエンティティ（IfcMaterial等）への変換は行っていない．
 
 図\ref{fig:raw_ifc}に，出力されたIFCファイルの実データ抜粋を示す．この例は主桁1の第1ブロックウェブ（G1B1W\_T0\_X0）を構成するエンティティ群であり，色定義（IFCCOLOURRGB）→表面スタイル（IFCSURFACESTYLE）→形状表現（IFCSHAPEREPRESENTATION, Brep）→配置（IFCLOCALPLACEMENT）→要素本体（IFCBEAM）→空間格納（IFCRELCONTAINEDINSPATIALSTRUCTURE）という積み上げ構造でIFCエンティティが構成されている．IFCBEAM の名称「G1B1W\_T0\_X0」は，主桁1（G1），ブロック1（B1），ウェブ（W），厚み分割区分（T0），橋軸方向セグメント（X0）を表す命名規則に従っている．最終行のIFCRELCONTAINEDINSPATIALSTRUCTUREにより，この要素がIfcBuildingStorey（\#6）に紐付けられ，空間階層と幾何情報がRelationship（Rel）エンティティで結ばれるというIFCの基本構造が実現されている．
 

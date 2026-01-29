@@ -99,7 +99,7 @@ Yangら\cite{mdpi_bridge_checking}は，LLMを用いて設計仕様書から構�
 \hline
 MCP4IFC\cite{mcp4ifc} & 幾何形状の直接操作（建築汎用） & 橋梁に特化し，RAGと推論に基づく\textbf{自律的な設計パラメータ決定} \\
 \hline
-Zhengら\cite{mdpi_bridge_checking} & 道路橋のBIMモデルに対して，テキストルールとの照合による形式的な適合性チェック & 力学計算による\textbf{工学的照査}に加え，不適合を解消する\textbf{自動修正ループ} \\
+Yangら\cite{mdpi_bridge_checking} & 道路橋のBIMモデルに対して，テキストルールとの照合による形式的な適合性チェック & 力学計算による\textbf{工学的照査}に加え，不適合を解消する\textbf{自動修正ループ} \\
 \hline
 山本ら\cite{yamamoto_genai_ifc} & LLMによるIFCテキスト直接生成（単純形状のみ） & 構文エラーを防ぐため\textbf{JSONでパラメータセットを生成し，pythonでIFCへ変換する}ことで実構造物のBIMを堅牢に生成 \\
 \hline
@@ -108,7 +108,7 @@ Zhengら\cite{mdpi_bridge_checking} & 道路橋のBIMモデルに対して，テ
 
 箱石ら\cite{hakoishi_bert}は，汎用的な事前学習済みモデルであるBERTが土木分野の専門文書では精度が低下することを示している．GPTやGeminiなどの基盤モデルが大幅に進化した現在でも，引き続きLLMの性質としての専門分野での精度低下には対応が必要であるが，LLMの専門知識対応には大きく分けてfine-tuningとRAGの2つのアプローチが存在する．
 
-fine-tuningは，事前学習済みモデルを特定ドメインのデータで追加学習させ，専門知識を内部パラメータに埋め込む手法である．しかし，基盤モデルの性能が急速に進化していく2026年1月現在において，フラグシップモデルと呼ばれるような最先端のモデルは公開されておらず，fine-tuningできる状態にないことが多い．さらに，fine-tuningには大量の学習データと計算リソースを必要とし，知識の更新時には再学習が必要となることも課題として大きい．
+fine-tuningは，事前学習済みモデルを特定ドメインのデータで追加学習させ，専門知識を内部パラメータに埋め込む手法である．しかし，基盤モデルの性能が急速に進化していく2026年1月現在において，最新モデルが必ずしもfine-tuningに対応しているとは限らない．例えば，OpenAIのgpt-5.1はfine-tuningに対応していない\cite{openai_gpt51}．さらに，fine-tuningには大量の学習データと計算リソースを必要とし，知識の更新時には再学習が必要となることも課題として大きい．
 
 一方，RAG（Retrieval-Augmented Generation: 検索拡張生成）は，外部知識ベースから関連情報を検索し，その情報を基にテキストを生成する手法である\cite{rag_original}．RAGは以下の手順で動作する：(1) 文書を適当な単位（チャンク）に分割し，各チャンクの埋め込みベクトルを事前に計算してインデックスを構築する，(2) 質問が与えられたとき，質問の埋め込みベクトルと類似度の高いチャンクを検索する，(3) 検索されたチャンクをコンテキストとしてLLMに入力し，回答を生成する．あくまで既存モデルに外部のコンテキストを付与して生成させる手法であるため，API経由で最先端のモデルを使用できることに加え，インデックス構築のみで対応可能であり，知識の更新が文書の差し替えで容易に行えることも利点として大きい．
 
@@ -234,7 +234,7 @@ PDFからのテキスト抽出にはpdfplumber\cite{pdfplumber_docs}ライブラ
 
 各チャンクにはPydanticモデル（IndexChunk）で定義されたメタデータが付与される．メタデータには，一意なUUID（id），元PDFのファイル名（source），章名（section），ページ番号（page，0始まり），チャンク本文（text）が含まれる．これらのメタデータにより，設計根拠のトレーサビリティを確保している．
 
-埋め込みベクトルの生成にはOpenAI Embeddings API\cite{openai_embeddings}のtext-embedding-3-smallモデルを使用している．このモデルは1536次元の埋め込みベクトルを出力し，日本語テキストに対しても高い性能を示す．
+埋め込みベクトルの生成にはOpenAI Embeddings API\cite{openai_embeddings}のtext-embedding-3-smallモデルを使用している．
 
 生成された埋め込みベクトルはL2正規化を施した上で，NumPy\cite{numpy_docs}配列としてインデックスファイル（embeddings.npy）に保存される．正規化は式(\ref{eq:normalize})により行う．
 \begin{equation}
@@ -1611,7 +1611,7 @@ buildingSMART International: Industry Foundation Classes (IFC), \url{https://www
 \bibitem{mlit_bimcim_questionnaire}
 国土交通省：BIM/CIMの進め方について，\url{https://www.mlit.go.jp/tec/content/001757200.pdf}（参照 2026-01-26）.
 \bibitem{mcp4ifc}
-B. K. Nithyanantham, T. Sesterhenn, A. Nedungadi, S. Peral Garijo, J. Zenkner, C. Bartelt, and S. Lüdtke.: MCP4IFC: IFC-Based Building Design Using Large Language Models, arXiv:2511.05533v1 [cs.CL], 2025, doi:10.48550/arXiv.2511.05533.
+B. K. Nithyanantham, T. Sesterhenn, A. Nedungadi, S. Peral Garijo, J. Zenkner, C. Bartelt, and S. Lüdtke: MCP4IFC: IFC-Based Building Design Using Large Language Models, arXiv:2511.05533v1 [cs.CL], 2025, doi:10.48550/arXiv.2511.05533.
 \bibitem{mdpi_bridge_checking}
 Yang, Y., Jing, X. and Liu, Y.-M.: Automated Checking of Highway Bridge BIM Models Based on Large Language Models, Buildings, Vol. 15, No. 19, 3465, 2025. doi:10.3390/buildings15193465.
 \bibitem{yamamoto_genai_ifc}
@@ -1626,14 +1626,16 @@ Soudani, H., Kanoulas, E., and Hasibi, F.: Fine Tuning vs. Retrieval Augmented G
 Li, X., Wang, W., Li, M., Guo, J., Zhang, Y., and Feng, F.: Evaluating Mathematical Reasoning of Large Language Models: A Focus on Error Identification and Correction, Findings of the Association for Computational Linguistics: ACL 2024, pp. 11316--11360, 2024. doi:10.18653/v1/2024.findings-acl.673.
 \bibitem{openai_structured_output}
 OpenAI: Structured model outputs | OpenAI API, \url{https://platform.openai.com/docs/guides/structured-outputs} (accessed 2026-01-28).
+\bibitem{openai_gpt51}
+OpenAI: GPT-5.1 Model | OpenAI API, \url{https://platform.openai.com/docs/models/gpt-5.1} (accessed 2026-01-29).
 \bibitem{pydantic_docs}
 Pydantic: Pydantic Validation, \url{https://docs.pydantic.dev/} (accessed 2026-01-28).
 \bibitem{dosisyo}
-国土交通省：道路橋示方書. \url{https://www.mlit.go.jp/road/sign/kijyun/pdf/20170721hashikouka.pdf}, (参照 2026-01-28)
+国土交通省：道路橋示方書，\url{https://www.mlit.go.jp/road/sign/kijyun/pdf/20170721hashikouka.pdf}（参照 2026-01-28）.
 \bibitem{textbook}
 中井博, 北田俊行: 鋼橋設計の基礎. 共立出版株式会社, 1992.
 \bibitem{pdfplumber_docs}
-Singer-Vine, J. and The pdfplumber contributors: pdfplumber (Version 0.11.9), GitHub repository, 2026. \url{https://github.com/jsvine/pdfplumber}(accessed 2026-01-28).
+Singer-Vine, J. and The pdfplumber contributors: pdfplumber (Version 0.11.9), GitHub repository, 2026. \url{https://github.com/jsvine/pdfplumber} (accessed 2026-01-28).
 \bibitem{openai_embeddings}
 OpenAI: Vector embeddings | OpenAI API, \url{https://platform.openai.com/docs/guides/embeddings} (accessed 2026-01-28).
 \bibitem{numpy_docs}

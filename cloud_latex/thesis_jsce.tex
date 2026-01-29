@@ -47,10 +47,10 @@
 （\jipcode{113--8656}東京都文京区本郷七丁目3-1）}{hiroki-abe510@g.ecc.u-tokyo.ac.jp}
 
 \begin{abstract}
-インフラ老朽化対策とBIM/CIM推進が進む中，橋梁3Dモデルの作成工数が普及の障壁となっている．本研究では，大規模言語モデル（LLM）を用いて鋼プレートガーダー橋（RC床版）のBIMモデルを自動生成するシステムを提案した．本システムの特徴は，(1)RAG（検索拡張生成）により道路橋示方書等の設計知識を参照し設計根拠を明示する点，(2)曲げ・せん断・たわみ等の照査計算を決定論的処理で実行しLLMの計算誤りを排除する点，(3)照査不合格時にはLLMが修正案を生成し合格まで繰り返す自動修正ループを備える点，(4)橋長・幅員の2パラメータのみからIFC形式の3Dモデルまで一貫出力する点である．橋長20〜70m，幅員8〜24mの32条件に対してRAG有無の2水準で計192件の設計生成実験を行った．RAGありでは初回合格率37.5\%，修正ループ適用後の収束率85.4\%を達成し，RAGなしの初回合格率0\%，収束率75.0\%と比較してRAGの有効性を確認した．RAGにより桁高/支間比のルールが参照され，ウェブ高が平均13.6\%増加することで，特にたわみ照査の初回合格率が44.8ポイント向上した．一方，広幅員条件（24m）では桁本数選択が修正不可のため収束率が低下する課題が残った．本システムは橋梁工学的に一定の妥当性を持つBIMモデルを自動生成できることを実証した．今後は対傾構・横構の追加，座屈・疲労照査の厳密化，桁本数を含む設計変数の修正機構導入が課題である．
+インフラ老朽化対策とBIM/CIM推進が進む中，橋梁3Dモデルの作成工数が普及の障壁となっている．本研究では，大規模言語モデル（LLM）を用いて鋼プレートガーダー橋（RC床版）のBIMモデルを自動生成するシステムを提案した．本システムの特徴は，(1)RAG（検索拡張生成）により道路橋示方書等の設計知識を参照し設計根拠を明示する点，(2)曲げ・せん断・たわみ等の照査計算を決定論的処理で実行しLLMの計算誤りを排除する点，(3)照査不合格時にはLLMが修正案を生成し合格まで繰り返す自動修正ループを備える点，(4)橋長・幅員の2パラメータのみからIFC形式の3Dモデルまで一貫出力する点である．橋長20〜70m，幅員8〜24mの32条件に対してRAG有無の2水準で計192件の設計生成実験を行った．RAGありでは初回合格率37.5\%，修正ループ適用後の収束率85.4\%を達成し，RAGなしの初回合格率0\%，収束率75.0\%と比較して，本実験条件の全体傾向としてRAGの有効性を確認した．RAGにより桁高/支間比のルールが参照され，ウェブ高が平均13.6\%増加することで，特にたわみ照査の初回合格率が44.8ポイント向上した．一方，広幅員条件（24m）では桁本数選択が修正不可のため収束率が低下する課題が残った．本システムは橋梁工学的に一定の妥当性を持つBIMモデルを自動生成できることを実証した．今後は対傾構・横構の追加，座屈・疲労照査の厳密化，桁本数を含む設計変数の修正機構導入が課題である．
 \end{abstract}
 \begin{Eabstract}
-As infrastructure aging countermeasures and BIM/CIM adoption progress, the labor required for creating bridge 3D models has become a barrier to widespread adoption. This study proposes a system that automatically generates BIM models of steel plate girder bridges (with RC deck slabs) using large language models (LLMs). The key features of this system are: (1) explicitly documenting design rationale by referencing design knowledge from sources such as the Japanese Specifications for Highway Bridges through RAG (Retrieval-Augmented Generation); (2) eliminating LLM calculation errors by executing structural checks (bending, shear, deflection, etc.) through deterministic processing; (3) incorporating an automatic repair loop where the LLM generates correction proposals when checks fail, iterating until passing; and (4) producing IFC-format 3D models from only two input parameters: bridge length and width. Design generation experiments were conducted for 192 cases across 32 conditions (bridge length 20--70m, width 8--24m) with two levels of RAG presence. With RAG enabled, the first-pass acceptance rate was 37.5\% and the convergence rate after the repair loop was 85.4\%, compared to 0\% and 75.0\% respectively without RAG, confirming the effectiveness of RAG. RAG provided reference to girder height-to-span ratio rules, increasing web height by an average of 13.6\%, which improved the first-pass acceptance rate for deflection checks by 44.8 percentage points. However, convergence rates decreased for wide-width conditions (24m) due to the inability to modify girder count during the repair loop. This system demonstrated the capability to automatically generate BIM models with reasonable structural validity. Future work includes adding lateral bracing members, implementing rigorous buckling and fatigue checks, and introducing mechanisms to modify design variables including girder count.
+As infrastructure aging countermeasures and BIM/CIM adoption progress, the labor required for creating bridge 3D models has become a barrier to widespread adoption. This study proposes a system that automatically generates BIM models of steel plate girder bridges (with RC deck slabs) using large language models (LLMs). The key features of this system are: (1) explicitly documenting design rationale by referencing design knowledge from sources such as the Japanese Specifications for Highway Bridges through RAG (Retrieval-Augmented Generation); (2) eliminating LLM calculation errors by executing structural checks (bending, shear, deflection, etc.) through deterministic processing; (3) incorporating an automatic repair loop where the LLM generates correction proposals when checks fail, iterating until passing; and (4) producing IFC-format 3D models from only two input parameters: bridge length and width. Design generation experiments were conducted for 192 cases across 32 conditions (bridge length 20--70m, width 8--24m) with two levels of RAG presence. With RAG enabled, the first-pass acceptance rate was 37.5\% and the convergence rate after the repair loop was 85.4\%, compared to 0\% and 75.0\% respectively without RAG, indicating the overall effectiveness of RAG under the experimental conditions. RAG provided reference to girder height-to-span ratio rules, increasing web height by an average of 13.6\%, which improved the first-pass acceptance rate for deflection checks by 44.8 percentage points. However, convergence rates decreased for wide-width conditions (24m) due to the inability to modify girder count during the repair loop. This system demonstrated the capability to automatically generate BIM models with reasonable structural validity. Future work includes adding lateral bracing members, implementing rigorous buckling and fatigue checks, and introducing mechanisms to modify design variables including girder count.
 \end{Eabstract}
 \begin{keyword}
 BIM, LLM, RAG, Steel Plate Girder Bridge, IFC, Structural Design Automation
@@ -1262,8 +1262,8 @@ crossbeam\_layout & 横桁配置チェック（パネル長$\times$パネル数$
 評価実験では以下の指標を用いて提案システムの性能を評価する．
 
 \begin{itemize}
-  \item \textbf{合格率}：全試行に対する最終的に全照査項目に合格した試行の割合．RAG有無・橋長・幅員ごとに集計する．
-  \item \textbf{項目別合格率}：各照査項目について，合格した試行の割合．どの照査項目が設計生成の困難さに影響しているかを分析する．
+  \item \textbf{最終合格率（収束率）}：全試行に対する，最大修正回数（5回）以内に全照査項目に合格した試行の割合（本研究では収束率と同義）．RAG有無・橋長・幅員ごとに集計する．
+  \item \textbf{チェック項目別初回合格率}：各照査項目について，初回設計（iter0）で合格した試行の割合．どの照査項目が初期設計の困難さに影響しているかを分析する．
   \item \textbf{収束までの修正回数}：合格に至った試行について，Designer--Judgeの修正ループが何回で収束したかを集計する．修正回数が少ないほど，初期設計の品質が高いことを示す．
 \end{itemize}
 
@@ -1482,36 +1482,18 @@ $B=24$\,mにおける収束率の極端な低さ（RAGあり33\%，RAGなし7\%�
 
 $B=24$\,mの全30件で実際に選択された桁本数の分布は，5本桁が19件（63\%），6本桁が10件（33\%），7本桁が1件（3\%）であった．これらの収束率はそれぞれ16\%（3/19），20\%（2/10），100\%（1/1）であり，5--6本桁の収束率が極めて低い．
 
-LLMが5本桁を選択する背景には，RAGログのreasoningフィールドに記録された判断根拠がある．図\ref{fig:reasoning_girder_count}に，広幅員条件（$L=40$\,m，$B=15$\,m）における桁本数決定に関するreasoningの抜粋を示す．
+LLMが5本桁を選択する背景には，RAGログのreasoningフィールドに記録された判断根拠がある．図\ref{fig:reasoning_girder_count}に，広幅員条件（$L=65$\,m，$B=24$\,m）における桁本数決定に関するreasoningの抜粋を示す．
 
 \begin{figure}[t]
 \centering
 \begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
-"reasoning": "...
-主桁本数決定のプロセス（候補比較における重視点）：
-1) 候補 num_girders ∈ {3,4,5,6} を設定し，
-   張出し長 overhang を実務的範囲の 0.5-1.5 m
-   のうち 1.0 m を仮定（実務目安）して計算．
-2) 各候補で得られる主桁間隔を床版支間とみなし，
-   道路橋示方書の床版厚ルールで必要床版厚を
-   算出して比較．評価軸は
-   (a) 床版厚（大きすぎると床版コスト増），
-   (b) 主桁本数増による鋼材数量増・施工性，
-   (c) 荷重分配・剛性で判断．
-...
-競合条件の判断：
-- 小さい主桁本数は主桁重量増・床版スパン増
-  （床版厚増）を招き，大きい本数は鋼材コストと
-  施工継手増を招くため，文献の実務目安
-  （主桁間隔 ≈ 3.0 〜 3.5 m 程度の例示）と
-  床版厚のバランスから中庸の 5 本を採用した
-..."
+"reasoning": "全体方針: 与条件 L=65 m, B=24 m の単純鋼プレートガーダー合成桁橋を対象とし， RAG から得られるプレートガーダー橋・ RC 床版・床組・横桁の記述を根拠に，(1)桁配置（本数・間隔），(2)主桁概略断面，(3) RC 床版厚，(4)横桁パネル割を決める． 特に重視した根拠: h/L ≒ 1/15 〜 1/20 （式(7.364)）[13], 図 7.134 のスパン-腹板高さ関係[13], 断面設計フロー[10], 横桁間隔 d<=20 m・中央に 1 本以上[22], 横桁高≒主桁高の 0.8 倍程度[22], 最小全厚 d0=30L+110 と下限160mm[17][19]． ただし桁本数・間隔の推奨範囲や主桁の具体寸法表は RAG に与えられていないため，根拠が不足する部分は「実務目安」として仮定扱いとする．主桁本数の決定:\ 候補 num_girders∈{3,4,5,6} を比較し，床版支間（=主桁間隔）に対する最小全厚 d0 = 30L + 110 （連続版・主鉄筋直角）[17] と，鋼重・製作性のバランスで決定する． overhang は 1.0 m 程度を確保（明確根拠は RAG にないため仮定）． B=24.0 m より有効幅 22.0 m ， s = 22.0/(n-1)．   n=3: s=11.0 m -> d0 = 440 mm （過大）  n=4: s=7.33 m -> d0 ≈ 330 mm （厚い）  n=5: s=5.50 m -> d0=275 mm  n=6: s=4.40 m -> d0=242 mm  3 本は床版厚が非経済的． 4 本も死荷重増で不利． 6 本は床版厚は減るが桁・横桁数量増で製作性が悪化．s = 5 〜 6 m 程度がバランス範囲とみなし， 5 本桁を採用． 採用: num_girders=5, girder_spacing=5500 mm, overhang=1000 mm （ 1.0 + 4 × 5.5 + 1.0 = 24.0 m ）"
 \end{lstlisting}
-\caption{桁本数決定に関するreasoningの抜粋（$L=40$\,m，$B=15$\,m，5本桁選択例）}
+\caption{桁本数決定に関するreasoningの抜粋（$L=65$\,m，$B=24$\,m，5本桁選択例）}
 \label{fig:reasoning_girder_count}
 \end{figure}
 
-図\ref{fig:reasoning_girder_count}に示すように，LLMは(1)主桁間隔が実務目安の範囲内であること，(2)桁本数増による鋼材コスト・施工継手の増加，(3)床版厚とのバランスを評価軸として桁本数を決定している．しかし，この判断は経済性・標準慣行を優先しており，曲げ照査の定量的な見通しを持たないまま決定されている．その結果，構造的に過小な配置が選択されてしまう．
+図\ref{fig:reasoning_girder_count}に示すreasoningでは，overhang=1.0\,mを仮定し，num\_girders$\in\{3,4,5,6\}$の各候補について主桁間隔$s=22.0/(n-1)$を床版支間とみなして最小全厚式$d_0 = 30L_{\mathrm{support}} + 110$[17]で床版厚を見積もり，床版厚と桁本数増による鋼重・製作性のトレードオフから5本桁（$s=5.5$\,m）を選択している．しかし，この判断は曲げ照査の定量的な見通しを持たないまま桁本数を固定しており，結果として構造的に過小な配置が選択されてしまう．
 
 さらに，Judgeの修正ループでは断面寸法（ウェブ高・板厚・フランジ寸法）の増減のみが可能であり，桁本数の変更はDesignerの初回選択に依存している．5本桁$\times$桁間隔5500\,mmでは中間桁への荷重集中が大きく，断面増加のみでは収束が困難である．
 
@@ -1568,7 +1550,7 @@ LLMの活用により自動化が期待される一方，LLM単独では構造�
 本研究では，RAG（検索拡張生成）による設計知識の参照，決定論的照査による工学的妥当性の担保，LLMによる柔軟な修正提案を組み合わせたハイブリッドシステムを提案した．
 本システムは，(1) RAGにより道路橋示方書から設計根拠を明示，(2) 数式ベースの照査でLLMの計算誤りを排除，(3) IFC出力までの一貫パイプラインを実現，という3つの特徴を持つ．
 
-192件の設計生成実験により，RAG活用時の初回合格率が37.5\%，修正ループ適用後の最終収束率が85.4\%であることを確認した．
+192件の設計生成実験により，本実験条件においてRAGありの初回合格率が37.5\%，修正ループ適用後の最終合格率（収束率）が85.4\%であることを確認した．
 橋長20--70\,m，幅員8--24\,mの範囲で，IFCファイルまで出力し，構造的にある程度妥当な断面モデルの自動生成を実証した．
 
 以上より，本システムは橋梁工学的にある程度妥当なBIMモデルを出力できるシステムとして一定の成果を示した．

@@ -304,6 +304,7 @@ class PatchActionOp(StrEnum):
     INCREASE_BOTTOM_FLANGE_WIDTH = "increase_bottom_flange_width"
     SET_DECK_THICKNESS_TO_REQUIRED = "set_deck_thickness_to_required"
     FIX_CROSSBEAM_LAYOUT = "fix_crossbeam_layout"
+    INCREASE_NUM_GIRDERS = "increase_num_girders"
 
 
 class PatchAction(BaseModel):
@@ -376,6 +377,9 @@ class CurrentDesignValues(BaseModel):
     deck_thickness: float
     panel_length: float
     num_panels: int
+    num_girders: int
+    girder_spacing: float
+    total_width: float
 
 
 class RepairContext(BaseModel):

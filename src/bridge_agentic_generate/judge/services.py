@@ -49,6 +49,7 @@ ALLOWED_ACTIONS: list[AllowedActionSpec] = [
     AllowedActionSpec(op=PatchActionOp.INCREASE_BOTTOM_FLANGE_WIDTH, allowed_deltas=[50.0, 100.0]),
     AllowedActionSpec(op=PatchActionOp.SET_DECK_THICKNESS_TO_REQUIRED, allowed_deltas=[0.0]),
     AllowedActionSpec(op=PatchActionOp.FIX_CROSSBEAM_LAYOUT, allowed_deltas=[0.0]),
+    AllowedActionSpec(op=PatchActionOp.INCREASE_NUM_GIRDERS, allowed_deltas=[1.0]),
 ]
 
 # 横桁配置チェックの許容誤差 [mm]
@@ -775,6 +776,9 @@ def _build_repair_context(
         deck_thickness=design.components.deck.thickness,
         panel_length=dims.panel_length,
         num_panels=dims.num_panels if dims.num_panels is not None else 0,
+        num_girders=dims.num_girders,
+        girder_spacing=dims.girder_spacing,
+        total_width=dims.total_width,
     )
 
     return RepairContext(
@@ -866,6 +870,28 @@ def apply_patch_plan(
                 dims.bridge_length,
                 dims.panel_length,
                 new_num_panels,
+            )
+
+        elif op == PatchActionOp.INCREASE_NUM_GIRDERS:
+            # 桁本数を増やす（delta は整数として扱う）
+            new_num_girders = dims.num_girders + int(delta)
+            # girder_spacing を再計算（overhang は維持）
+            # 全幅 B = (num_girders - 1) × girder_spacing + 2 × overhang
+            # → girder_spacing = (B - 2 × overhang) / (num_girders - 1)
+            overhang = calc_overhang(dims.total_width, dims.num_girders, dims.girder_spacing)
+            new_girder_spacing = (dims.total_width - 2 * overhang) / (new_num_girders - 1)
+            dims = dims.model_copy(
+                update={
+                    "num_girders": new_num_girders,
+                    "girder_spacing": new_girder_spacing,
+                }
+            )
+            logger.info(
+                "apply_patch_plan: num_girders += %d → %d, girder_spacing = %.1f mm (overhang=%.1f mm)",
+                int(delta),
+                new_num_girders,
+                new_girder_spacing,
+                overhang,
             )
 
         else:

@@ -32,6 +32,8 @@ def build_repair_system_prompt() -> str:
 - せん断が支配なら、web_thickness を優先する
 - 腹板幅厚比（web_slenderness）が支配なら、web_thickness を ceil(web_thickness_min_required) 以上に増やす
 - util_deck は床版厚のみに依存するため、 util_deck が 1 を超える場合には、必ず `set_deck_thickness_to_required` を使う。
+- 複数の util（特に曲げ・たわみ）が同時に超過している場合、`increase_num_girders` を検討する。
+  桁を増やすと各桁の受け持ち幅が減り、断面力が分散される。
 
 ## 変更量の目安
 - util が大きく超えているとき（> 1.50）: 大きめの刻み
@@ -80,6 +82,11 @@ def build_repair_user_prompt(context: RepairContext) -> str:
 - top_flange_thickness: {design.top_flange_thickness:.1f} mm
 - bottom_flange_width: {design.bottom_flange_width:.1f} mm
 - bottom_flange_thickness: {design.bottom_flange_thickness:.1f} mm
+
+### 桁配置
+- num_girders: {design.num_girders} 本
+- girder_spacing: {design.girder_spacing:.1f} mm
+- total_width: {design.total_width:.1f} mm
 
 ### 床版
 - deck_thickness: {design.deck_thickness:.1f} mm

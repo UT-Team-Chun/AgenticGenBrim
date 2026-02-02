@@ -147,6 +147,21 @@ def _format_section_dimensions_table(iterations: list[RepairIteration]) -> str:
 
     lines.append("")
 
+    # 桁本数 (num_girders)
+    lines.append("### 桁本数")
+    lines.append("")
+    girder_count_header = "| Iter | num_girders |"
+    girder_count_sep = "|------|-------------|"
+    lines.append(girder_count_header)
+    lines.append(girder_count_sep)
+
+    for it in iterations:
+        num_girders = it.design.dimensions.num_girders
+        row = f"| {it.iteration} | {num_girders} |"
+        lines.append(row)
+
+    lines.append("")
+
     return "\n".join(lines)
 
 

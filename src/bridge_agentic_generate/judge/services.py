@@ -894,6 +894,18 @@ def apply_patch_plan(
                 overhang,
             )
 
+            # 床版厚を新しい girder_spacing に連動させる
+            new_required = calc_required_deck_thickness(new_girder_spacing)
+            if deck.thickness < new_required:
+                new_thickness = math.ceil(new_required / 10) * 10
+                deck = deck.model_copy(update={"thickness": new_thickness})
+                logger.info(
+                    "apply_patch_plan: deck.thickness 連動更新 %.0f → %.0f mm (required=%.1f)",
+                    design.components.deck.thickness,
+                    new_thickness,
+                    new_required,
+                )
+
         else:
             logger.warning("apply_patch_plan: 未知の操作 %s をスキップ", op)
 

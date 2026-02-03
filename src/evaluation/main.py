@@ -11,6 +11,7 @@ from src.bridge_agentic_generate.llm_client import LlmModel
 from src.bridge_agentic_generate.logger_config import logger
 from src.evaluation.metrics import aggregate_metrics
 from src.evaluation.models import AggregatedMetrics, EvaluationCase, TrialResult
+from src.evaluation.plot import generate_all_plots
 from src.evaluation.runner import EvaluationRunner
 
 # 評価ケース定義（EVALUATION.md より）
@@ -104,7 +105,7 @@ class EvaluationCLI:
 
     def run(
         self,
-        output_dir: str | None = "data/evaluation_v4",
+        output_dir: str | None = "data/evaluation_v5",
         model_name: LlmModel = LlmModel.GPT_5_1,
         max_iterations: int = 5,
         num_trials: int = 3,
@@ -208,6 +209,24 @@ class EvaluationCLI:
         logger.info("Final pass: %s (max_util=%.3f)", result.final_pass, result.final_max_util)
         logger.info("First utilization: %s", result.first_utilization)
         logger.info("Per-check first pass: %s", result.per_check_first_pass)
+
+    def plot(
+        self,
+        data_dir: str = "data/evaluation_v5",
+        output_dir: str | None = None,
+    ) -> None:
+        """評価結果のグラフを生成する。
+
+        Args:
+            data_dir: 評価データのルートディレクトリ（results/ を含む）
+            output_dir: グラフ出力先ディレクトリ（デフォルトは data_dir と同じ）
+        """
+        data_path = Path(data_dir)
+        output_path = Path(output_dir) if output_dir else data_path
+
+        logger.info("Generating plots from %s to %s", data_path, output_path)
+        generate_all_plots(data_dir=data_path, output_dir=output_path)
+        logger.info("Plot generation completed")
 
 
 def main() -> None:

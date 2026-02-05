@@ -1,0 +1,1659 @@
+\documentclass{jsce_template/jjsce}
+
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage[defaultsups]{newtxtext}
+\usepackage[varg]{newtxmath}
+\usepackage{bm}
+\usepackage[dvipdfmx]{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit,calc,shapes.geometric}
+\usepackage[superscript]{cite}
+\usepackage{xurl}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{subcaption}
+\usepackage{endnotes}
+\usepackage[savepos]{zref}
+\usepackage[dvipdfmx]{hyperref}
+\usepackage{pxjahyper}
+\usepackage{listings}
+\lstdefinelanguage{json}{
+  basicstyle=\ttfamily\scriptsize,
+  string=[s]{"}{"},
+  stringstyle=\color[rgb]{0.25,0.44,0.63},
+  comment=[l]{//},
+  morecomment=[s]{/*}{*/},
+  literate=
+    *{:}{{{\color[rgb]{0.56,0.35,0.01}{:}}}}{1}
+    {,}{{{\color[rgb]{0.56,0.35,0.01}{,}}}}{1}
+    {\{}{{{\color[rgb]{0.56,0.35,0.01}{\{}}}}{1}
+    {\}}{{{\color[rgb]{0.56,0.35,0.01}{\}}}}}{1}
+    {[}{{{\color[rgb]{0.56,0.35,0.01}{[}}}}{1}
+    {]}{{{\color[rgb]{0.56,0.35,0.01}{]}}}}{1}
+}
+\usepackage{color}
+\aboveEtitlesep20mm
+
+\usepackage{jsce_template/jjsce-macros}
+
+\begin{document}
+
+\jtitle{LLMを用いた鋼プレートガーダー橋\\BIMモデルの自動生成手法の考察}
+\etitle{A Study on Automatic Generation Method of BIM Models\\
+for Steel Plate Girder Bridges Using LLM}
+\authorlist{%
+ \authorentry{阿部 大樹}{Hiroki ABE}{UTokyo}
+}
+\affiliate[UTokyo]{東京大学工学部社会基盤学科
+（\jipcode{113--8656}東京都文京区本郷七丁目3-1）}{hiroki-abe510@g.ecc.u-tokyo.ac.jp}
+
+\begin{abstract}
+インフラ老朽化対策とBIM/CIM推進が進む中，橋梁3Dモデルの作成工数が普及の障壁となっている．本研究では，大規模言語モデル（LLM）を用いて鋼プレートガーダー橋（RC床版）のBIMモデルを自動生成するシステムを提案した．本システムの特徴は，(1)RAG（検索拡張生成）により道路橋示方書等から設計ルールを検索し，DesignRuleとして構造化抽出することで，部材寸法等の設計パラメータ初期値を自律的に決定し，従来の経験則のハードコードに依存せず設計根拠を明示する点，(2)曲げ・せん断・たわみ等の照査計算を決定論的処理で実行しLLMの計算誤りを排除する点，(3)照査不合格時にはLLMが修正案を生成し合格まで繰り返す自動修正ループを備える点，(4)橋長・幅員の2パラメータのみからIFC形式の3Dモデルまで一貫出力する点である．橋長20〜70m，幅員8〜24mの32条件に対してRAG有無の2水準で計192件の設計生成実験を行った．RAGありでは初回合格率37.5\%，修正ループ適用後の収束率85.4\%を達成し，RAGなしの初回合格率0\%，収束率75.0\%と比較して，本実験条件の全体傾向としてRAGの有効性を確認した．RAGにより桁高/支間比のルールが参照され，ウェブ高が平均13.6\%増加することで，特にたわみ照査の初回合格率が44.8ポイント向上した．一方，広幅員条件（24m）では桁本数選択が修正不可のため収束率が低下する課題が残った．本システムは概略設計レベルの簡易照査（曲げ/せん断/たわみ/床版厚/幅厚比/横桁配置）を満たす断面案及びBIMモデルを自動生成できることを実証した．今後は対傾構・横構の追加，座屈・疲労照査の厳密化，桁本数を含む設計変数の修正機構導入が課題である．
+\end{abstract}
+\begin{Eabstract}
+As infrastructure aging countermeasures and BIM/CIM adoption progress, the labor required for creating bridge 3D models has become a barrier to widespread adoption. This study proposes a system that automatically generates BIM models of steel plate girder bridges (with RC deck slabs) using large language models (LLMs). The key features of this system are: (1) autonomously determining initial design parameters by retrieving design rules from sources such as the Japanese Specifications for Highway Bridges via RAG (Retrieval-Augmented Generation) and extracting them as structured DesignRules, thereby documenting the design rationale without hardcoding heuristic rules; (2) eliminating LLM calculation errors by executing structural checks (bending, shear, deflection, etc.) through deterministic processing; (3) incorporating an automatic repair loop where the LLM generates correction proposals when checks fail, iterating until passing; and (4) producing IFC-format 3D models from only two input parameters: bridge length and width. Design generation experiments were conducted for 192 cases across 32 conditions (bridge length 20--70m, width 8--24m) with two levels of RAG presence. With RAG enabled, the first-pass acceptance rate was 37.5\% and the convergence rate after the repair loop was 85.4\%, compared to 0\% and 75.0\% respectively without RAG, indicating the overall effectiveness of RAG under the experimental conditions. RAG provided reference to girder height-to-span ratio rules, increasing web height by an average of 13.6\%, which improved the first-pass acceptance rate for deflection checks by 44.8 percentage points. However, convergence rates decreased for wide-width conditions (24m) due to the inability to modify girder count during the repair loop. This system demonstrated the capability to automatically generate BIM models with reasonable structural validity. Future work includes adding lateral bracing members, implementing rigorous buckling and fatigue checks, and introducing mechanisms to modify design variables including girder count.
+\end{Eabstract}
+\begin{keyword}
+BIM, LLM, RAG, Steel Plate Girder Bridge, IFC, Structural Design Automation
+\end{keyword}
+\maketitle
+
+
+\section{はじめに}
+
+我が国では，高度経済成長期に建設された橋梁・トンネル等の社会インフラが老朽化を迎えつつある．建設後50年を超える道路橋の割合は年々増加しており\cite{mlit_infra}，インフラの維持管理および更新の重要性がますます高まっている．しかし，土木建設業界は他産業と比較して生産性向上が遅れており，増大する維持管理需要に対して慢性的な人手不足が深刻な課題となっている．こうした状況を受け，国土交通省はi-Construction\cite{iconstruction}をはじめとする施策を通じてICT活用による生産性向上を推進しており，設計・施工・維持管理の各段階においてデジタル技術を活用した業務効率化が強く求められている．
+
+このような生産性向上の取り組みの中核として，BIM/CIM（Building/Construction Information Modeling）の導入が推進されている\cite{bimcim}．BIM/CIMは3次元モデルに属性情報を付与し，設計から維持管理までの一貫したデータ活用を可能とする技術であり，国土交通省は2023年度より小規模工事を除く直轄工事において原則適用を開始した．しかし，3Dモデルの作成には依然として多大な労力と時間を要し，特に橋梁のような複雑な構造物では手作業によるモデリング工数が大きな負担となっている．この工数負担がBIM/CIMの普及を妨げる一因となっており，モデリングの自動化・省力化が喫緊の課題である．
+
+こうした課題に対し，近年急速に発展している大規模言語モデル（LLM）の活用が有望視されている．LLMは自然言語による指示から構造化されたデータを生成する能力を持ち，設計業務の自動化への適用可能性が期待されている．そこで本研究では，LLMを用いて自然言語ベースでBIMモデルを構築できるエージェント型システムを提案する．なお，本研究はLLMによるBIMモデル生成の基礎的な技術開発を範囲とするため，パラメトリックに作成のしやすい鋼プレートガーダー橋（RC床版）に対象を限定する．本システムの特徴は，(1)最小限の入力（橋長・幅員の2パラメータ）から断面設計を自動生成する点，(2)RAG（Retrieval-Augmented Generation: 検索拡張生成）により道路橋示方書等の設計知識を参照し設計根拠を明示する点，(3)決定論的な照査計算とLLMによる自動修正ループにより設計品質を担保する点，(4)IFC形式での出力によりBIM環境との連携を実現する点である．
+
+本論文の構成は以下の通りである．2章では背景および関連研究を述べ，3章で提案システムの詳細を説明する．4章では評価実験の設定と結果を示し，5章で考察を行う．6章で本研究のまとめと今後の課題を述べる．
+
+
+\section{背景および関連研究}
+
+\subsection{BIM/CIMと橋梁モデリングの現状}
+
+国土交通省は2023年度より小規模工事を除く直轄工事においてBIM/CIM（Building/Construction Information Modeling）の原則適用を開始した\cite{bimcim}．BIM/CIMは設計・施工・維持管理の各段階において3次元モデルと属性情報を一貫して活用する技術であり，建設業の生産性向上に大きく寄与することが期待されている．
+
+BIM/CIMモデルのデータ交換標準としてはIFC（Industry Foundation Classes）が広く採用されている．IFCはbuildingSMART Internationalが策定するオープン標準であり，ベンダー非依存の相互運用性を提供する．特にIFC4x3ではインフラ（橋梁・道路・鉄道等）への対応が強化され，橋梁BIMモデルの標準フォーマットとしての利用が進んでいる\cite{ifc4x3}．
+
+一方で，BIM/CIMの普及には課題も残されている．国土交通省が実施したアンケート調査\cite{mlit_bimcim_questionnaire}によれば，BIM/CIMの導入により「非効率になった」と回答された項目の最多が「モデル作成に手間（時間，費用，人）がかかる」であり，回答者の33\%がこの課題を指摘している．特に橋梁のような複雑な構造物では，3次元モデルの作成に多大な工数を要することがBIM/CIM普及の障壁となっている．本研究はこのモデリング工数の課題に対し，LLMによる自動化アプローチを提案するものである．
+
+\subsection{LLMの建設・土木分野への応用}
+
+近年，大規模言語モデル（LLM）の建設・土木分野への応用に関する研究が活発化している．ここでは，LLMとBIMモデルの連携に関連する先行研究を整理する．
+Nithyananthamら\cite{mcp4ifc}は，LLMでIFCデータをMCP（Model Context Protocol）経由で直接操作するフレームワーク「MCP4IFC」を提案した．このフレームワークにより，自然言語による指示からBIMモデルの作成・編集が可能となるが，対象は壁・部屋など建築向けの汎用的な幾何形状操作が中心である．そのため，橋梁設計において不可欠な構造計算や工学的制約に基づいたモデル生成については考慮されていない．
+Yangら\cite{mdpi_bridge_checking}は，LLMを用いて設計仕様書から構造化ルールを抽出し，IFCモデルの適合性をチェックする手法を提案した．仕様書からのルール抽出精度は79.5\%, IFCモデルへの適合性チェック精度は84.4\%を達成している．ただし，この研究は既存モデルに対する仕様書テキストとの形式的な適合性チェックを主眼としており，応力照査などの数値計算を含む設計プロセスの自動化や，モデルそのものをゼロから生成するアプローチとは異なる．
+山本ら\cite{yamamoto_genai_ifc}は，GPT-4oを用いて直方体や円柱などの単純形状のIFCファイルを生成する手法を試みている．しかし，IFCファイルは例えばJSON, csvのような世に広く流通している形式ではなく，LLMの学習データに占める割合が小さいことは容易に推察される．実際，この研究ではスキーマ違反などの構文エラーが多発し，単純な形状でさえ生成成功率が30〜60\%程度に留まることが課題として報告されている．これに対し本研究では，LLMの出力を厳密に型定義された構造化データ（JSON/Pydantic）として受け取り，それをpythonプログラムでIFCへ変換する手法をとることで，BIMデータとしての整合性を保証している．
+
+LLMによる自動生成というと，IFC等の形状記述を直接生成する「形状生成」に注目が集まりやすい．しかし，橋梁の概略設計では，示方書や既往文献に基づく経験則・設計ルールを参照し，桁高や板厚などの設計パラメータの初期値を設定した上で，照査により断面を収束させる作業が大きな比重を占める．従来の設計自動化では，例えば桁高を$h \approx L/20$とするようなルールを設計者がハードコードする必要があった．これに対し本研究では，RAGにより文献から設計ルールを動的に取得し，LLMがそれらを解釈して設計パラメータの初期値を自律的に決定する点（DesignRule抽出）を重視する．
+
+\subsection{RAG（検索拡張生成）による専門知識活用}
+
+\begin{table*}[t]
+\caption{先行研究と本研究の機能的・技術的比較}
+\label{tab:related_work_comparison}
+\centering
+\small
+\begin{tabularx}{\textwidth}{|l|X|X|}
+\hline
+先行研究 & アプローチと課題 & 本研究の独自性・解決策 \\
+\hline
+MCP4IFC\cite{mcp4ifc} & 幾何形状の直接操作（建築汎用） & 橋梁に特化し，RAGと推論に基づく\textbf{自律的な設計パラメータ決定} \\
+\hline
+Yangら\cite{mdpi_bridge_checking} & 道路橋のBIMモデルに対して，テキストルールとの照合による形式的な適合性チェック & 力学計算による\textbf{工学的照査}に加え，不適合を解消する\textbf{自動修正ループ} \\
+\hline
+山本ら\cite{yamamoto_genai_ifc} & LLMによるIFCテキスト直接生成（単純形状のみ） & 構文エラーを防ぐため\textbf{JSONでパラメータセットを生成し，pythonでIFCへ変換する}ことで実構造物のBIMを堅牢に生成 \\
+\hline
+\end{tabularx}
+\end{table*}
+
+箱石ら\cite{hakoishi_bert}は，汎用的な事前学習済みモデルであるBERTが土木分野の専門文書では精度が低下することを示している．GPTやGeminiなどの基盤モデルが大幅に進化した現在でも，引き続きLLMの性質としての専門分野での精度低下には対応が必要であるが，LLMの専門知識対応には大きく分けてfine-tuningとRAGの2つのアプローチが存在する．
+
+fine-tuningは，事前学習済みモデルを特定ドメインのデータで追加学習させ，専門知識を内部パラメータに埋め込む手法である．しかし，基盤モデルの性能が急速に進化していく2026年1月現在において，最新モデルが必ずしもfine-tuningに対応しているとは限らない．例えば，OpenAIのgpt-5.1はfine-tuningに対応していない\cite{openai_gpt51}．さらに，fine-tuningには大量の学習データと計算リソースを必要とし，知識の更新時には再学習が必要となることも課題として大きい．
+
+一方，RAG（Retrieval-Augmented Generation: 検索拡張生成）は，外部知識ベースから関連情報を検索し，その情報を基にテキストを生成する手法である\cite{rag_original}．RAGは以下の手順で動作する：(1) 文書を適当な単位（チャンク）に分割し，各チャンクの埋め込みベクトルを事前に計算してインデックスを構築する，(2) 質問が与えられたとき，質問の埋め込みベクトルと類似度の高いチャンクを検索する，(3) 検索されたチャンクをコンテキストとしてLLMに入力し，回答を生成する．あくまで既存モデルに外部のコンテキストを付与して生成させる手法であるため，API経由で最先端のモデルを使用できることに加え，インデックス構築のみで対応可能であり，知識の更新が文書の差し替えで容易に行えることも利点として大きい．
+
+さらに，Soudaniら\cite{soudani_rag_vs_ft}によると，低頻度かつ専門的な知識に対してはRAGがfine-tuningを大幅に上回る性能を示す．道路橋示方書のような専門的な設計規準は学習データ中の出現頻度が低いため，RAGによるアプローチが適していると考えられる．
+
+以上を踏まえ，本研究ではRAGを採用することで，(1) LLMのハルシネーション（事実と異なる出力）を設計規準の参照により抑制する，(2) どの文献のどのページを根拠としたかを記録し設計根拠のトレーサビリティを確保する，という2つの効果を期待している．
+
+\subsection{本研究の位置付け}
+
+\subsubsection{先行研究との差分}
+
+先行研究と本研究の関係を表\ref{tab:related_work_comparison}に整理する．
+
+\subsubsection{本研究の新規性}
+
+本研究の新規性は以下の3点である：
+
+\begin{enumerate}
+  \item \textbf{DesignRule抽出と自律的な初期値決定}：道路橋示方書等から桁高/支間比（例：$h \approx L/20$）のような設計ルールを検索し，LLMがそれらを解釈して設計パラメータ（部材寸法等）の初期値を自律的に決定する．ルールと参照文献（ページ）を併せて記録することで，従来のハードコードに依存しない設計根拠の明示を実現する．
+
+  \item \textbf{決定論照査とLLM修正のハイブリッド}：近年の研究では，LLMは数学問題で高い正答率を示す一方，計算ミス（calculation error）が主要かつ難しい誤りとして残存することが報告されている\cite{li2024math_error}．本システムでは，照査計算（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）は数式ベースの決定論的処理で確実に実行し，修正提案のみLLMが生成する．これにより，工学的妥当性を担保しつつLLMの柔軟な修正提案能力を活用する．
+
+  \item \textbf{IFC出力までの一貫パイプライン}：橋長・幅員の2パラメータ入力から，設計生成 → 照査・修正ループ → IFC出力までを自動化する．BIM/CIM環境への直接連携を実現し，モデリング工数を大幅に削減する．
+\end{enumerate}
+
+
+\section{提案システム}
+
+\subsection{システム概要}
+
+本研究で提案するシステムは，橋長$L$[m]と幅員$B$[m]の2パラメータのみを入力として受け取り，鋼プレートガーダー橋（RC床版）の断面設計を自動生成し，IFC形式の3Dモデルとして出力するシステムである．本システムの処理は，RAG（検索拡張生成），Designer（設計生成），Judge（照査・修正提案），IFC変換の4つのサブシステムで構成される．
+
+システムの全体的な処理フローを図\ref{fig:system_overview}に示す．まずDesignerがRAGを用いて道路橋示方書等から関連条文を検索し，それらを参照しながら主桁本数，桁高，板厚，床版厚などの断面寸法を決定する．次にJudgeが生成された設計に対して曲げ・せん断・たわみなどの照査計算を実行し，不合格の場合はLLMが修正提案（PatchPlan）を生成する．この照査と修正のループを合格するまで繰り返し，最終的な設計をIFC形式で出力する．
+
+本システムの主な技術的特徴は以下の5点である．第一に，OpenAI APIのStructured Output機能\cite{openai_structured_output}を活用することで，LLMの出力をPydantic\cite{pydantic_docs}スキーマで厳密に定義された構造化データとして受け取り，型安全性を確保している．これにより，LLMからの応答を常にIFC変換しやすいJSON形式で受け取ることが可能となる．第二に，設計要素ごとに異なるクエリでRAG検索を実行するマルチクエリRAGにより，幅広い設計知識を効率的に参照している．第三に，照査計算は数式ベースの決定論的処理で実行し，修正提案のみLLMが生成するハイブリッドアプローチにより，工学的妥当性と柔軟な修正提案能力を両立している．第四に，LLMが複数の修正案を生成し，各案をシミュレーション評価して最良案を選択する複数候補方式により，効率的な設計改善を実現している．第五に，設計JSONから中間形式（Senkei JSON）を経てifcopenshell\cite{ifcopenshell_docs}によりIFCに変換する2段階パイプラインにより，BIM環境との連携を実現している．
+
+本システムの対象は単純桁構造の鋼プレートガーダー橋（RC床版合成桁）であり，橋長20m〜70m，幅員8m〜24m程度を想定している．モデル化する部材はRC床版，主桁（I形断面），横桁の3部材である．鋼プレートガーダー橋としては本来，対傾構や横構も主要な構成部材であるが，本研究では構造を単純化して扱うためこれらは意図的にモデル化の対象外とした．また，現時点では断面は全長一定（支点部・中央部の変化なし）とし，照査はあくまで概略設計レベル（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）に限定している．座屈・疲労等の詳細照査などは今後の課題である．
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{images/research_overview.png}
+\caption{提案システムの全体フロー}
+\label{fig:system_overview}
+\end{figure*}
+
+
+\subsection{RAG（検索拡張生成）サブシステム}
+
+RAGサブシステムは，道路橋示方書や鋼橋設計の教科書から設計に関連する条文・解説を検索し，DesignerのLLMプロンプトに参考文献として提供する機能を担う．本サブシステムは，(1)PDFからのテキスト抽出，(2)テキストのチャンク化，(3)埋め込みベクトル生成，(4)ベクトル検索の4つの処理で構成される．
+
+\subsubsection{対象ドキュメントとテキスト抽出}
+
+本システムでは，鋼プレートガーダー橋の設計に必要な知識を網羅するため，道路橋示方書\cite{dosisyo}および「鋼橋設計の基礎」\cite{textbook}から抽出した5種類のPDFドキュメントをRAGの知識ベースとして使用している．具体的な対象文書を表\ref{tab:rag_documents}に示す．
+
+\begin{table}[t]
+\caption{RAG知識ベースの対象ドキュメント}
+\label{tab:rag_documents}
+\centering
+\small
+\begin{tabularx}{\linewidth}{|l|X|}
+\hline
+文書名 & 主な内容 \\
+\hline
+第一章 概論 & 鋼橋の基本概念，設計の考え方 \\
+\hline
+第四章 鋼橋の設計法 & 荷重・応力計算，許容応力度 \\
+\hline
+第六章 床版 & RC床版の厚さ算定式，最小床版厚 \\
+\hline
+第七章 プレートガーダー橋 & 主桁断面設計，桁高の目安 \\
+\hline
+道路橋示方書 鋼橋・鋼部材編 & 設計規準，材料規格 \\
+\hline
+\end{tabularx}
+\end{table}
+
+PDFからのテキスト抽出にはpdfplumber\cite{pdfplumber_docs}ライブラリを使用している．pdfplumberはPDFの内部構造を解析してテキストを抽出するPythonライブラリであり，特に表構造の保持に優れている．示方書のような表形式で設計値が示される文書の処理に適しており，表中の数値と周囲のテキストの対応関係を維持したまま抽出できる．元PDFの例を図\ref{fig:pdf_master}に，pdfplumberによる抽出結果を図\ref{fig:pdf_extraction}に示す．図\ref{fig:pdf_master}では鋼材の物理定数が表形式で記載されており，表中の数値とその見出しの対応関係を正確に抽出することが求められる．図\ref{fig:pdf_extraction}に示すように，pdfplumberによる抽出結果では表構造が保持されており，「鋼及び鋳鋼のヤング係数」「2.00×10\textsuperscript{5}N/mm\textsuperscript{2}」のように，項目名と数値の対応関係が維持されたままテキスト化されている．この特性により，後続のチャンク化・RAG検索において設計値を正確に参照することが可能となる．
+なお，一般的にPDFからのテキスト抽出は，フォント埋め込みやレイアウトの複雑さにより困難を伴う場合が多い．pdfplumberについても例外ではなく，図\ref{fig:pdf_fail_master}に示す数式を含むページでは，図\ref{fig:pdf_extraction_fail}のようにギリシャ文字や微分記号が正しく抽出されず文字化けが生じるケースがある．このような抽出失敗は，元PDFにおけるフォントの埋め込み方式に起因しており，本システムではこうした不完全な抽出結果もそのままチャンク化・インデックス化しているため，数式を含む設計根拠の検索精度には限界がある点に注意が必要である．なお，本研究の範囲においては，ギリシャ文字を含む複雑な数式を必要としないことが多かったため，この限界を許容している．検索結果で実際に使いたい式がうまく抽出できていない場合には，テキストを直接LLMに渡さずに，該当部分のPDFをマルチモーダルなモデルに渡すことである程度の改善が予想されるが，本研究ではそのような手法は採用していない．
+
+抽出処理では，PDFの各ページを順次処理し，ページ終了ごとに「[Page N]」形式のマーカーを挿入することで，後続のチャンク化処理でページ情報を保持できるようにしている．これにより，設計値の根拠となる文献のページ番号を追跡可能としている．
+
+\begin{figure}[t]
+\centering
+\begin{subfigure}[t]{\linewidth}
+\centering
+\includegraphics[width=0.85\linewidth]{images/pdf_plumber_master.png}
+\caption{元PDF（道路橋示方書 鋼橋・鋼部材編 4.2.2節）}
+\label{fig:pdf_master}
+\end{subfigure}
+\vspace{1mm}
+\begin{subfigure}[t]{\linewidth}
+\centering
+\includegraphics[width=0.85\linewidth]{images/pdf_plumber_extraction.png}
+\caption{pdfplumberによる抽出結果（(a)と同一ページ）}
+\label{fig:pdf_extraction}
+\end{subfigure}
+\caption{表構造を含むPDFの抽出成功例}
+\label{fig:pdf_extraction_success}
+\end{figure}
+
+\begin{figure}[t]
+\centering
+\begin{subfigure}[t]{\linewidth}
+\centering
+\includegraphics[width=0.85\linewidth]{images/pdfplumber_fail_master.png}
+\caption{元PDF（鋼橋設計の基礎 第六章）}
+\label{fig:pdf_fail_master}
+\end{subfigure}
+\vspace{1mm}
+\begin{subfigure}[t]{\linewidth}
+\centering
+\includegraphics[width=0.85\linewidth]{images/pdfplumber_fail_extracted.png}
+\caption{pdfplumberによる抽出結果（(a)と同一ページ）}
+\label{fig:pdf_extraction_fail}
+\end{subfigure}
+\caption{数式を含むPDFの抽出失敗例}
+\label{fig:pdf_extraction_failure}
+\end{figure}
+
+\subsubsection{チャンク化とインデックス構築}
+
+テキストのチャンク化は2段階で実施される．第一段階では，挿入されたページマーカーに基づいてテキストをページ単位で分割する．第二段階では，各ページのテキストを最大800文字ごとに分割する．この文字数は，LLMのコンテキスト長と検索精度のバランスを考慮して設定した値である．長すぎるチャンクは検索精度を低下させ，短すぎるチャンクは文脈情報を失うため，予備実験により800文字を採用した．
+
+各チャンクにはPydanticモデル（IndexChunk）で定義されたメタデータが付与される．メタデータには，一意なUUID（id），元PDFのファイル名（source），章名（section），ページ番号（page，0始まり），チャンク本文（text）が含まれる．これらのメタデータにより，設計根拠のトレーサビリティを確保している．
+
+埋め込みベクトルの生成にはOpenAI Embeddings API\cite{openai_embeddings}のtext-embedding-3-smallモデルを使用している．
+
+生成された埋め込みベクトルはL2正規化を施した上で，NumPy\cite{numpy_docs}配列としてインデックスファイル（embeddings.npy）に保存される．正規化は式(\ref{eq:normalize})により行う．
+\begin{equation}
+\bm{v}_{\mathrm{norm}} = \frac{\bm{v}}{\left\|\bm{v}\right\|_{2} + \varepsilon}
+\label{eq:normalize}
+\end{equation}
+ここで$\varepsilon = 10^{-8}$は数値安定性のための微小値である．正規化により，ベクトル間の内積がコサイン類似度と等価になり，検索時の計算を効率化できる．
+
+インデックスは2つのファイルで構成される．meta.jsonlはJSON Lines形式でチャンクのメタデータを格納し，embeddings.npyは$(N_{\mathrm{chunks}}, 1536)$の形状を持つNumPy配列として埋め込み行列を格納する．
+
+\subsubsection{ベクトル検索}
+
+検索時には，クエリ文字列を同じ埋め込みモデルでベクトル化し，保存済みの埋め込み行列との内積を計算する．正規化済みのため，内積はコサイン類似度と等価である．類似度スコア$s_i$は式(\ref{eq:cosine_sim})で計算される．
+\begin{equation}
+s_i = \bm{q}_{\mathrm{norm}}^{\top} \bm{v}_i
+\label{eq:cosine_sim}
+\end{equation}
+ここで$\bm{q}_{\mathrm{norm}}$は正規化されたクエリベクトル，$\bm{v}_i$は正規化済みの$i$番目のチャンク埋め込みである．
+
+上位$k$件（デフォルト$k=5$）の抽出にはNumPyのargpartition関数を使用している．argpartitionは$O(N)$の計算量で$k$番目に大きい要素の位置を特定できるため，全チャンクのソート（$O(N \log N)$）を回避して計算効率を確保している．
+
+検索結果は，Pydanticモデル（SearchResult）のリストとして返される．各SearchResultには，マッチしたチャンク（IndexChunk）と類似度スコア（score）が含まれる．
+
+インデックスは初回ロード後にモジュールレベルのグローバル変数としてメモリ上にキャッシュされ，同一セッション内での複数回の検索において再ロードを回避している．これにより，Designerのマルチクエリ検索（後述）においても高速な応答を実現している．
+
+\begin{figure}[t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw,rounded corners,align=center,inner sep=4pt,minimum height=8mm,text width=30mm},
+  arrow/.style={-Latex,thick},
+  node distance=7mm and 18mm
+]
+  \node[box] (pdf) {PDF文書};
+  \node[box, below=of pdf] (extract) {テキスト抽出\\(pdfplumber)};
+  \node[box, below=of extract] (chunk) {チャンク化\\(最大800文字)};
+  \node[box, below=of chunk] (emb) {埋め込み生成\\(Embeddings)};
+  \node[box, below=of emb] (index) {ベクトル\\インデックス};
+
+  \node[box, right=55mm of extract] (query) {検索クエリ};
+  \node[box, below=of query] (qemb) {クエリ埋め込み};
+  \node[box, below=of qemb] (search) {類似度検索\\(cosine, top\_k)};
+  \node[box, below=of search] (chunks) {上位チャンク\\(本文+出典+score)};
+  \node[box, below=of chunks] (prompt) {LLMプロンプト\\へ挿入};
+
+  \draw[arrow] (pdf) -- (extract);
+  \draw[arrow] (extract) -- (chunk);
+  \draw[arrow] (chunk) -- (emb);
+  \draw[arrow] (emb) -- (index);
+
+  \draw[arrow] (query) -- (qemb);
+  \draw[arrow] (qemb) -- (search);
+  \draw[arrow] (search) -- (chunks);
+  \draw[arrow] (chunks) -- (prompt);
+
+  \draw[arrow] (index.east) -- (search.west);
+
+  \node[draw,dashed,rounded corners,fit=(pdf)(index),inner sep=8pt,label={[font=\scriptsize]above:{事前処理（インデックス構築）}}] {};
+  \node[draw,dashed,rounded corners,fit=(query)(prompt),inner sep=8pt,label={[font=\scriptsize]above:{検索時（クエリ実行）}}] {};
+\end{tikzpicture}
+}%
+\caption{RAGの検索パイプライン}
+\label{fig:rag_pipeline}
+\end{figure}
+
+
+\subsection{Designer（設計生成）サブシステム}
+
+Designerサブシステムは，橋長$L$と幅員$B$を入力として受け取り，RAGで取得した参考文献を基にLLMを用いて鋼プレートガーダー橋の断面設計を自動生成する．本サブシステムの特徴は，(1)設計要素ごとに異なるクエリでRAG検索を実行するマルチクエリRAG，(2)Pydanticスキーマによる型安全な構造化出力，(3)適用した設計ルールの明示的抽出の3点である．
+
+\subsubsection{入出力仕様}
+
+Designerへの入力はDesignerInputモデルで定義され，橋長（bridge\_length\_m [m]）と幅員（total\_width\_m [m]）の2パラメータのみを含む．この最小限の入力から，LLMがRAGコンテキストを参照しながら，主桁本数，桁間隔，桁高，板厚，床版厚などの全断面寸法を自動決定する．
+
+出力はBridgeDesignモデルで定義される構造化データである．BridgeDesignの階層構造を表\ref{tab:bridge_design_structure}に示す．
+
+\begin{table}[t]
+\caption{BridgeDesignモデルの階層構造}
+\label{tab:bridge_design_structure}
+\centering
+\small
+\begin{tabularx}{\linewidth}{|l|l|X|}
+\hline
+階層1 & 階層2/フィールド & 説明 \\
+\hline
+\multirow{6}{*}{Dimensions} & bridge\_length & 橋長 [mm] \\
+ & total\_width & 全幅 [mm] \\
+ & num\_girders & 主桁本数 \\
+ & girder\_spacing & 主桁間隔 [mm] \\
+ & panel\_length & パネル長 [mm] \\
+ & num\_panels & パネル数 \\
+\hline
+\multirow{2}{*}{Sections} & girder\_standard & 主桁I形断面 \\
+ & crossbeam\_standard & 横桁I形断面 \\
+\hline
+Components & deck.thickness & 床版厚 [mm] \\
+\hline
+\end{tabularx}
+\end{table}
+
+主桁断面（GirderSection）は，腹板高さ，腹板厚，
+上フランジ幅・厚，下フランジ幅・厚の
+6パラメータで定義される．
+横桁断面（CrossbeamSection）は，桁高，腹板厚，
+フランジ幅・厚の4パラメータで定義される．
+すべての寸法はmm単位で記録され，
+Pydanticによるバリデーションにより
+数値範囲や型の整合性が保証される．
+
+LLMからの直接出力はDesignerOutputモデルで受け取る．
+このモデルには，BridgeDesignに加えて，
+設計プロセスの思考・判断根拠を記述したreasoning，
+適用した設計ルールの一覧であるrules
+（DesignRuleのリスト），
+および部材間の依存関係を表すdependency\_rules
+（DependencyRuleのリスト）が含まれる．
+これにより，生成された設計値だけでなく，
+その根拠も記録される．
+
+\subsubsection{マルチクエリRAG}
+
+Designerは設計生成時に，設計要素ごとに異なる5種類のクエリでRAG検索を実行する．表\ref{tab:multiquery_rag}に各クエリの詳細を示す．
+
+\begin{table}[t]
+\caption{マルチクエリRAGの検索クエリ}
+\label{tab:multiquery_rag}
+\centering
+\small
+\begin{tabularx}{\linewidth}{|l|X|}
+\hline
+カテゴリ & クエリ内容（例） \\
+\hline
+寸法関連 & 鋼プレートガーダー橋 橋長$L$m 幅員$B$m 桁配置 主桁本数 \\
+\hline
+主桁配置 & 並列I桁 主桁間隔 幅員と主桁本数の関係 \\
+\hline
+主桁断面 & 橋長$L$m 主桁断面 桁高 腹板厚さ フランジ \\
+\hline
+RC床版 & RC床版合成桁 床版厚さ 最小床版厚 \\
+\hline
+横桁 & 横桁 対傾構 横構 設計 \\
+\hline
+\end{tabularx}
+\end{table}
+
+各クエリで上位5件のチャンクを取得するため，合計最大25チャンクの参考文献がプロンプトに含まれる．プロンプトでは，これらのチャンクにrank番号（1〜25）を付与し，LLMが設計値を決定する際にどのチャンクを根拠としたかをsource\_hit\_ranksとして記録させる．マルチクエリRAGの処理フローを図\ref{fig:multiquery_rag}に示す．
+
+\begin{figure*}[t]
+\centering
+\resizebox{\linewidth}{!}{%
+\begin{tikzpicture}[
+  font=\scriptsize,
+  box/.style={draw,rounded corners,align=center,inner sep=3pt,minimum height=7mm,text width=18mm},
+  arrow/.style={-Latex,semithick},
+  node distance=6mm and 8mm
+]
+  \node[box, text width=12mm] (inp) {入力\\$L, B$};
+  \node[box, right=8mm of inp] (q1) {寸法};
+  \node[box, below=of q1] (q2) {主桁配置};
+  \node[box, below=of q2] (q3) {主桁断面};
+  \node[box, below=of q3] (q4) {床版};
+  \node[box, below=of q4] (q5) {横桁};
+
+  \node[box, right=8mm of q3] (rag) {RAG検索\\(各top\_k=5)};
+  \node[box, right=8mm of rag, text width=20mm] (ctx) {統合コンテキスト\\(最大25チャンク)};
+  \node[box, right=8mm of ctx, text width=14mm] (llm) {Designer\\(LLM)};
+  \node[box, right=8mm of llm, text width=14mm] (out) {設計JSON\\+ログ};
+
+  \coordinate (inpa) at ($(inp.north east)!0.15!(inp.south east)$);
+  \coordinate (inpb) at ($(inp.north east)!0.32!(inp.south east)$);
+  \coordinate (inpc) at ($(inp.north east)!0.50!(inp.south east)$);
+  \coordinate (inpd) at ($(inp.north east)!0.68!(inp.south east)$);
+  \coordinate (inpe) at ($(inp.north east)!0.85!(inp.south east)$);
+
+  \draw[arrow] (inpa) |- (q1.west);
+  \draw[arrow] (inpb) |- (q2.west);
+  \draw[arrow] (inpc) |- (q3.west);
+  \draw[arrow] (inpd) |- (q4.west);
+  \draw[arrow] (inpe) |- (q5.west);
+
+  \draw[arrow] (q1) -- (rag);
+  \draw[arrow] (q2) -- (rag);
+  \draw[arrow] (q3) -- (rag);
+  \draw[arrow] (q4) -- (rag);
+  \draw[arrow] (q5) -- (rag);
+
+  \draw[arrow] (rag) -- (ctx);
+  \draw[arrow] (ctx) -- (llm);
+  \draw[arrow] (llm) -- (out);
+\end{tikzpicture}
+}%
+\caption{マルチクエリRAG（5観点）とDesignerへの統合}
+\label{fig:multiquery_rag}
+\end{figure*}
+
+図\ref{fig:raglog_example}に，実際のRAG検索ヒット結果の例を示す．各ヒットにはrank番号，コサイン類似度スコア（score），出典ドキュメント名（source），ページ番号（page），および抽出されたテキスト（text）が含まれる．この例では，「鋼橋設計の基礎\_第七章 プレートガーダー橋.pdf」や「鋼橋設計の基礎\_第一章 概論.pdf」など複数の文献から，プレートガーダー橋の設計に関連するチャンクが類似度順に取得されている．Designerはこれらのヒットを参照しながら設計値を決定し，採用した根拠のrank番号をsource\_hit\_ranksとして記録する．
+
+\begin{figure}[t]
+\centering
+\begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+{
+  "rank": 3, "score": 0.694,
+  "source": "鋼橋設計の基礎_第七章 プレートガーダー橋.pdf",
+  "page": 0,
+  "text": "7 プレートガーダー橋 7.1 概 説 プレートガーダー(plate girder) 橋は、橋梁として..."
+},
+{
+  "rank": 4, "score": 0.682,
+  "source": "鋼橋設計の基礎_第七章 プレートガーダー橋.pdf",
+  "page": 108,
+  "text": "7.5 主桁断面の設計 223 7.5 主桁断面の設計 プレートガーダー橋の設計手順をまとめて..."
+},
+{
+  "rank": 5, "score": 0.679,
+  "source": "鋼橋設計の基礎_第一章 概論.pdf",
+  "page": 2,
+  "text": "1.3 橋梁の種類 ①腹板Web plate 10 2 上フランジ Upper flange ③下フランジ Low..."
+},
+{
+  "rank": 6, "score": 0.662,
+  "source": "鋼橋設計の基礎_第七章 プレートガーダー橋.pdf",
+  "page": 110,
+  "text": "7.5 主桁断面の設計 225 なく、数回の試算で逐次収束するようにする。したがって、数値..."
+},
+{
+  "rank": 7, "score": 0.659,
+  "source": "鋼橋設計の基礎_第七章 プレートガーダー橋.pdf",
+  "page": 60,
+  "text": "7.3 断面力の解析 175 本主桁の単純格子桁を考える。まず、曲げによる垂 P=1 直応力度..."
+}
+\end{lstlisting}
+\caption{RAG検索ヒット結果の例（rank 3〜7）．スコアは小数第3位で四捨五入した．textは冒頭のみ表示している．}
+\label{fig:raglog_example}
+\end{figure}
+
+プロンプトには以下の重要な指示を含めている：
+\begin{itemize}
+  \item source\_hit\_ranksにはRAG検索のhitsのrank番号のみを記載すること
+  \item 根拠が曖昧または見当たらない場合はsource\_hit\_ranksを空リストとし，notesに「仮定」「実務目安」と明記すること
+  \item 主桁本数の候補$\{3, 4, 5, 6\}$を列挙し，各候補について桁間隔と床版厚を評価した上で最終案を選択すること
+  \item 床版厚は10mm刻みで設計し，必要厚に余裕を持たせること
+  \item パネル長は$\{4000, 5000, 6000\}$mmから選択し，パネル数が整数になるものを優先すること
+  \item 腹板幅厚比の制約として$t_{\mathrm{web}} \geq h_{\mathrm{web}} / 130$を満たすこと（例：$h_{\mathrm{web}} = 1500$\,mmの場合，$t_{\mathrm{web}} \geq 1500/130 \approx 11.5$\,mm → 12\,mm以上）．この制約を満たさない場合，Judge照査の腹板幅厚比で不合格となる
+\end{itemize}
+
+\subsubsection{設計ルール抽出}
+
+Designerは設計値だけでなく，適用した設計ルールを明示的に抽出する．各DesignRuleには表\ref{tab:design_rule_fields}に示すフィールドが含まれる．
+
+\begin{table}[t]
+\caption{DesignRuleモデルのフィールド}
+\label{tab:design_rule_fields}
+\centering
+\small
+\begin{tabularx}{\linewidth}{|l|X|}
+\hline
+フィールド & 説明 \\
+\hline
+rule\_id & ルールID（R1, R2, ...） \\
+\hline
+category & カテゴリ（dimensions, girder\_section, deck, crossbeam\_section, other） \\
+\hline
+summary & 日本語要約（1〜3文） \\
+\hline
+condition\_expression & 条件式 \\
+\hline
+formula\_latex & LaTeX形式の数式表現 \\
+\hline
+applies\_to\_fields & 影響するフィールドパスのリスト \\
+\hline
+source\_hit\_ranks & 根拠となるRAGヒットのrank番号リスト \\
+\hline
+notes & 補足（仮定の場合はその旨を記載） \\
+\hline
+\end{tabularx}
+\end{table}
+
+さらに，部材間の依存関係を表すDependencyRuleも抽出する．例えば，横桁高さが主桁高さの80\%程度とする場合，対象フィールド（target\_field: crossbeam.total\_height），参照フィールド（source\_field: girder.web\_height），係数（factor: 0.8）を記録する．この依存関係ルールは，Judge修正ループ（後述）において主桁高さが変更された際に横桁高さを自動更新するために使用される．DependencyRuleの抽出条件として，RAGコンテキストに「横桁高さは主桁の〇〇\%」等の記述がある場合のみ抽出し，係数が読み取れない場合は抽出しないよう指示している．
+
+図\ref{fig:design_rule_example}に，Designerが実際に抽出した設計ルールの例を示す．reasoningフィールドにはLLMの設計方針が記述され，rulesリストには個々のルールが構造化されている．例えばルールR1はRC床版の最小全厚に関する標準式（$d = 30L_{\mathrm{support}} + 110$）を示し，applies\_to\_fieldsにより適用先がdeck（床版）の厚さであることが明示されている．また，source\_hit\_ranksによりRAG検索のrank 17番のチャンクが根拠であることが追跡可能である．ルールR2は主桁高さの経験式（$h \approx L/20$）を示し，notesには文献の示唆内容と採用理由が記録されている．このように，各設計値の決定根拠が構造化データとして保持されるため，設計者による事後検証が容易となる．
+
+\begin{figure}[t]
+\centering
+\begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+"reasoning": "重視点と全体方針:\n- 参考文献では「桁高は支間に対して経験的に h/L ≒ 1/20 程度が目安」(図7.134, 主 ... （以下省略）",
+"rules": [
+  {
+    "rule_id": "R1",
+    "category": "deck",
+    "summary": "RC床版の最小全厚・支間による標準式（道路橋示方書）",
+    "condition_expression": "d = 30 * L_support + 110",
+    "formula_latex": "d = 30L + 110\\quad(\\text{連続版})",
+    "applies_to_fields": ["components.deck.thickness"],
+    "source_hit_ranks": [17],
+    "notes": "道路橋示方書 表-11.5.1 に基づく。床版の最小全厚は160 mmの下限規定も適用する（参照: [19]）。"
+  },
+  {
+    "rule_id": "R2",
+    "category": "girder_section",
+    "summary": "主桁高さの経験式（スパン比の目安: h/L ≒ 1/15 〜 1/20）",
+    "condition_expression": "h ≈ L / 20",
+    "formula_latex": "h \\approx \\dfrac{L}{20}",
+    "applies_to_fields": [
+      "sections.girder_standard.web_height",
+      "dimensions.bridge_length"
+    ],
+    "source_hit_ranks": [13],
+    "notes": "文献は h/L ≒ 1/20 を示唆しているため、30m 支間では h ≈ 1500 mm を一次採用とする。"
+  },
+  ...
+]
+\end{lstlisting}
+\caption{Designerが抽出した設計ルールの例（R1: 床版厚，R2: 主桁高さ）．reasoningフィールドは紙面の都合上一部のみ掲載した．}
+\label{fig:design_rule_example}
+\end{figure}
+
+\subsubsection{Structured OutputによるLLM呼び出し}
+
+LLMの呼び出しにはOpenAI Responses API\cite{openai_responses}とStructured Output機能\cite{openai_structured_output}を使用している．Structured Outputは，JSONスキーマまたはPydanticスキーマを指定することでLLMの出力を型安全な構造化データとして受け取る機能である．
+
+具体的には，DesignerOutputモデルをスキーマとして指定し，LLMがこのスキーマに準拠したJSONを生成するよう制約する．呼び出しは以下の形式で行う：
+
+\begin{quote}
+\texttt{response = client.responses.parse(}\\
+\texttt{\ \ model=model\_name,}\\
+\texttt{\ \ input=prompt,}\\
+\texttt{\ \ text\_format=DesignerOutput}\\
+\texttt{)}
+\end{quote}
+
+OpenAI APIが自動でバリデーションを行い，response.output\_parsedとしてPydanticインスタンスを返すため，出力の型安全性が保証される．ここで，Pydantic\cite{pydantic_docs}はPythonのデータバリデーションライブラリであり，型ヒントを用いてデータモデルを定義し実行時にバリデーションを行う．PydanticモデルはJSONスキーマへ自動変換されるため，前述のDesignerOutputモデルをそのままStructured Outputのスキーマとして指定できる．この出力をさらにPythonで決定的にIFCに変換することで，山本ら\cite{yamamoto_genai_ifc}が報告したIFCテキスト直接生成時のスキーマ違反や構文エラーの問題を回避することが可能になる．
+
+
+\subsection{Judge（照査・修正提案）サブシステム}
+
+Judgeサブシステムは，Designerが生成したBridgeDesignに対して決定論的な照査計算を行い，不合格時にはLLMを用いて修正提案（PatchPlan）を生成する．本サブシステムの特徴は，(1)照査計算を数式ベースの決定論的処理で実行しLLMを使用しない点，(2)修正提案のみLLMが生成するハイブリッドアプローチ，(3)許可されたアクションの範囲内で修正を提案することで安全性を確保している点，(4)照査と修正のループにより合格するまで自動で繰り返す点である．
+
+\subsubsection{入出力仕様}
+
+Judgeへの入力はJudgeInputモデルで定義され，BridgeDesignに加えて材料特性と照査パラメータを含む．材料特性は表\ref{tab:judge_materials}に示すデフォルト値を持つ．これらの物性値は基本的に道路橋示方書の規定に沿ったものを採用している．
+
+\begin{table}[t]
+\caption{Judge照査の材料特性デフォルト値}
+\label{tab:judge_materials}
+\centering
+\small
+\begin{tabularx}{\linewidth}{|l|l|X|}
+\hline
+パラメータ & 値 & 説明 \\
+\hline
+$E$ & $2.0 \times 10^5$ N/mm$^2$ & ヤング率 \\
+\hline
+鋼種 & SM490 & 降伏点325 N/mm$^2$（$t \leq 16$mm） \\
+\hline
+$\gamma_{\mathrm{steel}}$ & $78.5 \times 10^{-6}$ N/mm$^3$ & 鋼の単位体積重量 \\
+\hline
+$\gamma_{\mathrm{concrete}}$ & $25.0 \times 10^{-6}$ N/mm$^3$ & コンクリートの単位体積重量 \\
+\hline
+$\alpha_{\mathrm{bend}}$ & 0.6 & 曲げ許容応力度係数 \\
+\hline
+$\alpha_{\mathrm{shear}}$ & 0.6 & せん断許容応力度係数 \\
+\hline
+\end{tabularx}
+\end{table}
+
+降伏点$f_y$は鋼種と板厚に応じて表\ref{tab:steel_fy}により決定される．
+
+\begin{table}[t]
+\caption{鋼種と板厚による降伏点}
+\label{tab:steel_fy}
+\centering
+\small
+\begin{tabular}{|l|c|c|c|}
+\hline
+鋼種 & $t \leq 16$mm & $16 < t \leq 40$mm & $t > 40$mm \\
+\hline
+SM400 & 245 N/mm$^2$ & 235 N/mm$^2$ & 215 N/mm$^2$ \\
+\hline
+SM490 & 325 N/mm$^2$ & 315 N/mm$^2$ & 295 N/mm$^2$ \\
+\hline
+\end{tabular}
+\end{table}
+
+出力はJudgeReportモデルで定義され，合否判定（pass\_fail），各照査項目のutilization ratio（Utilization），中間計算値（Diagnostics），修正提案（PatchPlan）を含む．Utilizationには，床版厚（deck），曲げ応力度（bend），せん断応力度（shear），たわみ（deflection），腹板幅厚比（web\_slenderness）の各utilization ratioと，それらの最大値（max\_util），支配的なチェック項目（governing\_check）が含まれる．
+
+\subsubsection{荷重計算}
+
+照査計算に先立ち，死荷重と活荷重の断面力を計算する．活荷重には道路橋示方書\cite{dosisyo}のB活荷重に基づくL荷重を適用する．L荷重は，部分載荷を全スパン等分布荷重に換算する等価係数$\gamma$を用いて計算される．
+
+まず載荷長$D$を$D = \min(10.0, L)$[m]で定め，等価係数を式(\ref{eq:gamma})で算出する．
+\begin{equation}
+\gamma = \frac{D(2L - D)}{L^2}
+\label{eq:gamma}
+\end{equation}
+次に，等価面圧$p_{\mathrm{eq}}$を式(\ref{eq:peq})で計算する．
+\begin{equation}
+p_{\mathrm{eq}} = p_2 + p_1 \times \gamma
+\label{eq:peq}
+\end{equation}
+ここで，$p_2 = 3.5$ kN/m$^2$（支間80m以下の場合），
+$p_1 = 10.0$ kN/m$^2$（曲げ照査用）または
+$p_1 = 12.0$ kN/m$^2$（せん断照査用）である．
+なお，本研究では簡易的な検討を目的としているため，衝撃係数および群集荷重は考慮していない．
+
+各主桁の受け持ち幅$b_i$は，端桁と中間桁で異なる．張り出し幅$c$を式(\ref{eq:overhang})で計算する．
+\begin{equation}
+c = \frac{B - (n_g - 1) \times s_g}{2}
+\label{eq:overhang}
+\end{equation}
+ここで$B$は全幅，$n_g$は主桁本数，$s_g$は主桁間隔である．端桁の受け持ち幅は$b_i = c + s_g / 2$，中間桁は$b_i = s_g$となる．
+
+さらに，主載荷幅5.5mを考慮した実効幅$b_{\mathrm{eff}}$を式(\ref{eq:beff})で計算する．
+\begin{equation}
+b_{\mathrm{eff}} = 0.5 \times b_i + 0.5 \times \min(b_i, 5.5)
+\label{eq:beff}
+\end{equation}
+この式は，B活荷重の主載荷幅5.5mを最不利に配置した場合の等価的な受け持ち幅を表す．
+
+活荷重による等価線荷重$w_{\mathrm{live}}$は$w_{\mathrm{live}} = p_{\mathrm{eq}} \times b_{\mathrm{eff}}$となり，単純桁として曲げモーメント$M_{\mathrm{live}} = w_{\mathrm{live}} L^2 / 8$，せん断力$V_{\mathrm{live}} = w_{\mathrm{live}} L / 2$を算出する．
+
+死荷重については，床版のRC重量と主桁の鋼重量を各主桁の受け持ち幅に応じて個別に計算する．床版による線荷重$w_{\mathrm{deck}}$は式(\ref{eq:w_deck})で計算される．
+\begin{equation}
+w_{\mathrm{deck}} = \gamma_c \times t_d \times b_i
+\label{eq:w_deck}
+\end{equation}
+ここで$\gamma_c$はコンクリート単位体積重量，$t_d$は床版厚である．主桁の鋼重量$w_{\mathrm{steel}}$は断面積$A_{\mathrm{girder}}$と鋼の単位体積重量$\gamma_s$から$w_{\mathrm{steel}} = \gamma_s \times A_{\mathrm{girder}}$として算出する．
+
+各主桁について死荷重と活荷重による断面力を算出し，全主桁の中で最大となる桁（governing girder）の断面力を照査に使用する．曲げとせん断では支配的な桁が異なる場合があるため，それぞれ独立に評価する．
+
+\subsubsection{照査項目}
+
+Judgeは6項目の照査を実行し，各項目について需要と許容値の比（utilization ratio）を算出する．すべての項目でutilization ratioが1.0以下であれば合格とする．なお，あくまで簡易的な照査であり，疲労などの照査や厳密な照査は行なっていないことに注意が必要である．表\ref{tab:judge_checks}に照査項目の一覧を示す．
+
+\begin{table}[t]
+\caption{Judge照査項目}
+\label{tab:judge_checks}
+\centering
+\small
+\begin{tabularx}{\linewidth}{|l|X|}
+\hline
+照査項目 & 判定条件 \\
+\hline
+曲げ応力度 & $\sigma / \sigma_{\mathrm{allow}} \leq 1.0$ \\
+\hline
+せん断応力度 & $\tau_{\mathrm{avg}} / \tau_{\mathrm{allow}} \leq 1.0$ \\
+\hline
+たわみ & $\delta / \delta_{\mathrm{allow}} \leq 1.0$ \\
+\hline
+床版厚 & $t_{\mathrm{req}} / t_d \leq 1.0$ \\
+\hline
+腹板幅厚比 & $t_{\mathrm{web,min}} / t_{\mathrm{web}} \leq 1.0$ \\
+\hline
+横桁配置 & パネル長$\times$パネル数$\approx$橋長 \\
+\hline
+\end{tabularx}
+\end{table}
+
+なお，本システムでは簡略化のため，合成桁としての床版の剛性寄与を無視している．具体的には，主桁断面諸量（中立軸位置$\bar{y}$，断面二次モーメント$I$）を計算する際に，鋼I断面のみ（上フランジ・ウェブ・下フランジの3矩形）で計算している．RC床版との合成効果を考慮すると，床版コンクリートが鋼桁と一体となって抵抗するため中立軸が上方に移動し，断面二次モーメントが増加して断面性能が向上する．これを無視することで，保守側（安全側）の評価となっている．
+
+第一に，曲げ応力度照査を行う．死荷重と活荷重による全曲げモーメント$M_{\mathrm{total}}$に対し，上縁および下縁の曲げ応力度$\sigma$を式(\ref{eq:sigma})で計算する．
+\begin{equation}
+\sigma = \frac{M_{\mathrm{total}} \times y}{I}
+\label{eq:sigma}
+\end{equation}
+ここで，$y$は中立軸から上縁または下縁までの距離，$I$は断面二次モーメントである．許容曲げ応力度$\sigma_{\mathrm{allow}}$は式(\ref{eq:sigma_allow})で計算する．
+\begin{equation}
+\sigma_{\mathrm{allow}} = \alpha_{\mathrm{bend}} \times f_y
+\label{eq:sigma_allow}
+\end{equation}
+上フランジと下フランジでは板厚が異なる場合があるため，それぞれの降伏点から許容値を算出し，上縁と下縁それぞれについてutilization ratioを評価する．
+
+第二に，せん断応力度照査を行う．平均せん断応力度$\tau_{\mathrm{avg}}$を式(\ref{eq:tau})で計算する．
+\begin{equation}
+\tau_{\mathrm{avg}} = \frac{V_{\mathrm{total}}}{t_{\mathrm{web}} \times h_{\mathrm{web}}}
+\label{eq:tau}
+\end{equation}
+許容せん断応力度$\tau_{\mathrm{allow}}$は式(\ref{eq:tau_allow})で計算する．
+\begin{equation}
+\tau_{\mathrm{allow}} = \alpha_{\mathrm{shear}} \times \frac{f_y}{\sqrt{3}}
+\label{eq:tau_allow}
+\end{equation}
+
+第三に，たわみ照査を行う．活荷重によるたわみ$\delta$を式(\ref{eq:delta})で計算する．
+\begin{equation}
+\delta = \frac{5 w_{\mathrm{live}} L^4}{384 E I}
+\label{eq:delta}
+\end{equation}
+許容たわみ$\delta_{\mathrm{allow}}$は道路橋示方書に基づき，支間長に応じて表\ref{tab:deflection_allow}のように設定する．
+
+\begin{table}[t]
+\caption{許容たわみの算定式}
+\label{tab:deflection_allow}
+\centering
+\small
+\begin{tabular}{|l|l|}
+\hline
+支間長 & 許容たわみ \\
+\hline
+$L \leq 10$m & $L/2000$ \\
+\hline
+$10$m$< L \leq 40$m & $L^2/20000$ [mm] \\
+\hline
+$L > 40$m & $L/500$ \\
+\hline
+\end{tabular}
+\end{table}
+
+第四に，床版厚照査を行う．要求床版厚$t_{\mathrm{req}}$を式(\ref{eq:deck_req})で算出する．
+\begin{equation}
+t_{\mathrm{req}} = \max(30 L_{\mathrm{support}} + 110, 160) \quad \mathrm{[mm]}
+\label{eq:deck_req}
+\end{equation}
+ここで$L_{\mathrm{support}}$は床版支間（主桁間隔）[m]である．設計床版厚がこれ以上であることを確認する．
+
+第五に，腹板幅厚比照査を行う．SM490鋼の場合，幅厚比の制限値は130であり，要求腹板厚$t_{\mathrm{web,min}}$を式(\ref{eq:web_min})で算出する．
+\begin{equation}
+t_{\mathrm{web,min}} = \frac{h_{\mathrm{web}}}{130}
+\label{eq:web_min}
+\end{equation}
+設計腹板厚がこれ以上であることを確認する．
+
+第六に，横桁配置照査を行う．パネル長とパネル数の積が橋長とほぼ一致すること（許容誤差1.0mm以内），およびパネル長が20m以下であることを確認する．
+
+照査結果はJudgeReportとしてJSON形式で出力される．図\ref{fig:judge_log}に不合格時の出力例を示す．\texttt{pass\_fail}は合否判定，\texttt{utilization}は各照査項目のutilization ratioと支配的な照査項目（\texttt{governing\_check}），\texttt{diagnostics}は照査計算の中間値（断面力・応力度・たわみ等）を記録する．この例では曲げのutilization ratioが1.33と1.0を超過しており，曲げが支配的照査項目となっている．この照査結果がPatchPlan生成時にLLMへ入力され，修正方針の判断根拠となる．
+
+\begin{figure}[t]
+\centering
+\begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+"pass_fail": false,
+"utilization": {
+  "deck": 0.950,
+  "bend": 1.332,
+  "shear": 0.229,
+  "deflection": 1.193,
+  "web_slenderness": 0.962,
+  "max_util": 1.332,
+  "governing_check": "bend"
+},
+"diagnostics": {
+  "M_total": 7789900000.000,
+  "V_total": 825662.5,
+  "ybar": 869.819,
+  "moment_of_inertia": 36675237661.791,
+  "y_top": 1185.181,
+  "y_bottom": 869.819,
+  "sigma_top": 251.735,
+  "sigma_bottom": 184.751,
+  "tau_avg": 25.802,
+  "delta": 95.444,
+  "delta_allow": 80.0,
+  ...
+}
+\end{lstlisting}
+\caption{Judge照査結果の出力例（不合格時）．数値は小数第3位で四捨五入した．}
+\label{fig:judge_log}
+\end{figure}
+
+\subsubsection{PatchPlan生成}
+
+照査で不合格となった場合，LLMが修正提案（PatchPlan）を生成する．PatchPlanは，許可されたアクション（PatchAction）の組み合わせで構成される．各PatchActionには操作種別（op），対象フィールドパス（path），変更量（delta\_mm），変更理由（reason）が含まれる．
+
+許可されるアクションを表\ref{tab:allowed_actions}に示す．各アクションには許可される変更量が事前に定義されており，LLMはこの範囲内でのみ修正を提案できる．これにより，過度な修正や不適切な設計変更を防止している．
+
+\begin{table}[t]
+\caption{許可される修正アクション}
+\label{tab:allowed_actions}
+\centering
+\small
+\begin{tabularx}{\linewidth}{|l|X|}
+\hline
+アクション & 許可される変更量 \\
+\hline
+腹板高さ増加 & +100, +200, +300, +500 mm \\
+\hline
+腹板厚増加 & +2, +4, +6 mm \\
+\hline
+上フランジ厚増加 & +2, +4, +6 mm \\
+\hline
+下フランジ厚増加 & +2, +4, +6 mm \\
+\hline
+上フランジ幅増加 & +50, +100 mm \\
+\hline
+下フランジ幅増加 & +50, +100 mm \\
+\hline
+床版厚を要求値に設定 & （自動計算） \\
+\hline
+横桁配置の修正 & （自動計算） \\
+\hline
+\end{tabularx}
+\end{table}
+
+LLMへのプロンプトでは，照査結果（各項目のutilization ratio，支配的な照査項目）と現在の設計値を提示し，max\_util（全項目のutilization ratioの最大値）を1.0以下（できれば0.98以下）にするための修正案を要求する．プロンプトには判断の方針として以下を示している：
+\begin{itemize}
+  \item 曲げが支配的な場合：フランジ厚または腹板高さの増加を優先
+  \item せん断が支配的な場合：腹板厚の増加を優先
+  \item たわみが支配的な場合：断面二次モーメントを増やす方向（腹板高さ増加）を優先
+  \item 床版厚が支配的な場合：床版厚を必要厚に設定するアクションを必ず使用
+\end{itemize}
+
+図\ref{fig:patch_plan}に，図\ref{fig:judge_log}の不合格結果に対してLLMが生成したPatchPlanの出力例を示す．曲げが支配的照査項目であるため，上フランジ厚を6mm増加させるアクションと上フランジ幅を100mm拡大するアクションの2つが提案されている．各アクションには対象フィールドのパス，変更量，および変更理由が自然言語で記述されており，LLMが照査結果を解釈して適切な修正方針を導出していることがわかる．
+
+\begin{figure}[t]
+\centering
+\begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+{
+  "actions": [
+    {
+      "op": "increase_top_flange_thickness",
+      "path": "sections.girder_standard.top_flange_thickness",
+      "delta_mm": 6.0,
+      "reason": "上フランジの断面係数を大きく増やし、 sigma_top を直接低減するため。"
+    },
+    {
+      "op": "increase_top_flange_width",
+      "path": "sections.girder_standard.top_flange_width",
+      "delta_mm": 100.0,
+      "reason": "上フランジ幅を拡大して断面係数をさらに増し、曲げ支配をフランジ強化で解消するため。"
+    }
+  ]
+}
+\end{lstlisting}
+\caption{PatchPlanの出力例（曲げ支配時）}
+\label{fig:patch_plan}
+\end{figure}
+
+また，本システムでは複数候補方式を採用している．LLMが最大3つの異なるアプローチ（例：腹板高さ重視，フランジ厚重視，バランス型など）による修正案を同時に生成し，各案を仮適用して照査計算をシミュレーションする．シミュレーションは決定論的な照査計算を再実行するのみであり，LLMは使用しない．そして，改善度（improvement = 現在のmax\_util - シミュレーション後のmax\_util）が最大となる案を選択する．この方式により，LLMの提案の不確実性を軽減し，効率的な設計改善を実現している．
+
+評価済み候補はEvaluatedCandidateモデルとして記録され，各候補のPatchPlan，シミュレーション後のmax\_util，シミュレーション後のUtilization，改善量が含まれる．これによりLLMの提案がどのように評価されたかを追跡できる．図\ref{fig:patch_candidates}に評価済み候補の出力例を示す．\texttt{candidate}にはPatchPlanとアプローチの要約（\texttt{approach\_summary}）が含まれ，\texttt{simulated\_max\_util}と\texttt{simulated\_utilization}にはこの修正案を仮適用した場合の照査シミュレーション結果が記録される．この例では，修正前のmax\_utilが1.33（図\ref{fig:judge_log}）であったのに対し，シミュレーション後は1.05に低下しており，\texttt{improvement}として0.28の改善が得られている．なお，たわみのutilization ratioが1.00とぎりぎりであり，1回の修正では完全に合格に至っていないことも読み取れる．このような場合，修正ループが継続して追加の修正を行う．
+
+\begin{figure}[t]
+\centering
+\begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+{
+  "candidate": {
+    "plan": {
+      "actions": [
+        {
+          "op": "increase_top_flange_thickness",
+          "path": "sections.girder_standard.top_flange_thickness",
+          "delta_mm": 6.0,
+          "reason": "上フランジの断面係数を大きく増やし、 sigma_top を直接低減するため。"
+        },
+        {
+          "op": "increase_top_flange_width",
+          "path": "sections.girder_standard.top_flange_width",
+          "delta_mm": 100.0,
+          "reason": "上フランジ幅を拡大して断面係数をさらに増し、曲げ支配をフランジ強化で解消するため。"
+        }
+      ]
+    },
+    "approach_summary": "支配: 曲げ（上フランジ）。方針: フランジ強化（厚さ・幅）で断面係数を大幅増..."
+  },
+  "simulated_max_util": 1.053,
+  "simulated_utilization": {
+    "deck": 0.950,
+    "bend": 1.053,
+    "shear": 0.231,
+    "deflection": 1.010,
+    "web_slenderness": 0.962,
+    "max_util": 1.053,
+    "governing_check": "bend"
+  },
+  "improvement": 0.279
+}
+\end{lstlisting}
+\caption{評価済み候補（EvaluatedCandidate）の出力例．数値は小数第3位で四捨五入した．}
+\label{fig:patch_candidates}
+\end{figure}
+
+\subsubsection{修正ループ}
+
+Designer-Judge修正ループの処理フローを図\ref{fig:repair_loop}に示す．
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\scriptsize,
+  box/.style={draw,rounded corners,align=center,inner sep=3pt,minimum height=6mm,text width=22mm},
+  decision/.style={draw,diamond,align=center,inner sep=1pt,aspect=1.8,font=\scriptsize},
+  arrow/.style={-Latex,semithick},
+  node distance=7mm
+]
+  \node[box] (design) {Designer\\初期設計生成};
+  \node[box, below=of design] (judge) {Judge照査計算};
+  \node[decision, below=9mm of judge] (check) {合格？};
+  \node[box, right=14mm of check] (end) {最終設計出力};
+  \node[box, below=9mm of check] (patch) {PatchPlan生成\\（複数候補）};
+  \node[box, below=of patch] (sim) {各候補を\\シミュレーション};
+  \node[box, below=of sim] (apply) {最良案を適用};
+  \node[box, below=of apply] (dep) {DependencyRule\\適用};
+
+  \draw[arrow] (design) -- (judge);
+  \draw[arrow] (judge) -- (check);
+  \draw[arrow] (check) -- node[above,font=\tiny]{Yes} (end);
+  \draw[arrow] (check) -- node[right,font=\tiny]{No} (patch);
+  \draw[arrow] (patch) -- (sim);
+  \draw[arrow] (sim) -- (apply);
+  \draw[arrow] (apply) -- (dep);
+  \draw[arrow] (dep.west) -- ++(-12mm,0) |- node[near start,left,font=\tiny]{最大5回} (judge.west);
+\end{tikzpicture}
+\caption{Designer-Judge修正ループの処理フロー}
+\label{fig:repair_loop}
+\end{figure}
+
+まずDesignerが初期設計を生成し，Judgeが照査を実行する．合格（max\_util $\leq$ 1.0かつ横桁配置OK）であれば終了する．不合格の場合，LLMがPatchPlanを生成し，設計に適用する．さらに，Designerが抽出した依存関係ルール（例：横桁高さが主桁高さの80\%）を適用し，部材間の整合性を維持する．その後，再度Judgeが照査を実行する．このループを合格するまで，または最大修正回数（デフォルト5回）に達するまで繰り返す．
+
+修正ループの結果はRepairLoopResultモデルとして記録される．これには，収束フラグ（converged: 合格に到達したか），全修正ループの履歴（iterations: RepairIterationのリスト），最終設計（final\_design: BridgeDesign），最終照査結果（final\_report: JudgeReport），およびRAG検索ログ（rag\_log: DesignerRagLog）が含まれる．各RepairIterationにはイテレーション番号，その時点のBridgeDesign，JudgeReportが記録される．これにより，設計改善のプロセス全体を追跡可能としている．
+
+
+\subsection{IFC変換サブシステム}
+
+IFC変換サブシステムは，Designerが生成した（またはJudge修正後の）BridgeDesign JSONをIFC（Industry Foundation Classes）形式に変換し，BIM/CIMソフトウェアで利用可能な3Dモデルを出力する．変換は2段階のパイプラインで行われる（図\ref{fig:ifc_pipeline}）．第一段階でBridgeDesign JSONを中間形式であるSenkei JSONに変換し，第二段階でSenkei JSONをifcopenshell\cite{ifcopenshell_docs}によりIFCファイルに変換する．この2段階方式により，橋梁BIMの既存エコシステムとの接続性を確保しつつ，将来的な拡張にも対応可能な設計としている．
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\textwidth]{images/ifc_convert.png}
+\caption{IFC変換の2段階パイプライン}
+\label{fig:ifc_pipeline}
+\end{figure*}
+
+\subsubsection{BridgeDesignからSenkei JSONへの変換}
+
+Senkei JSONは，橋梁の3次元形状を線形（Senkei）ベースで定義する中間形式である．BridgeDesignの断面諸元から，主桁・横桁・床版の3次元位置を具体的な座標値として算出する．Senkei JSONの主要構成要素を表\ref{tab:senkei_elements}に示す．
+
+\begin{table}[t]
+\caption{Senkei JSONの主要構成要素}
+\label{tab:senkei_elements}
+\centering
+\small
+\begin{tabularx}{\linewidth}{|l|X|}
+\hline
+要素 & 説明 \\
+\hline
+Infor & 橋梁基本情報（名称等） \\
+\hline
+Senkei & 線形データ（各主桁の上下フランジ端点座標） \\
+\hline
+MainPanel & 主桁パネル（ウェブ，上フランジ，下フランジ） \\
+\hline
+Yokogeta & 横桁（隣接主桁間を接続） \\
+\hline
+Shouban & 床版パネル \\
+\hline
+\end{tabularx}
+\end{table}
+
+主桁の配置では，まず全主桁の総スパン$(n_g - 1) \times s_g$を計算し，全幅との差から張り出し幅（overhang）を式(\ref{eq:overhang})により求める．各主桁の幅員方向位置（Y座標）はoverhang $+ i \times s_g$（$i = 0, 1, ..., n_g - 1$）となる．
+
+各主桁について6本の線形を定義する．これらは上フランジの左端（TG*L），中央（TG*），右端（TG*R），下フランジの左端（BG*L），中央（BG*），右端（BG*R）に対応する．各線形は橋軸方向に並ぶ点列（SenkeiPoint）で構成され，各点には断面名（S1, C1, C2, ..., E1），X座標（橋軸方向位置），Y座標（幅員方向位置），Z座標（鉛直方向位置）が含まれる．本実装では，下フランジ中心線（BG*）を$Z=0$とし，上フランジ中心線（TG*）の$Z$座標はウェブ高$h_{\mathrm{web}}$となる．図\ref{fig:senkei_point}に，第4主桁の上フランジ右端（TG4R）の線形データの出力例を示す．始端S1（$X=0$）からパネル長5000mmごとにC1，C2，C3と点列が定義されており，各点が同一のY座標・Z座標を持つ直線桁であることがわかる．
+
+\begin{figure}[t]
+\centering
+\begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+{
+  "Name": "TG4R",
+  "Point": [
+    { "Name": "S1", "X": 0.0, "Y": 8251.0, "Z": 2000.0 },
+    { "Name": "C1", "X": 5000.0, "Y": 8251.0, "Z": 2000.0 },
+    { "Name": "C2", "X": 10000.0, "Y": 8251.0, "Z": 2000.0 },
+    { "Name": "C3", "X": 15000.0, "Y": 8251.0, "Z": 2000.0 },
+    ...
+  ]
+}
+\end{lstlisting}
+\caption{Senkei JSONにおける線形点列（SenkeiPoint）の出力例}
+\label{fig:senkei_point}
+\end{figure}
+
+橋軸方向（X座標）の分割は，パネル長に基づいて行う．始端（S1, $x = 0$）から終端（E1, $x = L$）まで，パネル長ごとに断面位置（C1, C2, ...）を設定する．断面名リストは例えば「S1, C1, C2, ..., C9, E1」のように生成される（パネル数10の場合）．
+
+横桁は，隣接する主桁間を接続する形で配置される．横桁の橋軸方向位置はパネル境界位置（C1, C2, ...）に一致し，両端部（S1, E1）を除く$n_{\mathrm{panels}} - 1$箇所に配置される．横桁の命名規則は「CB\_G\{左桁番号\}\_G\{右桁番号\}\_C\{断面番号\}」であり，例えば「CB\_G1\_G2\_C1」は第1主桁と第2主桁の間のC1位置に配置される横桁を表す．各横桁の断面諸元（高さ，腹板厚，フランジ寸法）はBridgeDesignのcrossbeam\_standardから取得する．
+
+床版は，橋梁の四隅を頂点とする矩形として定義される．
+line属性には床版の外周を定義する4本の線形名
+（TG1L, TG1R, TG*R, TG*L）が指定される．
+厚さはBridgeDesignのdeck.thicknessから取得し，
+overhangの値も記録して床版端部の位置を明確にする．
+
+\subsubsection{部材の厚み方向分割}
+
+Senkei JSONへの変換では，将来的な維持管理情報の
+格納を考慮し，各部材を厚み方向に分割して
+個別の要素として出力する．
+具体的には，主桁パネル（ウェブ，上フランジ，
+下フランジ）はそれぞれ板厚を2等分した
+2枚の板要素に分割される．
+例えば板厚$t$のウェブは，厚さ$t/2$の2枚の
+パネルとして記録される．
+床版についても同様に厚み方向に2分割される．
+
+この分割により，IFCモデル上の各要素が
+橋梁部材の表裏面に対応するため，
+点検記録や劣化情報を部材の表裏ごとに
+個別に紐付けることが可能となる．
+これはBIM/CIMを活用した維持管理において，
+損傷の位置を3次元モデル上で特定し，
+補修履歴を蓄積するための基盤となる．
+図\ref{fig:divided_bim}に，厚み方向に2分割された主桁部材のBIMモデル表示例を示す．画像において，ウェブの左半分と下フランジの上半分が選択されて緑色に表示されており，厚さ方向に分割されていることが確認できる．なお，ビュアーには Open IFC Viewer を使用している．
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.5\linewidth]{images/divided_bim.png}
+\caption{厚み方向に2分割された主桁部材のBIMモデル表示例}
+\label{fig:divided_bim}
+\end{figure}
+
+\subsubsection{Senkei JSONからIFCへの変換}
+
+第二段階では，ifcopenshell\cite{ifcopenshell_docs}ライブラリを使用してSenkei JSONをIFCファイルに変換する．ifcopenshellはPythonバインディングを提供するオープンソースのIFC操作ライブラリであり，buildingSMART\cite{ifc4x3}が策定するIFC2x3およびIFC4x3の両方に対応している．本システムではIFC4X3スキーマを使用する．
+
+IFC（Industry Foundation Classes）は建設プロジェクトのデータ交換のためのオープン標準であり，3次元形状と属性情報を統合的に記述できる．IFCファイルはISO 10303-21形式（STEP物理ファイル形式）のテキストファイルとして出力される．
+
+変換処理では，まずIFCの階層構造をセットアップする．IFCモデルは図\ref{fig:ifc_hierarchy}に示す階層構造を持つ．
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+  font=\small,
+  box/.style={draw,rounded corners,align=center,inner sep=3pt,minimum height=7mm},
+  arrow/.style={-Latex,thick},
+  level distance=11mm,
+  sibling distance=28mm,
+  edge from parent/.style={arrow}
+]
+  \node[box] {IfcProject}
+    child { node[box] {IfcSite}
+      child { node[box] {IfcBuilding}
+        child { node[box] {IfcBuildingStorey}
+          child { node[box] {IfcBeam\\(床版)} }
+          child { node[box] {IfcBeam\\(主桁)} }
+          child { node[box] {IfcBeam\\(横桁)} }
+        }
+      }
+    };
+\end{tikzpicture}
+\caption{IFCモデルの階層構造}
+\label{fig:ifc_hierarchy}
+\end{figure}
+
+次に，Senkei JSONの各要素を対応するIFCエンティティに変換する．表\ref{tab:ifc_mapping}に要素とIFCエンティティの対応を示す．
+
+\begin{table}[t]
+\caption{構造要素とIFCエンティティの対応}
+\label{tab:ifc_mapping}
+\centering
+\small
+\begin{tabularx}{\linewidth}{|l|l|X|}
+\hline
+構造要素 & IFCエンティティ & 形状表現 \\
+\hline
+床版 & IfcBeam & Brep（境界表現） \\
+\hline
+主桁 & IfcBeam & Brep（境界表現） \\
+\hline
+横桁 & IfcBeam & Brep（境界表現） \\
+\hline
+\end{tabularx}
+\end{table}
+
+床版はIfcBeamエンティティとして生成し，形状表現にはBrep（Boundary Representation：境界表現）を使用する．床版の外形を定義する頂点座標から閉じた多面体（IfcFacetedBrep）を生成することで直方体を表現する．床版は厚さ方向（T），橋軸方向（X），幅員方向（Y）の3軸で分割され，各セグメントにはDeck\_T\{厚み番号\}\_X\{橋軸番号\}\_Y\{幅員番号\}の命名規則で一意な名前を付与する．
+
+主桁もIfcBeamエンティティとして生成する．形状表現にはBrep（境界表現）を使用し，ウェブ・上フランジ・下フランジの各板要素を個別のIfcFacetedBrepとして生成する．各主桁パネルには以下の命名規則で一意な名前を付与する：
+\begin{itemize}
+  \item ウェブ：G\{桁番号\}B\{ブロック番号\}W
+  \item 上フランジ：G\{桁番号\}B\{ブロック番号\}UF
+  \item 下フランジ：G\{桁番号\}B\{ブロック番号\}LF
+\end{itemize}
+
+横桁も同様にIfcBeamエンティティとBrep形状表現で生成する．横桁は隣接する主桁間を橋軸直角方向（幅員方向）に接続する形で配置される．主桁と同様に，横桁もウェブ・上フランジ・下フランジの3要素に分割し，さらに厚さ方向の分割を行う．各要素にはCB\{横桁番号\}\_\{W/UF/LF\}\_T\{厚み番号\}\_X\{橋軸番号\}の命名規則で一意な名前を付与する．
+
+生成されたIfcBeam要素はIfcRelContainedInSpatialStructureを通じてIfcBuildingStoreyに格納される．なお，材料情報（SM490A等）はSenkei JSONに記録されているが，現時点ではIFCエンティティ（IfcMaterial等）への変換は行っていない．
+
+図\ref{fig:raw_ifc}に，出力されたIFCファイルの実データ抜粋を示す．この例は主桁1の第1ブロックウェブ（G1B1W\_T0\_X0）を構成するエンティティ群であり，色定義（IFCCOLOURRGB）→表面スタイル（IFCSURFACESTYLE）→形状表現（IFCSHAPEREPRESENTATION, Brep）→配置（IFCLOCALPLACEMENT）→要素本体（IFCBEAM）→空間格納（IFCRELCONTAINEDINSPATIALSTRUCTURE）という積み上げ構造でIFCエンティティが構成されている．IFCBEAM の名称「G1B1W\_T0\_X0」は，主桁1（G1），ブロック1（B1），ウェブ（W），厚み分割区分（T0），橋軸方向セグメント（X0）を表す命名規則に従っている．最終行のIFCRELCONTAINEDINSPATIALSTRUCTUREにより，この要素がIfcBuildingStorey（\#6）に紐付けられ，空間階層と幾何情報がRelationship（Rel）エンティティで結ばれるというIFCの基本構造が実現されている．
+
+\begin{figure}[t]
+\centering
+\begin{lstlisting}[basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+#717=IFCCOLOURRGB($,0.675,0.812,0.925);
+#718=IFCSURFACESTYLESHADING(#717,$);
+#719=IFCSURFACESTYLE($,.BOTH.,(#718));
+#720=IFCSTYLEDITEM(#56,(#719),$);
+#721=IFCSHAPEREPRESENTATION(#12,'Body','Brep',(#56));
+#722=IFCPRODUCTDEFINITIONSHAPE($,$,(#721));
+#723=IFCCARTESIANPOINT((0.,0.,0.));
+#724=IFCAXIS2PLACEMENT3D(#723,$,$);
+#725=IFCLOCALPLACEMENT($,#724);
+#726=IFCBEAM('1acce528-f9dd-11f0-9600-9626031620ab',
+     $,'G1B1W_T0_X0',$,$,#725,#722,$,.USERDEFINED.);
+#727=IFCRELCONTAINEDINSPATIALSTRUCTURE(
+     '1acce6a4-f9dd-11f0-9600-9626031620ab',
+     $,$,$,(#726),#6);
+\end{lstlisting}
+\caption{出力IFCファイルの実データ抜粋（主桁ウェブ要素）．RGB値は小数第3位で四捨五入した．}
+\label{fig:raw_ifc}
+\end{figure}
+
+\subsubsection{座標系と出力形式}
+
+3Dモデルの座標系は，X軸を橋軸方向（橋長方向），Y軸を橋軸直角方向（幅員方向），Z軸を鉛直方向（上向き正）とする右手系である．本実装では，$X=0$を始端断面（S1），$Y=0$を第1主桁中心線（TG1/BG1の中央），$Z=0$を下フランジ中心線（BG*）に設定している．このため，主桁線形（SenkeiPoint）のZ座標は原則として$Z \ge 0$で表現される．ただし，板要素は中心線から厚さ方向に押し出してソリッド化するため，下フランジ等では$-t/2$程度の小さな負の$Z$が現れる場合がある．座標系と主桁配置の模式図を図\ref{fig:coord_girders}に示す．
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[scale=0.55,
+  font=\scriptsize,
+  arrow/.style={-Latex,semithick},
+  dim/.style={Latex-Latex,semithick},
+  girder/.style={draw,semithick},
+]
+  % Deck (plan view)
+  \draw[semithick] (-2,0) rectangle (8,4);
+
+  % Axes
+  \draw[arrow] (0,0) -- (11,0) node[below] {Y（幅員方向）};
+  \draw[arrow] (0,0) -- (0,5) node[left] {X（橋軸方向）};
+  \draw[arrow] (8.8,4.2) -- (8.8,5.1) node[right] {Z};
+
+  % Girders (4 lines)
+  \draw[girder] (0,0) -- (0,4);
+  \draw[girder] (2,0) -- (2,4);
+  \draw[girder] (4,0) -- (4,4);
+  \draw[girder] (6,0) -- (6,4);
+  \node[anchor=south] at (3,4) {\tiny 主桁（例：4本）};
+
+  % Dimensions
+  \draw[dim] (-2,-0.6) -- node[below,font=\tiny]{overhang} (0,-0.6);
+  \draw[dim] (0,-1.2) -- node[below,font=\tiny]{girder\_spacing} (2,-1.2);
+  \draw[dim] (-2,-1.8) -- node[below,font=\tiny]{total\_width} (8,-1.8);
+\end{tikzpicture}
+\caption{座標系と主桁配置の模式図（平面図）}
+\label{fig:coord_girders}
+\end{figure}
+
+生成されるIFCファイルはIFC2x3形式またはIFC4x3形式で出力可能であり，BIMvision，Autodesk Revit，FreeCAD，Blender（BIM Add-on使用）などの汎用BIMビューワーで即座に可視化・検証できる．これにより，生成された設計が意図通りの形状となっているかを視覚的に確認でき，さらにBIM/CIMワークフローへの統合が可能となる．図\ref{fig:bim_model}に生成されたIFCモデルのBIMビューワーでの表示例を示す．
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{images/bim_model.png}
+\caption{BIMビューワーで表示したIFCモデル}
+\label{fig:bim_model}
+\end{figure}
+
+\section{評価実験}
+
+\subsection{実験設定}
+
+提案システムの有効性を検証するため，橋長$L$と幅員$B$の組み合わせを変化させた192件の評価実験を実施した．
+
+\subsubsection{評価ケースの構成}
+
+評価ケースは，32種類の$L \times B$条件に対してRAG有無の2水準，各条件3試行の計$32 \times 2 \times 3 = 192$件である．橋長は20m〜70mの11段階（5m刻み），幅員は8m, 10m, 12m, 16m, 20m, 24mの6段階を設定した．ただし，すべての$L \times B$の組み合わせではなく，実務的に想定される32条件を選定した（表\ref{tab:eval_conditions}）．短スパン（$L = 20$〜$45$m）では狭幅員（$B = 8$〜$20$m），長スパン（$L = 50$〜$70$m）では広幅員（$B = 10$〜$24$m）を中心に選定しており，これは実際の道路橋設計において，短い支間では比較的狭い幅員の橋梁が多く，長支間では広幅員となる傾向を反映したものである．
+
+\begin{table}[t]
+\caption{評価対象とした$L \times B$の組み合わせ（$\checkmark$が評価対象）}
+\label{tab:eval_conditions}
+\centering
+\small
+\begin{tabular}{|c|c|c|c|c|c|c|}
+\hline
+$L$ [m] $\backslash$ $B$ [m] & 8 & 10 & 12 & 16 & 20 & 24 \\
+\hline
+20 & $\checkmark$ & $\checkmark$ & & & & \\
+\hline
+25 & $\checkmark$ & $\checkmark$ & $\checkmark$ & & & \\
+\hline
+30 & $\checkmark$ & $\checkmark$ & $\checkmark$ & & & \\
+\hline
+35 & $\checkmark$ & $\checkmark$ & & $\checkmark$ & & \\
+\hline
+40 & $\checkmark$ & $\checkmark$ & & & $\checkmark$ & \\
+\hline
+45 & $\checkmark$ & $\checkmark$ & & & $\checkmark$ & \\
+\hline
+50 & & $\checkmark$ & & $\checkmark$ & & $\checkmark$ \\
+\hline
+55 & & $\checkmark$ & & $\checkmark$ & & $\checkmark$ \\
+\hline
+60 & & $\checkmark$ & & $\checkmark$ & & $\checkmark$ \\
+\hline
+65 & & & $\checkmark$ & $\checkmark$ & & $\checkmark$ \\
+\hline
+70 & & & $\checkmark$ & $\checkmark$ & & $\checkmark$ \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{実験パラメータ}
+
+LLMにはgpt-5.1を使用した．Designer--Judgeの修正ループにおける最大修正回数は5回とした．すなわち，Designerが初期設計を生成した後，Judgeによる照査で不合格となった場合，最大5回まで修正と再照査を繰り返す．5回の修正で合格に至らなかった場合は不合格として記録する．各条件について3試行を実施しているのは，LLMの出力の確率的な変動を考慮し，結果の安定性を評価するためである．
+
+RAG有無の2水準は，RAGを有効にした場合（道路橋示方書等の関連条文をプロンプトに付与）と無効にした場合（関連条文なしでLLMの事前学習知識のみに依拠）を比較するものであり，RAGが設計品質に与える効果を定量的に評価することを目的としている．
+
+\subsection{評価指標}
+
+\subsubsection{照査項目}
+
+Judgeサブシステムが実行する照査項目は表\ref{tab:eval_checks}に示す6項目である．各項目について合格（pass）または不合格（fail）を判定し，すべての項目に合格した場合のみ設計全体を合格とする．なお，あくまで簡易的な照査であり，実際の設計業務における詳細な照査を代替するものではない．
+
+\begin{table}[t]
+\caption{評価に用いる照査項目}
+\label{tab:eval_checks}
+\centering
+\small
+\begin{tabularx}{\linewidth}{|l|X|}
+\hline
+照査項目 & 内容 \\
+\hline
+deck & 床版厚チェック（必要厚 $\leq$ 実厚） \\
+\hline
+bend & 曲げ応力チェック（$\sigma \leq \sigma_{\mathrm{allow}}$） \\
+\hline
+shear & せん断応力チェック（$\tau \leq \tau_{\mathrm{allow}}$） \\
+\hline
+deflection & たわみチェック（$\delta \leq \delta_{\mathrm{allow}}$） \\
+\hline
+web\_slenderness & 腹板幅厚比チェック \\
+\hline
+crossbeam\_layout & 横桁配置チェック（パネル長$\times$パネル数$\approx$橋長） \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsubsection{評価指標の定義}
+
+評価実験では以下の指標を用いて提案システムの性能を評価する．
+
+\begin{itemize}
+  \item \textbf{最終合格率（収束率）}：全試行に対する，最大修正回数（5回）以内に全照査項目に合格した試行の割合（本研究では収束率と同義）．RAG有無・橋長・幅員ごとに集計する．
+  \item \textbf{チェック項目別初回合格率}：各照査項目について，初回設計（iter0）で合格した試行の割合．どの照査項目が初期設計の困難さに影響しているかを分析する．
+  \item \textbf{収束までの修正回数}：合格に至った試行について，Designer--Judgeの修正ループが何回で収束したかを集計する．修正回数が少ないほど，初期設計の品質が高いことを示す．
+\end{itemize}
+
+\subsection{結果}
+
+\subsubsection{全体サマリー}
+
+表\ref{tab:overall_summary}に全体・RAG有無別の主要指標を示す．RAGありの場合，初回合格率は37.5\%であり，RAGなしの0.0\%と比較して大幅に高い．収束率（最大5回の修正で全項目合格に至る割合）はRAGありで85.4\%，RAGなしで75.0\%であった．また，収束ケースにおける平均修正回数はRAGありで1.40回，RAGなしで2.53回であり，RAGにより初期設計品質が向上していることが確認される．
+
+\begin{table}[t]
+\caption{全体・RAG有無別の主要指標}
+\label{tab:overall_summary}
+\centering
+\small
+\begin{tabular}{|l|c|c|c|}
+\hline
+指標 & 全体 & RAGあり & RAGなし \\
+\hline
+総試行数 & 192 & 96 & 96 \\
+\hline
+初回合格率 & 18.8\% & \textbf{37.5\%} & 0.0\% \\
+\hline
+収束率 & 80.2\% & \textbf{85.4\%} & 75.0\% \\
+\hline
+平均修正回数 & 1.93 & \textbf{1.40} & 2.53 \\
+\hline
+\end{tabular}
+\end{table}
+
+RAGなしでは96件全てが初回不合格であり，本評価条件においてはLLMの事前学習知識のみでは初回から照査を通過する設計を生成できないことが示された．ただし，各条件の試行数は3回であり，低頻度で初回合格が生じる可能性は排除できない．
+
+\subsubsection{チェック項目別の初回合格率}
+
+表\ref{tab:check_item_pass_rate}にチェック項目別の初回合格率を示す．shear（せん断）およびweb\_slenderness（腹板幅厚比）は全ケースで初回合格率100\%であった．本評価の橋長・幅員範囲（$L=20$--$70$\,m，$B=8$--$24$\,m）の単純桁について，提案手法が生成した設計案では，最大利用率を与える（最もきびしい）照査項目は曲げ・たわみ等であり，せん断が支配となる例はなかった．なお，単純桁では支点付近でせん断が卓越し得るため，せん断照査は全ケースで実施し，いずれも満足した．deck（床版厚）はRAGありで100\%，RAGなしで66.7\%であった．deflection（たわみ）はRAGの効果が最も顕著であり，RAGありで51.0\%に対しRAGなしで6.2\%と，44.8ポイントの差が生じた．bend（曲げ）はRAGありで46.9\%，RAGなしで13.5\%であった．
+
+\begin{table}[t]
+\caption{チェック項目別の初回合格率}
+\label{tab:check_item_pass_rate}
+\centering
+\footnotesize
+\setlength{\tabcolsep}{3pt}
+\begin{tabularx}{\linewidth}{|X|c|c|c|c|}
+\hline
+チェック項目 & 全体 & RAGあり & RAGなし & RAG効果 \\
+\hline
+shear & 100.0\% & 100.0\% & 100.0\% & $\pm$0.0\% \\
+\hline
+web\_slenderness & 100.0\% & 100.0\% & 100.0\% & $\pm$0.0\% \\
+\hline
+deck & 83.3\% & 100.0\% & 66.7\% & +33.3\% \\
+\hline
+bend & 30.2\% & 46.9\% & 13.5\% & +33.4\% \\
+\hline
+deflection & 28.6\% & 51.0\% & 6.2\% & +44.8\% \\
+\hline
+\end{tabularx}
+\end{table}
+
+初回不合格ケースの不合格項目パターンを表\ref{tab:fail_pattern_rag}および表\ref{tab:fail_pattern_norag}に示す．RAGあり・初回不合格60件では，bend+deflectionの同時不合格が63.3\%を占め，bendのみが21.7\%，deflectionのみが15.0\%であった．RAGなし・初回不合格96件では，bend+deflectionが52.1\%，deck+bend+deflectionが29.2\%を占めた．RAGありではdeck不合格が完全に解消されている点が特徴的である．
+
+\begin{table}[t]
+\caption{RAGあり：初回不合格パターン（60件）}
+\label{tab:fail_pattern_rag}
+\centering
+\small
+\begin{tabular}{|l|c|c|}
+\hline
+パターン & 件数 & 割合 \\
+\hline
+bend + deflection & 38 & 63.3\% \\
+\hline
+bendのみ & 13 & 21.7\% \\
+\hline
+deflectionのみ & 9 & 15.0\% \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{table}[t]
+\caption{RAGなし：初回不合格パターン（96件）}
+\label{tab:fail_pattern_norag}
+\centering
+\small
+\begin{tabular}{|l|c|c|}
+\hline
+パターン & 件数 & 割合 \\
+\hline
+bend + deflection & 50 & 52.1\% \\
+\hline
+deck + bend + deflection & 28 & 29.2\% \\
+\hline
+deflectionのみ & 11 & 11.5\% \\
+\hline
+bendのみ & 3 & 3.1\% \\
+\hline
+deck + bend & 2 & 2.1\% \\
+\hline
+その他 & 2 & 2.1\% \\
+\hline
+\end{tabular}
+\end{table}
+
+\subsubsection{橋長別・幅員別の傾向}
+
+図\ref{fig:by_length}に橋長別の結果を示す．RAGありではL=45\,mで最高の初回合格率66.7\%を記録した．長スパン（$L=65$--$70$\,m）でもRAGありは初回合格率44--56\%を維持している一方，RAGなしは全橋長で初回合格率0\%であった．収束率は橋長が長くなるほど低下する傾向があり，特にRAGなしでは$L=65$\,mで11\%まで低下した．
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\linewidth]{images/chart_by_bridge_length.png}
+\caption{橋長別の評価結果}
+\label{fig:by_length}
+\end{figure*}
+
+図\ref{fig:by_width}に幅員別の結果を示す．$B=8$\,mではRAGありの初回合格率が66.7\%と最高であり，$B=8$--$16$\,mではRAGありの収束率は94--100\%であった．一方，$B=20$--$24$\,mでは難易度が顕著に上昇し，$B=24$\,mではRAGなしの収束率が7\%（15件中1件のみ合格）まで低下した．$B=20$\,mではRAGなしの収束率がRAGありを上回る逆転現象（67\% vs 50\%）が観測された．設計ログを確認すると，$L=40$\,m，$B=20$\,mの条件においてRAGありでは4本桁（桁間隔6,000\,mm）を選択する傾向があったのに対し，RAGなしでは5--6本桁を選択していた．RAGが提供する$h/L$ルールはウェブ高の設計に効果的であるが，桁本数についての明確なガイダンスを含まないため，RAGありでは「少ない桁本数で桁高を確保」という設計方針となりやすい．しかし$B=20$\,mでは桁本数増加による荷重分散の方が収束に有効であり，結果的にRAGなしケースが収束しやすかった．表\ref{tab:l40b20_girders}に$L=40$\,m，$B=20$\,mにおける各試行の初回設計パラメータと収束結果を示す．
+
+\begin{table}[t]
+\caption{$L=40$\,m，$B=20$\,mにおける初回設計の桁本数と収束結果}
+\label{tab:l40b20_girders}
+\centering
+\begin{tabular}{lccc}
+\hline
+ケース & 桁本数 & 桁間隔(mm) & 収束 \\
+\hline
+RAGあり trial 1 & 4 & 6,000 & × \\
+RAGあり trial 2 & 4 & 6,000 & × \\
+RAGあり trial 3 & 5 & 4,500 & ○ \\
+RAGなし trial 1 & 5 & 4,500 & ○ \\
+RAGなし trial 2 & 5 & 4,375 & ○ \\
+RAGなし trial 3 & 6 & 3,600 & ○ \\
+\hline
+\end{tabular}
+\end{table}
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=\linewidth]{images/chart_by_width.png}
+\caption{幅員別の評価結果}
+\label{fig:by_width}
+\end{figure*}
+
+\subsubsection{収束しなかったケース}
+
+全192試行のうち38件（19.8\%）が最大修正回数（5回）以内に収束しなかった．内訳はRAGあり14件（14.6\%），RAGなし24件（25.0\%）であった．
+
+不収束ケースの不合格項目内訳を表\ref{tab:unconverged_items}に示す．bendのみが22件（57.9\%）と最多であり，次いでbend+web\_slendernessが13件（34.2\%）であった．web\_slendernessのみは3件（7.9\%）にとどまり，deck，shear，deflectionによる不収束は0件であった．
+
+\begin{table}[t]
+\caption{不収束ケースの不合格項目内訳（$n=38$）}
+\label{tab:unconverged_items}
+\centering
+\small
+\begin{tabular}{|l|r|r|}
+\hline
+不合格項目 & 件数 & 割合 \\
+\hline
+bendのみ & 22 & 57.9\% \\
+\hline
+bend + web\_slenderness & 13 & 34.2\% \\
+\hline
+web\_slendernessのみ & 3 & 7.9\% \\
+\hline
+合計 & 38 & 100.0\% \\
+\hline
+\end{tabular}
+\end{table}
+
+不収束ケースは主に$B \geq 20$\,mの広幅員条件に集中しており，$B=24$\,mではRAGありでも10/15件，RAGなしでは14/15件が不収束であった．また，最終利用率が1.0--1.1の範囲にあるケースが38件中24件（63\%）であり，最大修正回数を超過してもなお合格に近い状態で停止していた．
+
+\subsubsection{RAGによる初回設計パラメータの変化}
+
+表\ref{tab:rag_param_effect}に，初回設計（修正ループ前）における主要断面パラメータのRAG有無による比較を示す．32条件それぞれでRAGあり/なし各3試行の平均を1データ点とし，対応ありのWilcoxon符号付き順位検定（両側）を行った．ウェブ高はRAGありで平均2,408\,mm，RAGなしで2,119\,mmであり，13.6\%の増加が高度に有意であった（$p = 1.4 \times 10^{-6}$）．上フランジ幅（+22.5\%，$p = 7.5 \times 10^{-6}$）および下フランジ幅（+20.0\%，$p = 1.7 \times 10^{-5}$）も有意に増加した．一方，桁本数には有意差がなかった．
+
+\begin{table}[t]
+\caption{RAGによる初回設計パラメータの変化（Wilcoxon検定）}
+\label{tab:rag_param_effect}
+\centering
+\footnotesize
+\begin{tabular}{|l|r|r|r|r|}
+\hline
+パラメータ & RAGあり & RAGなし & 差 & $p$値 \\
+\hline
+ウェブ高 & 2,408 mm & 2,119 mm & +13.6\% & $1.4\times10^{-6}$ \\
+\hline
+上フランジ幅 & 542 mm & 443 mm & +22.5\% & $7.5\times10^{-6}$ \\
+\hline
+下フランジ幅 & 637 mm & 531 mm & +20.0\% & $1.7\times10^{-5}$ \\
+\hline
+桁本数 & 4.4 本 & 4.4 本 & --- & --- \\
+\hline
+\end{tabular}
+\end{table}
+
+
+\section{考察}
+
+\subsection{RAGの効果のメカニズム}
+
+RAGが初回設計品質を向上させるメカニズムについて考察する．RAGの検索ログを確認すると，桁高/支間比に関するガイダンス「$h/L \approx 1/15$〜$1/20$が適当」（道路橋示方書\cite{dosisyo} 式(7.364)）がランク2付近で安定して検索されていることが確認される．このルールが初回設計のウェブ高選択に直接影響を与えていることは，RAG reasoningの記述（「桁高目安$h \approx L/15$〜$L/20$を採用」）から裏付けられる．
+
+表\ref{tab:rag_param_effect}で示したとおり，RAGありではウェブ高が13.6\%有意に増加している．一方，フランジ幅も有意に増加しているが，RAGヒットにフランジ幅の具体的な数値規定は含まれていない．下フランジ幅/ウェブ高の比率を確認すると，RAGありで0.273，RAGなしで0.261であり，有意差はなかった（$p = 0.15$）．すなわち，LLMはRAGの有無にかかわらず概ね一定の比率でフランジを設計しており，フランジ幅の増加はウェブ高増加に伴う間接的な結果と解釈される．
+
+以上から，RAGの効果は以下の因果関係で説明できる．
+\begin{enumerate}
+  \item RAGが$h/L \approx 1/15$〜$1/20$のルールを提供し，ウェブ高が13.6\%増加する（直接効果）．
+  \item LLMがフランジ/ウェブ比を概ね一定（$\sim 0.27$）に保つため，フランジ幅も連動して増加する（間接効果）．
+  \item ウェブ高・フランジ幅の両方が大きくなることで断面二次モーメント$I$が増加し，たわみが改善される．
+\end{enumerate}
+
+この因果関係は，deflectionの初回合格率改善（+44.8ポイント）が最も顕著であったことと整合する．deflection初回合格群と不合格群のウェブ高中央値を比較すると，RAGあり合格群は2,800\,mm，RAGあり不合格群は1,900\,mmであり，900\,mmの差が存在する．$I$はウェブ高の3乗に比例するため，この差がたわみ照査の合否に決定的に作用している．
+
+deck（床版厚）の100\%合格についても，RAGログから床版厚関連の条文（道路橋示方書\cite{dosisyo} p.117: 最小全厚テーブル $d_0 = 30L + 110$）がランク16--17（スコア0.70--0.71）で安定して検索されていることが確認される．RAGありでは床版厚の公式に準拠した値が生成される傾向があり，96件中96件で初回合格を達成している．RAGなしでは条文を参照できず，過小な床版厚を設定するケースが32件（33.3\%）発生した．
+
+\subsection{広幅員条件における収束困難の構造的原因}
+
+$B=24$\,mにおける収束率の極端な低さ（RAGあり33\%，RAGなし7\%）について，その構造的原因を考察する．
+
+$B=24$\,mの全30件で実際に選択された桁本数の分布は，5本桁が19件（63\%），6本桁が10件（33\%），7本桁が1件（3\%）であった．これらの収束率はそれぞれ16\%（3/19），20\%（2/10），100\%（1/1）であり，5--6本桁の収束率が極めて低い．
+
+LLMが5本桁を選択する背景には，RAGログのreasoningフィールドに記録された判断根拠がある．図\ref{fig:reasoning_girder_count}に，広幅員条件（$L=65$\,m，$B=24$\,m）における桁本数決定に関するreasoningの抜粋を示す．
+
+\begin{figure}[t]
+\centering
+\begin{lstlisting}[language=json,basicstyle=\ttfamily\scriptsize,frame=tb,framerule=0.4pt,breaklines=true,xleftmargin=1em,xrightmargin=1em,showstringspaces=false,showspaces=false]
+"reasoning": "全体方針: 与条件 L=65 m, B=24 m の単純鋼プレートガーダー合成桁橋を対象とし， RAG から得られるプレートガーダー橋・ RC 床版・床組・横桁の記述を根拠に，(1)桁配置（本数・間隔），(2)主桁概略断面，(3) RC 床版厚，(4)横桁パネル割を決める． 特に重視した根拠: h/L ≒ 1/15 〜 1/20 （式(7.364)）[13], 図 7.134 のスパン-腹板高さ関係[13], 断面設計フロー[10], 横桁間隔 d<=20 m・中央に 1 本以上[22], 横桁高≒主桁高の 0.8 倍程度[22], 最小全厚 d0=30L+110 と下限160mm[17][19]． ただし桁本数・間隔の推奨範囲や主桁の具体寸法表は RAG に与えられていないため，根拠が不足する部分は「実務目安」として仮定扱いとする．主桁本数の決定:\ 候補 num_girders∈{3,4,5,6} を比較し，床版支間（=主桁間隔）に対する最小全厚 d0 = 30L + 110 （連続版・主鉄筋直角）[17] と，鋼重・製作性のバランスで決定する． overhang は 1.0 m 程度を確保（明確根拠は RAG にないため仮定）． B=24.0 m より有効幅 22.0 m ， s = 22.0/(n-1)．   n=3: s=11.0 m -> d0 = 440 mm （過大）  n=4: s=7.33 m -> d0 ≈ 330 mm （厚い）  n=5: s=5.50 m -> d0=275 mm  n=6: s=4.40 m -> d0=242 mm  3 本は床版厚が非経済的． 4 本も死荷重増で不利． 6 本は床版厚は減るが桁・横桁数量増で製作性が悪化．s = 5 〜 6 m 程度がバランス範囲とみなし， 5 本桁を採用． 採用: num_girders=5, girder_spacing=5500 mm, overhang=1000 mm （ 1.0 + 4 × 5.5 + 1.0 = 24.0 m ）"
+\end{lstlisting}
+\caption{桁本数決定に関するreasoningの抜粋（$L=65$\,m，$B=24$\,m，5本桁選択例）}
+\label{fig:reasoning_girder_count}
+\end{figure}
+
+図\ref{fig:reasoning_girder_count}に示すreasoningでは，overhang=1.0\,mを仮定し，num\_girders$\in\{3,4,5,6\}$の各候補について主桁間隔$s=22.0/(n-1)$を床版支間とみなして最小全厚式$d_0 = 30L_{\mathrm{support}} + 110$[17]で床版厚を見積もり，床版厚と桁本数増による鋼重・製作性のトレードオフから5本桁（$s=5.5$\,m）を選択している．しかし，この判断は曲げ照査の定量的な見通しを持たないまま桁本数を固定しており，結果として構造的に過小な配置が選択されてしまう．
+
+さらに，Judgeの修正ループでは断面寸法（ウェブ高・板厚・フランジ寸法）の増減のみが可能であり，桁本数の変更はDesignerの初回選択に依存している．5本桁$\times$桁間隔5500\,mmでは中間桁への荷重集中が大きく，断面増加のみでは収束が困難である．
+
+具体例として，L60\_B24\_rag\_true\_trial\_1のケースでは，5桁・桁間隔5500\,mmで設計が開始され，中間桁の受け持ち幅$b_i = 5.5$\,mの条件下でiter0からiter5まで5回の修正が実施された．表\ref{tab:convergence_example}に推移を示す．断面二次モーメント$I$は$207 \times 10^9$\,mm$^4$から$420 \times 10^9$\,mm$^4$へ2倍以上に増加したにもかかわらず，曲げ利用率は1.79から1.09にとどまり合格（$\leq 1.0$）に届かなかった．これは，(1)桁間隔5500\,mmによる高い荷重集中，(2)断面増$\rightarrow$自重増の悪循環（$M_{\mathrm{total}}$が38.5$\rightarrow$40.1\,GN$\cdot$mmへ微増），(3)腹板幅厚比制約（桁高増$\rightarrow$必要最小腹板厚増），(4)フランジ厚40\,mm超過時の降伏点低下（SM490: $f_y = 315 \rightarrow 295$\,N/mm$^2$）の4つの制約が重なった結果である．
+
+\begin{table*}[t]
+\caption{修正ループの推移例（L60\_B24\_rag\_true\_trial\_1）}
+\label{tab:convergence_example}
+\centering
+\small
+\begin{tabular}{|c|c|c|c|c|c|c|}
+\hline
+iter & ウェブ高$\times$厚 & 上F幅$\times$厚 & 下F幅$\times$厚 & $I$（$\times 10^9$\,mm$^4$） & 曲げ利用率 & 備考 \\
+\hline
+0 & 3200$\times$28 & 450$\times$40 & 600$\times$55 & 207 & 1.79 & --- \\
+\hline
+1 & 3500$\times$28 & 450$\times$44 & 600$\times$55 & 263 & 1.63 & TF厚$>$40mm$\rightarrow$$f_y$低下 \\
+\hline
+2 & 3700$\times$28 & 450$\times$48 & 600$\times$55 & 308 & 1.46 & web幅厚比NG \\
+\hline
+3 & 3700$\times$30 & 550$\times$50 & 600$\times$55 & 339 & 1.29 & web厚増で対応 \\
+\hline
+4 & 3700$\times$30 & 650$\times$50 & 650$\times$55 & 367 & 1.19 & --- \\
+\hline
+5 & 3900$\times$30 & 650$\times$52 & 650$\times$55 & 420 & 1.09 & web幅厚比が上限付近 \\
+\hline
+\end{tabular}
+\end{table*}
+
+\subsection{bendとdeflectionの同時不合格}
+
+RAGありの初回不合格60件のうち63.3\%（38件）がbend+deflectionの同時不合格であった（表\ref{tab:fail_pattern_rag}）．この同時不合格が頻発するメカニズムと，修正ループにおける解消過程の非対称性について考察する．
+
+ウェブ高の増加は断面二次モーメント$I$を増加させるが，$I$は主にたわみ（$\delta \propto 1/I$）の改善に直接的に寄与する．一方，曲げ応力（$\sigma = M \cdot y / I$）の改善には$I$の増加とともに中立軸からの距離$y$も増加するため，効果が間接的である．この非対称性により，修正ループにおいてたわみは早期に解消されるが，曲げの収束にはより多くの修正回数を要する傾向がある．
+
+不収束38件のうち，deflectionによる不収束は0件であり，全てbendまたはweb\_slendernessが残存していた．すなわち，修正ループはたわみを優先的に解消できる一方で，曲げの収束に至らないケースが存在する．
+
+\subsection{修正ループの有効性と限界}
+
+Designer--Judge修正ループにより，全体の収束率は80.2\%に達しており，初回合格率18.8\%から大幅に改善されている．このことは，LLMの初期設計が不十分であっても，決定論的照査とLLMによる修正提案の繰り返しにより設計品質を一定水準まで引き上げられることを示している．
+
+一方で，修正ループには構造的な限界も存在する．web\_slendernessは初回設計では全ケースで合格（100\%）であったが，修正ループ中にウェブ高を増加させた結果として二次的に不合格に転じるケースが観測された．ウェブ高を増加させると必要最小腹板厚（$= h_w / 130$，SM490の場合）も増加し，既存の腹板厚では幅厚比制約を満たせなくなる．この連鎖は，bendやdeflectionの改善を目的とした修正が新たな不合格を誘発するというトレードオフの存在を示している．
+
+また，不収束38件のうち24件（63\%）は最終利用率が1.0--1.1の範囲にあり，合格に近い状態で修正回数上限に達している．最大修正回数の引き上げ（5回$\rightarrow$7--10回）によってこれらのケースの収束が期待される．ただし，$B=24$\,mで5本桁が選択されたケースのように，断面増加のみでは原理的に収束困難な場合も存在しており，桁本数を含む設計変数の修正が可能なループ構造への拡張が今後の課題である．
+
+
+\section{まとめと今後の課題}
+
+\subsection{まとめ}
+
+インフラ老朽化対策とBIM/CIM推進が進む中，橋梁モデリングの工数削減が課題となっている．
+LLMの活用により自動化が期待される一方，LLM単独では構造計算の正確性や設計根拠の明示が困難である．
+
+本研究では，RAG（検索拡張生成）による設計知識の参照，決定論的照査による工学的妥当性の担保，LLMによる柔軟な修正提案を組み合わせたハイブリッドシステムを提案した．
+本システムは，(1) RAGにより道路橋示方書から設計根拠を明示，(2) 数式ベースの照査でLLMの計算誤りを排除，(3) IFC出力までの一貫パイプラインを実現，という3つの特徴を持つ．
+
+192件の設計生成実験により，本実験条件においてRAGありの初回合格率が37.5\%，修正ループ適用後の最終合格率（収束率）が85.4\%であることを確認した．
+橋長20--70\,m，幅員8--24\,mの範囲で，IFCファイルまで出力し，構造的にある程度妥当な断面モデルの自動生成を実証した．
+
+以上より，本システムは橋梁工学的にある程度妥当なBIMモデルを出力できるシステムとして一定の成果を示した．
+ただし，現状は構造形式の限定，照査の簡易化，収束率の課題が残っており，今後の改良が必須である．
+
+\subsection{今後の課題}
+
+\subsubsection{BIMモデルとしての完成度向上}
+
+現在のシステムでは主桁，横桁，床版のみをモデル化している．
+実際の鋼プレートガーダー橋には対傾構・横構などの水平ブレーシング部材が含まれるため，これらを追加しBIMモデルとしての完成度を高める必要がある．
+
+\subsubsection{照査の厳密化}
+
+現状の照査は簡易的であり，以下の項目を追加することでより正確な構造照査が可能となる．
+\begin{itemize}
+  \item \textbf{合成効果の考慮}：RC床版との合成断面として計算（現在は保守側で鋼I断面のみ）
+  \item \textbf{座屈照査}：フランジ局部座屈，ウェブ全体座屈
+  \item \textbf{疲労照査}：溶接部等の疲労強度評価
+  \item \textbf{荷重の精緻化}：本研究では衝撃係数および群集荷重を考慮していないが，これらはDesignerへの入力情報として追加することで対応可能である．同様に温度応力等も拡張可能である
+\end{itemize}
+さらに，FEMによる構造解析などと組み合わせることで，より現実的な挙動評価が可能となると考えられる．
+\subsubsection{収束率向上への対応}
+
+広幅員条件（$B \geq 20$\,m）での収束率改善のため，桁本数を含む設計変数の修正機構を検討する．
+
+\subsection{長期的展望}
+
+本研究では，道路橋示方書と教科書をテキスト化してそれを設計知として参照する形をとった．しかし，単純なチャンク化＋検索の形では，前後の文脈を完全に拾えないことや，より複雑な関係を表現できないことが課題として残る．
+これを，道路橋示方書の条文間の参照関係（「○○の場合は△△条を参照」等）をナレッジグラフとして表現し，本研究と同様に適切な形のパラメータセットたるJSONの形を作れば，様々な橋梁形式に対応可能なシステムへ拡張できると考える．
+これにより，鋼プレートガーダー橋以外の形式（箱桁，トラス，アーチなど）に対しても，形式に応じた設計ルールを自動的に適用することが期待される．
+
+さらに，MCP4IFC\cite{mcp4ifc}に見られるようなMCP（Model Context Protocol）を介したツール連携仕様が普及すれば，LLMは自然言語処理だけでなく外部ツール群を組み合わせて設計業務を遂行する「オーケストレータ」として機能し得る．
+本研究で実装したRAG検索，決定論的照査，IFC生成をそれぞれMCPサーバとして分離すれば，他の橋梁形式や他システムからも再利用可能な設計支援基盤へ発展できる．
+さらにFEM解析や疲労・座屈照査，数量計算，施工計画，維持管理データベース等を同一の呼び出し形式で接続できれば，概略設計から詳細設計，デジタルツイン運用までを連続したワークフローとして統合することが期待される．
+一方で，ツール呼び出し権限の管理，入出力スキーマの標準化，参照条文・計算ログの監査可能性確保など，運用面の課題も大きい．
+これらを踏まえ，MCPを介した検証可能な計算ツール群と知識表現（例：条文参照関係の構造化）を組み合わせることが，説明可能で再現可能な自律設計支援への長期的な方向性である．
+
+
+\section*{謝辞}
+
+本研究を進めるにあたり，終始ご指導・ご助言を賜りました東京大学大学院工学系研究科の全邦釘先生に深く感謝申し上げます．何かとご心配・ご迷惑をおかけしましたが，本当にご多忙な中でも温かく見守ってくださり，無事本研究を終えることができました．深く感謝申し上げます．
+
+また，研究室の先輩の皆様にも感謝申し上げます．特に阿部さん，田村さん，松尾さん，稲富さんは研究室でご一緒する機会が多く，日常的にかけてくださる励ましの言葉や助言に支えられました．深く感謝いたします．
+同じく先輩である岡内さんには，本研究の範囲に限らず，本当に多くの技術的な助言をいただきました．一つしか年齢差がないとは思えないほど圧倒的な実力をお持ちであり，どんな質問をしても120\%の内容の答えが返ってくるのは衝撃的でしたが，同時にそれが自分にもできるという良い刺激になりました．心より感謝申し上げます．
+
+また，日々のゼミや研究室で温かいお声掛けやアドバイスをくださいました堀田先生，鈴木先生，Yu先生，小澤先生，沼田先生，秘書の皆さま，研究員の皆さまにも深く感謝申し上げます．皆さまのお心遣いと励ましのおかげで，研究に専念できる環境が整えられ，本研究の推進に大いに助力となりました．
+
+プライベートで関わる友人にも感謝します．特に，同期の親友とも呼べる8人の存在には大変助けられました．将来の話，研究の話，その他どんな話でも共有できる彼らの存在は，なかなか研究が進まないような時期に特に，自分の心の大きな支えでした．改めて感謝の意を表します．
+
+最後に，ここまでの人生を支えてくれた家族に心から感謝します．教育，精神面，金銭面，本当に何から何まで，家族の無償の愛と支えがあったからこそ，今日の自分があります．深く感謝しています．
+
+本研究の成果は，上記の皆さまのご尽力なくしては成し遂げられなかったものであり，改めて心より御礼申し上げます．今後も皆さまからいただいた知見を生かし，土木業界のDX・デジタルツイン推進に少しでも貢献できるよう，精進してまいります．
+
+\begin{thebibliography}{99}
+\bibitem{mlit_infra}
+国土交通省：社会資本の老朽化の現状と将来，\url{https://www.mlit.go.jp/sogoseisaku/maintenance/02research/02_01.html}（参照 2026-01-26）.
+\bibitem{iconstruction}
+国土交通省：i-Construction，\url{https://www.mlit.go.jp/tec/i-construction/index.html}（参照 2026-01-28）.
+\bibitem{bimcim}
+国土交通省：BIM/CIM関連，\url{https://www.mlit.go.jp/tec/tec_tk_000037.html}（参照 2026-01-26）.
+\bibitem{ifc4x3}
+buildingSMART International: Industry Foundation Classes (IFC), \url{https://www.buildingsmart.org/standards/bsi-standards/industry-foundation-classes/} (accessed 2026-01-26).
+\bibitem{mlit_bimcim_questionnaire}
+国土交通省：BIM/CIMの進め方について，\url{https://www.mlit.go.jp/tec/content/001757200.pdf}（参照 2026-01-26）.
+\bibitem{mcp4ifc}
+B. K. Nithyanantham, T. Sesterhenn, A. Nedungadi, S. Peral Garijo, J. Zenkner, C. Bartelt, and S. Lüdtke: MCP4IFC: IFC-Based Building Design Using Large Language Models, arXiv:2511.05533v1 [cs.CL], 2025, doi:10.48550/arXiv.2511.05533.
+\bibitem{mdpi_bridge_checking}
+Yang, Y., Jing, X. and Liu, Y.-M.: Automated Checking of Highway Bridge BIM Models Based on Large Language Models, Buildings, Vol. 15, No. 19, 3465, 2025. doi:10.3390/buildings15193465.
+\bibitem{yamamoto_genai_ifc}
+山本 敦大，緒方 陸，藤井 純一郎，山本 一浩：生成AIによる単純形状3次元データモデルの対話的な生成手法の一考察，AI・データサイエンス論文集，Vol.6, No.1，pp.96--106，2025. doi:10.11532/jsceiii.6.1\_96.
+\bibitem{hakoishi_bert}
+箱石 健太, 一言 正之, 菅田 大輔：土木分野における事前学習モデルBERTによる精度検証，土木学会論文集特集号（土木情報学），Vol.79，No.22，22-22042，2023. doi:10.2208/jscejj.22-22042.
+\bibitem{rag_original}
+Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N., Küttler, H., Lewis, M., Yih, W.-t., Rocktäschel, T., Riedel, S., and Kiela, D.: Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks, arXiv:2005.11401, 2020. doi:10.48550/arXiv.2005.11401.
+\bibitem{soudani_rag_vs_ft}
+Soudani, H., Kanoulas, E., and Hasibi, F.: Fine Tuning vs. Retrieval Augmented Generation for Less Popular Knowledge, arXiv:2403.01432 [cs.CL], 2024. doi:10.48550/arXiv.2403.01432.
+\bibitem{li2024math_error}
+Li, X., Wang, W., Li, M., Guo, J., Zhang, Y., and Feng, F.: Evaluating Mathematical Reasoning of Large Language Models: A Focus on Error Identification and Correction, Findings of the Association for Computational Linguistics: ACL 2024, pp. 11316--11360, 2024. doi:10.18653/v1/2024.findings-acl.673.
+\bibitem{openai_structured_output}
+OpenAI: Structured model outputs | OpenAI API, \url{https://platform.openai.com/docs/guides/structured-outputs} (accessed 2026-01-28).
+\bibitem{openai_gpt51}
+OpenAI: GPT-5.1 Model | OpenAI API, \url{https://platform.openai.com/docs/models/gpt-5.1} (accessed 2026-01-29).
+\bibitem{pydantic_docs}
+Pydantic: Pydantic Validation, \url{https://docs.pydantic.dev/} (accessed 2026-01-28).
+\bibitem{dosisyo}
+国土交通省：道路橋示方書，\url{https://www.mlit.go.jp/road/sign/kijyun/pdf/20170721hashikouka.pdf}（参照 2026-01-28）.
+\bibitem{textbook}
+中井博, 北田俊行: 鋼橋設計の基礎. 共立出版株式会社, 1992.
+\bibitem{pdfplumber_docs}
+Singer-Vine, J. and The pdfplumber contributors: pdfplumber (Version 0.11.9), GitHub repository, 2026. \url{https://github.com/jsvine/pdfplumber} (accessed 2026-01-28).
+\bibitem{openai_embeddings}
+OpenAI: Vector embeddings | OpenAI API, \url{https://platform.openai.com/docs/guides/embeddings} (accessed 2026-01-28).
+\bibitem{numpy_docs}
+NumPy: NumPy Documentation, \url{https://numpy.org/doc/stable/} (accessed 2026-01-28).
+\bibitem{openai_responses}
+OpenAI: Responses | OpenAI API Reference, \url{https://platform.openai.com/docs/api-reference/responses} (accessed 2026-01-28).
+\bibitem{ifcopenshell_docs}
+IfcOpenShell: IfcOpenShell - The open source IFC toolkit and geometry engine, \url{https://ifcopenshell.org/} (accessed 2026-01-28).
+\end{thebibliography}
+
+\end{document}

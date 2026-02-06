@@ -1,16 +1,16 @@
 # COMPONENT_JUDGE
 
-BridgeDesign を入力として決定論的な照査計算を行い、不合格時は LLM で修正提案（PatchPlan）を生成する Judge の概要。
+Overview of the Judge, which performs deterministic verification calculations on a BridgeDesign input and generates repair proposals (PatchPlan) via LLM when the design fails.
 
-## 概要
+## Overview
 
-Judge は以下の責務を担う：
+The Judge is responsible for the following:
 
-1. **決定論的照査**: 曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置の util を計算
-2. **合否判定**: すべての util ≤ 1.0 かつ横桁配置 OK なら合格
-3. **修正提案**: 不合格時は LLM が PatchPlan（修正操作リスト）を生成（複数候補方式）
+1. **Deterministic verification**: Compute utilization ratios for bending, shear, deflection, deck slab thickness, web slenderness ratio, and cross beam layout
+2. **Pass/fail determination**: Pass if all utilization ratios are ≤ 1.0 and the cross beam layout is OK
+3. **Repair proposal**: When the design fails, the LLM generates a PatchPlan (list of repair operations) using the multiple-candidate approach
 
-## 入力（JudgeInput）
+## Input (JudgeInput)
 
 ```python
 class JudgeInput(BaseModel):
@@ -20,221 +20,221 @@ class JudgeInput(BaseModel):
     judge_params: JudgeParams = ...               # alpha_bend=0.6, alpha_shear=0.6
 ```
 
-> **Note**: 活荷重は `LoadInput` による外部入力ではなく、L荷重（p1/p2ルール）に基づいて内部計算される。
+> **Note**: Live load is not provided as external input via `LoadInput`; instead, it is computed internally based on L-load (p1/p2 rule).
 
-### JudgeParams（デフォルト値）
+### JudgeParams (Default Values)
 
-| パラメータ | デフォルト | 説明 |
-|------------|------------|------|
-| `alpha_bend` | 0.6 | 曲げ許容応力度係数。σ_allow = α × fy |
-| `alpha_shear` | 0.6 | せん断許容応力度係数。τ_allow = α × (fy/√3) |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `alpha_bend` | 0.6 | Bending allowable stress coefficient. σ_allow = α × fy |
+| `alpha_shear` | 0.6 | Shear allowable stress coefficient. τ_allow = α × (fy/√3) |
 
-### 材料特性（デフォルト値）
+### Material Properties (Default Values)
 
-| 材料 | E [N/mm²] | grade | unit_weight [N/mm³] |
-|------|-----------|-------|---------------------|
-| 鋼 | 2.0×10⁵ | SM490 | 78.5×10⁻⁶ |
-| コンクリート | - | - | 25.0×10⁻⁶ |
+| Material | E [N/mm²] | grade | unit_weight [N/mm³] |
+|----------|-----------|-------|---------------------|
+| Steel | 2.0×10⁵ | SM490 | 78.5×10⁻⁶ |
+| Concrete | - | - | 25.0×10⁻⁶ |
 
-**降伏点 fy**: 鋼種と板厚に応じて `get_fy()` で動的に計算される。
+**Yield point fy**: Dynamically computed by `get_fy()` based on steel grade and plate thickness.
 
-| 鋼種 | 板厚 ≤16mm | 16-40mm | >40mm |
-|------|------------|---------|-------|
+| Steel grade | Plate thickness ≤16mm | 16-40mm | >40mm |
+|-------------|-----------------------|---------|-------|
 | SM400 | 245 | 235 | 215 |
 | SM490 | 325 | 315 | 295 |
 
-## 出力（JudgeReport）
+## Output (JudgeReport)
 
 ```python
 class JudgeReport(BaseModel):
-    pass_fail: bool                        # 合否
-    utilization: Utilization               # 各項目の util
-    diagnostics: Diagnostics               # 中間計算値
-    patch_plan: PatchPlan                  # 修正提案（不合格時のみ）
-    evaluated_candidates: list | None      # 評価済み候補リスト（不合格時のみ）
+    pass_fail: bool                        # Pass/fail
+    utilization: Utilization               # Utilization ratios for each check
+    diagnostics: Diagnostics               # Intermediate calculation values
+    patch_plan: PatchPlan                  # Repair proposal (only when failed)
+    evaluated_candidates: list | None      # List of evaluated candidates (only when failed)
 ```
 
 ### Utilization
 
-| 項目 | 計算式 | 説明 |
-|------|--------|------|
-| `deck` | required / provided | 床版厚 util |
-| `bend` | max(\|σ_top\|/σ_allow_top, \|σ_bottom\|/σ_allow_bottom) | 曲げ応力度 util |
-| `shear` | \|τ_avg\| / τ_allow | せん断応力度 util |
-| `deflection` | δ / δ_allow | たわみ util |
-| `web_slenderness` | t_min_required / web_thickness | 腹板幅厚比 util |
-| `max_util` | max(deck, bend, shear, deflection, web_slenderness) | 最大 util |
-| `governing_check` | max_util の支配項目 | deck/bend/shear/deflection/web_slenderness/crossbeam_layout |
+| Item | Formula | Description |
+|------|---------|-------------|
+| `deck` | required / provided | Deck slab thickness util |
+| `bend` | max(\|σ_top\|/σ_allow_top, \|σ_bottom\|/σ_allow_bottom) | Bending stress util |
+| `shear` | \|τ_avg\| / τ_allow | Shear stress util |
+| `deflection` | δ / δ_allow | Deflection util |
+| `web_slenderness` | t_min_required / web_thickness | Web slenderness ratio util |
+| `max_util` | max(deck, bend, shear, deflection, web_slenderness) | Maximum util |
+| `governing_check` | Governing item for max_util | deck/bend/shear/deflection/web_slenderness/crossbeam_layout |
 
-### Diagnostics（中間計算値）
+### Diagnostics (Intermediate Calculation Values)
 
-| フィールド | 単位 | 説明 |
-|------------|------|------|
-| `M_total`, `V_total` | N·mm, N | governing 桁の合計断面力 |
-| `ybar` | mm | 中立軸位置（下端基準） |
-| `moment_of_inertia` | mm⁴ | 断面二次モーメント |
-| `y_top`, `y_bottom` | mm | 上縁距離 / 下縁距離 |
-| `sigma_top`, `sigma_bottom` | N/mm² | governing 桁の上下縁応力度 |
-| `tau_avg` | N/mm² | governing 桁の平均せん断応力度 |
-| `delta`, `delta_allow` | mm | たわみ / 許容たわみ |
-| `fy_top_flange`, `fy_bottom_flange`, `fy_web` | N/mm² | 各部位の降伏点 |
-| `sigma_allow_top`, `sigma_allow_bottom` | N/mm² | 上下縁許容曲げ応力度 |
-| `tau_allow` | N/mm² | 許容せん断応力度 |
-| `deck_thickness_required` | mm | 必要床版厚 |
-| `web_thickness_min_required` | mm | 必要最小腹板厚 |
-| `crossbeam_layout_ok` | bool | 横桁配置の整合性 |
-| `load_effects` | LoadEffectsResult | 荷重計算結果（詳細） |
-| `governing_girder_index_bend` | int | 曲げで最厳しい桁のインデックス |
-| `governing_girder_index_shear` | int | せん断で最厳しい桁のインデックス |
+| Field | Unit | Description |
+|-------|------|-------------|
+| `M_total`, `V_total` | N·mm, N | Total sectional forces for the governing girder |
+| `ybar` | mm | Neutral axis position (measured from the bottom) |
+| `moment_of_inertia` | mm⁴ | Moment of inertia |
+| `y_top`, `y_bottom` | mm | Distance to top edge / distance to bottom edge |
+| `sigma_top`, `sigma_bottom` | N/mm² | Top and bottom edge stresses for the governing girder |
+| `tau_avg` | N/mm² | Average shear stress for the governing girder |
+| `delta`, `delta_allow` | mm | Deflection / allowable deflection |
+| `fy_top_flange`, `fy_bottom_flange`, `fy_web` | N/mm² | Yield point for each component |
+| `sigma_allow_top`, `sigma_allow_bottom` | N/mm² | Allowable bending stress at top and bottom edges |
+| `tau_allow` | N/mm² | Allowable shear stress |
+| `deck_thickness_required` | mm | Required deck slab thickness |
+| `web_thickness_min_required` | mm | Required minimum web thickness |
+| `crossbeam_layout_ok` | bool | Cross beam layout consistency |
+| `load_effects` | LoadEffectsResult | Detailed load calculation results |
+| `governing_girder_index_bend` | int | Index of the girder with the most critical bending |
+| `governing_girder_index_shear` | int | Index of the girder with the most critical shear |
 
-## 照査計算の詳細
+## Verification Calculation Details
 
-### 1. 活荷重断面力（L荷重・p1/p2ルール）
+### 1. Live Load Sectional Forces (L-load / p1/p2 Rule)
 
-道路橋示方書のB活荷重に基づく L荷重計算を内部で自動実行する。
+L-load calculation based on the B live load from the Specifications for Highway Bridges is automatically performed internally.
 
-#### L荷重の定数
+#### L-load Constants
 
-| 定数 | 値 | 説明 |
-|------|-----|------|
-| `P1_M_KN_M2` | 10.0 kN/m² | 曲げ照査用 p1 面圧 |
-| `P1_V_KN_M2` | 12.0 kN/m² | せん断照査用 p1 面圧 |
-| `P2_KN_M2` | 3.5 kN/m² | p2 面圧（支間80m以下） |
-| `MAIN_LOADING_WIDTH_M` | 5.5 m | 主載荷幅 |
-| `MAX_LOADING_LENGTH_M` | 10.0 m | 載荷長上限 |
-| `MAX_APPLICABLE_SPAN_M` | 80.0 m | 適用限界支間長 |
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `P1_M_KN_M2` | 10.0 kN/m² | p1 surface pressure for bending verification |
+| `P1_V_KN_M2` | 12.0 kN/m² | p1 surface pressure for shear verification |
+| `P2_KN_M2` | 3.5 kN/m² | p2 surface pressure (span ≤ 80m) |
+| `MAIN_LOADING_WIDTH_M` | 5.5 m | Main loading width |
+| `MAX_LOADING_LENGTH_M` | 10.0 m | Maximum loading length |
+| `MAX_APPLICABLE_SPAN_M` | 80.0 m | Maximum applicable span length |
 
-#### 計算フロー
+#### Calculation Flow
 
 ```python
-# 1. 載荷長 D
+# 1. Loading length D
 D_m = min(10.0, L_m)
 
-# 2. 等価係数 γ（部分載荷→等価全スパン分布の換算係数）
+# 2. Equivalence coefficient γ (conversion factor from partial loading to equivalent full-span distribution)
 gamma = D_m * (2 * L_m - D_m) / L_m²
 
-# 3. 等価面圧
-p_eq_M = P2 + P1_M * gamma  # 曲げ用
-p_eq_V = P2 + P1_V * gamma  # せん断用
+# 3. Equivalent surface pressure
+p_eq_M = P2 + P1_M * gamma  # For bending
+p_eq_V = P2 + P1_V * gamma  # For shear
 
-# 4. 張り出し幅
+# 4. Overhang width
 overhang = (total_width - (num_girders - 1) * girder_spacing) / 2
 
-# 5. 各主桁の受け持ち幅 b_i
-#    端桁: overhang + girder_spacing / 2
-#    中間桁: girder_spacing
+# 5. Tributary width b_i for each girder
+#    End girder: overhang + girder_spacing / 2
+#    Interior girder: girder_spacing
 
-# 6. 実効幅 b_eff（主載荷5.5mを最不利に配置）
+# 6. Effective width b_eff (most unfavorable placement of 5.5m main loading width)
 b_eff = 0.5 * b_i + 0.5 * min(b_i, 5.5)
 
-# 7. 等価線荷重
+# 7. Equivalent line load
 w_M = p_eq_M * b_eff  # [kN/m]
 w_V = p_eq_V * b_eff  # [kN/m]
 
-# 8. 断面力（単純桁）
+# 8. Sectional forces (simply supported beam)
 M_live = w_M * L² / 8  # [kN·m] → [N·mm]
 V_live = w_V * L / 2   # [kN] → [N]
 
-# 9. 全主桁で最大値を採用（曲げ・せん断で別々に選定）
-M_live_max = max(各主桁の M_live)
-V_live_max = max(各主桁の V_live)
+# 9. Use maximum across all girders (selected separately for bending and shear)
+M_live_max = max(M_live for each girder)
+V_live_max = max(V_live for each girder)
 ```
 
 #### LoadEffectsResult
 
-荷重計算（死荷重・活荷重統合）の詳細結果は `Diagnostics.load_effects` に格納される。
+Detailed results of load calculations (dead load and live load combined) are stored in `Diagnostics.load_effects`.
 
 ```python
 class GirderLoadResult(BaseModel):
-    """1本の主桁の荷重計算結果（死荷重・活荷重統合）。"""
-    girder_index: int       # 主桁インデックス（0始まり）
-    b_i_m: float            # 受け持ち幅 [m]
-    # 死荷重
-    w_dead: float           # 死荷重線荷重 [N/mm]
-    M_dead: float           # 死荷重曲げモーメント [N·mm]
-    V_dead: float           # 死荷重せん断力 [N]
-    # 活荷重
-    b_eff_m: float          # 実効幅 [m]（活荷重用）
-    w_M: float              # 曲げ用等価線荷重 [kN/m]
-    w_V: float              # せん断用等価線荷重 [kN/m]
-    M_live: float           # 活荷重曲げモーメント [N·mm]
-    V_live: float           # 活荷重せん断力 [N]
-    # 合計
-    M_total: float          # 合計曲げモーメント [N·mm]
-    V_total: float          # 合計せん断力 [N]
+    """Load calculation results for a single girder (dead load and live load combined)."""
+    girder_index: int       # Girder index (0-based)
+    b_i_m: float            # Tributary width [m]
+    # Dead load
+    w_dead: float           # Dead load line load [N/mm]
+    M_dead: float           # Dead load bending moment [N·mm]
+    V_dead: float           # Dead load shear force [N]
+    # Live load
+    b_eff_m: float          # Effective width [m] (for live load)
+    w_M: float              # Equivalent line load for bending [kN/m]
+    w_V: float              # Equivalent line load for shear [kN/m]
+    M_live: float           # Live load bending moment [N·mm]
+    V_live: float           # Live load shear force [N]
+    # Total
+    M_total: float          # Total bending moment [N·mm]
+    V_total: float          # Total shear force [N]
 
 class LoadEffectsResult(BaseModel):
-    """全主桁の荷重計算結果（死荷重・活荷重統合）。"""
-    L_m: float              # 支間長 [m]
-    D_m: float              # 載荷長 [m]
-    p2: float               # p2 面圧 [kN/m²]
-    p1_M: float             # 曲げ用 p1 [kN/m²]
-    p1_V: float             # せん断用 p1 [kN/m²]
-    gamma: float            # 等価係数
-    p_eq_M: float           # 曲げ用等価面圧 [kN/m²]
-    p_eq_V: float           # せん断用等価面圧 [kN/m²]
-    overhang_m: float       # 張り出し幅 [m]
-    girder_results: list[GirderLoadResult]  # 各主桁の結果
-    governing_girder_index_bend: int    # 曲げで最厳しい主桁
-    governing_girder_index_shear: int   # せん断で最厳しい主桁
-    M_total_max: float      # 最大合計曲げモーメント [N·mm]
-    V_total_max: float      # 最大合計せん断力 [N]
+    """Load calculation results for all girders (dead load and live load combined)."""
+    L_m: float              # Span length [m]
+    D_m: float              # Loading length [m]
+    p2: float               # p2 surface pressure [kN/m²]
+    p1_M: float             # p1 for bending [kN/m²]
+    p1_V: float             # p1 for shear [kN/m²]
+    gamma: float            # Equivalence coefficient
+    p_eq_M: float           # Equivalent surface pressure for bending [kN/m²]
+    p_eq_V: float           # Equivalent surface pressure for shear [kN/m²]
+    overhang_m: float       # Overhang width [m]
+    girder_results: list[GirderLoadResult]  # Results for each girder
+    governing_girder_index_bend: int    # Girder with most critical bending
+    governing_girder_index_shear: int   # Girder with most critical shear
+    M_total_max: float      # Maximum total bending moment [N·mm]
+    V_total_max: float      # Maximum total shear force [N]
 ```
 
-### 2. 死荷重断面力（桁別計算）
+### 2. Dead Load Sectional Forces (Per-girder Calculation)
 
-死荷重は各主桁の受け持ち幅に応じて個別に計算される。
+Dead load is calculated individually for each girder based on its tributary width.
 
 ```
-# 各主桁の受け持ち幅 b_i [m]
-#   端桁: overhang + girder_spacing / 2
-#   中間桁: girder_spacing
+# Tributary width b_i [m] for each girder
+#   End girder: overhang + girder_spacing / 2
+#   Interior girder: girder_spacing
 
-# 死荷重線荷重（各主桁）
+# Dead load line load (per girder)
 w_deck = γ_c × deck_thickness × b_i [N/mm]
 w_steel = γ_s × A_girder [N/mm]
 w_dead = w_deck + w_steel [N/mm]
 
-# 死荷重断面力（各主桁）
+# Dead load sectional forces (per girder)
 M_dead = w_dead × L² / 8 [N·mm]
 V_dead = w_dead × L / 2 [N]
 
-# 合計断面力（各主桁）
+# Total sectional forces (per girder)
 M_total = M_dead + M_live [N·mm]
 V_total = V_dead + V_live [N]
 ```
 
-曲げとせん断で最厳しい主桁（`governing_girder_index_bend/shear`）が異なる場合がある。
+The governing girder may differ between bending and shear (`governing_girder_index_bend/shear`).
 
-### 3. 断面諸量（非対称 I 断面）
+### 3. Section Properties (Asymmetric I-section)
 
 ```
-全高: H = top_flange_thickness + web_height + bottom_flange_thickness
-中立軸: ybar = Σ(A_i × y_i) / Σ(A_i)
-断面二次モーメント: I = Σ(I_i + A_i × (ybar - y_i)²)
+Total height: H = top_flange_thickness + web_height + bottom_flange_thickness
+Neutral axis: ybar = Σ(A_i × y_i) / Σ(A_i)
+Moment of inertia: I = Σ(I_i + A_i × (ybar - y_i)²)
 ```
 
-### 4. 応力度
+### 4. Stress
 
-上下フランジで板厚が異なる場合、それぞれの降伏点から許容応力度を計算する。
+When the top and bottom flanges have different plate thicknesses, the allowable stress is calculated from each flange's respective yield point.
 
 ```
 σ_top = M_total × y_top / I
 σ_bottom = M_total × y_bottom / I
 
-# 上下フランジそれぞれの許容応力度
+# Allowable stress for each flange
 σ_allow_top = α_bend × fy_top
 σ_allow_bottom = α_bend × fy_bottom
 
-# 上下で別々に util を計算し、大きい方を採用
+# Compute util separately for top and bottom, and take the larger value
 util_bend_top = |σ_top| / σ_allow_top
 util_bend_bottom = |σ_bottom| / σ_allow_bottom
 util_bend = max(util_bend_top, util_bend_bottom)
 ```
 
-### 5. せん断（平均せん断応力度）
+### 5. Shear (Average Shear Stress)
 
-ウェブの降伏点を使用する。
+The web yield point is used.
 
 ```
 τ_avg = V_total / (web_thickness × web_height)
@@ -242,18 +242,18 @@ util_bend = max(util_bend_top, util_bend_bottom)
 util_shear = |τ_avg| / τ_allow
 ```
 
-### 6. たわみ（活荷重のみ・道路橋示方書準拠）
+### 6. Deflection (Live Load Only / Per Specifications for Highway Bridges)
 
-使用限界状態のたわみ照査は活荷重のみで評価する。許容たわみは支間長に応じて 3 区分で計算する。
+Deflection verification for the serviceability limit state is evaluated using live load only. The allowable deflection is calculated in 3 tiers based on span length.
 
 ```
-# 活荷重による等価等分布荷重
+# Equivalent uniformly distributed load from live load
 w_eq_live = 8 × M_live_max / L²
 
-# たわみ
+# Deflection
 δ = 5 × w_eq_live × L⁴ / (384 × E × I)
 
-# 許容たわみ（L_m は m 単位）
+# Allowable deflection (L_m in meters)
 L_m = L / 1000
 
 if L_m ≤ 10:
@@ -266,7 +266,7 @@ else:
 util_deflection = δ / δ_allow
 ```
 
-### 7. 床版厚
+### 7. Deck Slab Thickness
 
 ```
 L_support_m = girder_spacing / 1000 [m]
@@ -274,19 +274,19 @@ required = max(30 × L_support_m + 110, 160) [mm]
 util_deck = required / provided
 ```
 
-### 8. 横桁配置チェック
+### 8. Cross Beam Layout Check
 
 ```
 layout_ok = |panel_length × num_panels - bridge_length| ≤ 1.0mm
           AND panel_length ≤ 20000mm
 ```
 
-### 9. 腹板幅厚比
+### 9. Web Slenderness Ratio
 
-鋼種に応じた幅厚比制限から必要最小腹板厚を計算し、現在の腹板厚と比較する。
+The required minimum web thickness is calculated from the slenderness ratio limit based on steel grade, and compared against the current web thickness.
 
 ```
-# 必要最小腹板厚
+# Required minimum web thickness
 SM490: t_min = web_height / 130
 SM400: t_min = web_height / 152
 
@@ -294,34 +294,34 @@ SM400: t_min = web_height / 152
 util_web_slenderness = t_min / web_thickness
 ```
 
-## 修正提案（PatchPlan）
+## Repair Proposal (PatchPlan)
 
-不合格時、LLM が `RepairContext` を基に修正操作を提案する。
+When the design fails, the LLM proposes repair operations based on the `RepairContext`.
 
-### 複数候補方式（v1.1）
+### Multiple-Candidate Approach (v1.1)
 
-PatchPlan 生成は複数候補方式を採用している：
+PatchPlan generation uses the multiple-candidate approach:
 
-1. **LLM が3案を生成**: 異なるアプローチ（桁高重視、フランジ厚重視など）
-2. **各案を仮適用・評価**: `apply_patch_plan` → `judge_v1_lightweight` で max_util をシミュレーション
-3. **最良案を選択**: improvement（= 現在の max_util - シミュレーション後の max_util）が最大の案を採用
+1. **LLM generates 3 proposals**: Different approaches (e.g., prioritizing girder height increase, prioritizing flange thickness, etc.)
+2. **Each proposal is tentatively applied and evaluated**: `apply_patch_plan` → `judge_v1_lightweight` to simulate max_util
+3. **Best proposal is selected**: The proposal with the greatest improvement (= current max_util - simulated max_util) is adopted
 
 ```python
 class PatchPlanCandidate(BaseModel):
     plan: PatchPlan
-    approach_summary: str  # 例: "桁高増でたわみ改善狙い"
+    approach_summary: str  # e.g., "Targeting deflection improvement via girder height increase"
 
 class EvaluatedCandidate(BaseModel):
     candidate: PatchPlanCandidate
-    simulated_max_util: float      # シミュレーション後の max_util
+    simulated_max_util: float      # max_util after simulation
     simulated_utilization: Utilization
-    improvement: float             # 正なら改善
+    improvement: float             # Positive means improvement
 ```
 
-### 許可される操作（AllowedActions）
+### Allowed Actions (AllowedActions)
 
-| 操作 | 対象 | 許容値 |
-|------|------|--------|
+| Action | Target | Allowed values |
+|--------|--------|----------------|
 | `increase_web_height` | girder.web_height | +100, +200, +300, +500 mm |
 | `increase_web_thickness` | girder.web_thickness | +2, +4, +6 mm |
 | `increase_top_flange_thickness` | girder.top_flange_thickness | +2, +4, +6 mm |
@@ -332,71 +332,71 @@ class EvaluatedCandidate(BaseModel):
 | `set_deck_thickness_to_required` | deck.thickness | = required |
 | `fix_crossbeam_layout` | dims.num_panels | = round(L / panel_length) |
 
-> **`increase_num_girders`**: 桁本数を +1 し、overhang を維持したまま girder_spacing を再計算する。新しい girder_spacing で必要床版厚が増える場合は deck.thickness も連動更新される。
+> **`increase_num_girders`**: Increases the number of girders by +1 and recalculates girder_spacing while maintaining the overhang. If the new girder_spacing requires a greater deck slab thickness, deck.thickness is also updated accordingly.
 
-### PatchPlan の制約
+### PatchPlan Constraints
 
-- actions は最大 3 手まで
-- 急激な変更を避ける（最初は小さい変更から）
-- 許可された操作以外は禁止
+- Maximum of 3 actions per plan
+- Avoid drastic changes (start with small modifications first)
+- Only the allowed actions listed above are permitted
 
-### PatchAction の例
+### PatchAction Example
 
 ```json
 {
   "op": "increase_web_height",
   "path": "sections.girder_standard.web_height",
   "delta_mm": 100,
-  "reason": "util_deflection が支配的。桁高増でたわみと曲げを改善。"
+  "reason": "util_deflection is governing. Girder height increase improves deflection and bending."
 }
 ```
 
-## 修正ループ
+## Repair Loop
 
-不合格時に PatchPlan を適用し、合格するまで繰り返す。
+When the design fails, the PatchPlan is applied and the process repeats until it passes.
 
 ```
 BridgeDesign
     ↓
-Judge（照査）
+Judge (verification)
     ↓
-合格？ → Yes → 終了
+Pass? → Yes → End
     ↓ No
-LLM（PatchPlan 3案生成）
+LLM (generate 3 PatchPlan candidates)
     ↓
-仮適用・評価（各案）
+Tentatively apply and evaluate (each candidate)
     ↓
-最良案選択・適用（apply_patch_plan）
+Select and apply the best candidate (apply_patch_plan)
     ↓
-依存関係ルール適用（apply_dependency_rules）
-  └ 例: 横桁高さ = 主桁高さ × factor
+Apply dependency rules (apply_dependency_rules)
+  └ e.g., cross beam height = main girder height × factor
     ↓
-（最大イテレーションまで繰り返し）
+(Repeat up to max iterations)
 ```
 
 ### RepairLoopResult
 
 ```python
 class RepairLoopResult(BaseModel):
-    converged: bool                     # 収束したか
-    iterations: list[RepairIteration]   # 各イテレーションの結果
-    final_design: BridgeDesign          # 最終設計
-    final_report: JudgeReport           # 最終照査結果
-    rag_log: DesignerRagLog             # 初期設計の RAG ログ
+    converged: bool                     # Whether the loop converged
+    iterations: list[RepairIteration]   # Results for each iteration
+    final_design: BridgeDesign          # Final design
+    final_report: JudgeReport           # Final verification report
+    rag_log: DesignerRagLog             # RAG log from the initial design
 ```
 
-## 関連ファイル
+## Related Files
 
-- `src/bridge_agentic_generate/judge/models.py`: Pydantic モデル定義
-- `src/bridge_agentic_generate/judge/services.py`: 照査計算・L荷重計算・PatchPlan 適用
-- `src/bridge_agentic_generate/judge/prompts.py`: PatchPlan 生成プロンプト（複数候補方式）
-- `src/bridge_agentic_generate/judge/report.py`: 修正ループレポート生成（Markdown）
-- `src/bridge_agentic_generate/judge/CLAUDE.md`: 詳細仕様書
+- `src/bridge_agentic_generate/judge/models.py`: Pydantic model definitions
+- `src/bridge_agentic_generate/judge/services.py`: Verification calculations, L-load calculations, PatchPlan application
+- `src/bridge_agentic_generate/judge/prompts.py`: PatchPlan generation prompts (multiple-candidate approach)
+- `src/bridge_agentic_generate/judge/report.py`: Repair loop report generation (Markdown)
+- `src/bridge_agentic_generate/judge/CLAUDE.md`: Detailed specification document
 
-## 注意事項
+## Notes
 
-- **単位系**: すべて mm, N, N/mm², N·mm で統一
-- **活荷重モデル**: L荷重（p1/p2ルール）に基づく道示準拠の計算。支間80m以下が適用範囲。
-- **たわみ util**: 概略設計のスクリーニング指標（厳密なたわみ照査ではない）
-- **決定論的照査**: 同じ入力なら常に同じ結果（テスト容易）
-- **複数候補方式**: LLM の提案を仮適用して評価し、最良案を自動選択
+- **Unit system**: All values are in mm, N, N/mm², N·mm
+- **Live load model**: Calculation per the Specifications for Highway Bridges based on L-load (p1/p2 rule). Applicable for spans of 80m or less.
+- **Deflection util**: A screening indicator for preliminary design (not a rigorous deflection verification)
+- **Deterministic verification**: Same input always produces the same result (easy to test)
+- **Multiple-candidate approach**: LLM proposals are tentatively applied and evaluated, with the best candidate automatically selected

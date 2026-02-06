@@ -1,12 +1,12 @@
-# 鋼桁橋IFCモデル生成システム - JSON入力ファイル仕様書
+# Steel Girder Bridge IFC Model Generation System - JSON Input File Specification
 
-## 1. 概要
+## 1. Overview
 
-本仕様書は、鋼桁橋（Steel Girder Bridge）のIFCモデルを生成するためのJSON入力ファイルの構造と各フィールドの意味を定義します。JSONファイルは、Excelファイルから自動生成することも、手動で作成することもできます。
+This specification defines the structure and meaning of each field in the JSON input file used to generate IFC models for steel girder bridges. The JSON file can be either auto-generated from an Excel file or created manually.
 
-## 2. JSONファイルの全体構造
+## 2. Overall JSON File Structure
 
-JSONファイルは最上位で以下のキーを持つオブジェクトです：
+The JSON file is a top-level object with the following keys:
 
 ```json
 {
@@ -25,44 +25,44 @@ JSONファイルは最上位で以下のキーを持つオブジェクトです�
 }
 ```
 
-各セクションは省略可能ですが、最低限 `"Infor"`、`"Senkei"`、`"MainPanel"`、`"Yokogeta"`、`"Shouban"` は必須です。
+Each section is optional, but at minimum `"Infor"`, `"Senkei"`, `"MainPanel"`, `"Yokogeta"`, and `"Shouban"` are required.
 
-## 3. 各セクションの詳細仕様
+## 3. Detailed Specification for Each Section
 
-### 3.1 Infor（橋梁基本情報）
+### 3.1 Infor (Bridge Basic Information)
 
-橋梁全体の基本情報を定義します。
+Defines the basic information for the entire bridge.
 
 ```json
 {
-    "NameBridge": "橋梁名（文字列）",
-    "SideExport": 2  // エクスポート側: 2=両側、1=上側のみ、-1=下側のみ
+    "NameBridge": "Bridge name (string)",
+    "SideExport": 2  // Export side: 2=both sides, 1=upper only, -1=lower only
 }
 ```
 
-**フィールド説明：**
-- `NameBridge`: 橋梁の名称（例: "Bridge Test"）
-- `SideExport`: エクスポートする側面を指定
-  - `2`: 両側をエクスポート
-  - `1`: 上側（UF, Upper Flange）のみエクスポート
-  - `-1`: 下側（LF, Lower Flange）のみエクスポート
+**Field Descriptions:**
+- `NameBridge`: Name of the bridge (e.g., "Bridge Test")
+- `SideExport`: Specifies which side(s) to export
+  - `2`: Export both sides
+  - `1`: Export upper side (UF, Upper Flange) only
+  - `-1`: Export lower side (LF, Lower Flange) only
 
 ---
 
-### 3.2 Senkei（線形データ）
+### 3.2 Senkei (Alignment Data)
 
-橋梁の座標系を定義する線形データです。各線形は複数の座標点で構成されます。
+Alignment data that defines the coordinate system of the bridge. Each alignment consists of multiple coordinate points.
 
 ```json
 [
     {
-        "Name": "線形名称（例: TG1L, TG1, TG1R）",
+        "Name": "Alignment name (e.g., TG1L, TG1, TG1R)",
         "Point": [
             {
-                "Name": "点名称（例: P26, GE1, S1, C1, J1）",
-                "X": 329493.70973552467,  // X座標（mm単位）
-                "Y": 556065.867530174,    // Y座標（mm単位）
-                "Z": 33647.799999999996   // Z座標（mm単位）
+                "Name": "Point name (e.g., P26, GE1, S1, C1, J1)",
+                "X": 329493.70973552467,  // X coordinate (mm)
+                "Y": 556065.867530174,    // Y coordinate (mm)
+                "Z": 33647.799999999996   // Z coordinate (mm)
             },
             ...
         ]
@@ -71,36 +71,36 @@ JSONファイルは最上位で以下のキーを持つオブジェクトです�
 ]
 ```
 
-**フィールド説明：**
-- `Name`: 線形の名称。通常、桁番号と位置を表す（例: "TG1L"=桁1左、"TG1"=桁1中央、"TG1R"=桁1右、"BG1"=桁1下フランジ）
-- `Point`: 座標点の配列
-  - `Name`: 点の名称。断面を表す点（例: "P26", "GE1"=端部、 donated、"S1"=スタート点、"C1"=中間点、"J1"=ジョイント）
-  - `X`, `Y`, `Z`: 3次元座標値（単位: mm）。Excelから読み込む際はメートル単位を1000倍してmmに変換
+**Field Descriptions:**
+- `Name`: Name of the alignment. Typically represents the girder number and position (e.g., "TG1L"=girder 1 left, "TG1"=girder 1 center, "TG1R"=girder 1 right, "BG1"=girder 1 lower flange)
+- `Point`: Array of coordinate points
+  - `Name`: Name of the point. Points representing sections (e.g., "P26", "GE1"=end, "S1"=start point, "C1"=intermediate point, "J1"=joint)
+  - `X`, `Y`, `Z`: 3D coordinate values (unit: mm). When reading from Excel, meter values are multiplied by 1000 to convert to mm
 
-**線形の種類：**
-- `TG*L`, `TG*`, `TG*R`: 上フランジ（Top Girder）の左・中央・右線形
-- `BG*L`, `BG*`, `BG*R`: 下フランジ（Bottom Girder）の左・中央・右線形
+**Types of Alignments:**
+- `TG*L`, `TG*`, `TG*R`: Left, center, and right alignments of the upper flange (Top Girder)
+- `BG*L`, `BG*`, `BG*R`: Left, center, and right alignments of the lower flange (Bottom Girder)
 
 ---
 
-### 3.3 Calculate（計算線形データ） - オプション
+### 3.3 Calculate (Calculated Alignment Data) - Optional
 
-既存の線形から新しい線形を計算生成するための定義です。
+Definitions for generating new alignments by calculation from existing alignments.
 
 ```json
 [
     {
-        "Name": "新しい線形名",
+        "Name": "New alignment name",
         "Calculations": [
             {
-                "Type": "OFFSET",  // または "MID", "Z"
-                "BaseLine": "基準線形名",
-                "Distance": 距離値（mm）
+                "Type": "OFFSET",  // or "MID", "Z"
+                "BaseLine": "Reference alignment name",
+                "Distance": distance_value (mm)
             },
             {
                 "Type": "MID",
-                "BaseLine1": "基準線形1",
-                "BaseLine2": "基準線形2"
+                "BaseLine1": "Reference alignment 1",
+                "BaseLine2": "Reference alignment 2"
             },
             ...
         ]
@@ -109,225 +109,225 @@ JSONファイルは最上位で以下のキーを持つオブジェクトです�
 ]
 ```
 
-**フィールド説明：**
-- `Name`: 計算によって生成される新しい線形の名称
-- `Calculations`: 計算処理の配列
-  - `Type`: 計算タイプ
-    - `"OFFSET"`: 基準線形から指定距離だけオフセット
-    - `"Z"`: Z座標方向にオフセット
-    - `"MID"`: 2つの基準線形の中間線を生成
-  - `BaseLine`, `BaseLine1`, `BaseLine2`: 基準となる線形名（`Senkei`内の線形名を参照）
-  - `Distance`: オフセット距離（mm単位）
+**Field Descriptions:**
+- `Name`: Name of the new alignment generated by calculation
+- `Calculations`: Array of calculation operations
+  - `Type`: Calculation type
+    - `"OFFSET"`: Offset by a specified distance from the reference alignment
+    - `"Z"`: Offset in the Z coordinate direction
+    - `"MID"`: Generate the midline between two reference alignments
+  - `BaseLine`, `BaseLine1`, `BaseLine2`: Reference alignment names (referencing alignment names within `Senkei`)
+  - `Distance`: Offset distance (in mm)
 
 ---
 
-### 3.4 MainPanel（メインパネルデータ）
+### 3.4 MainPanel (Main Panel Data)
 
-メインパネル（主桁の主要部材）の定義です。Web（ウェブ）、Upper Flange（上フランジ）、Lower Flange（下フランジ）などのパネルが含まれます。
+Definitions for main panels (primary members of the main girder). Includes panels such as Web, Upper Flange, and Lower Flange.
 
 ```json
 [
     {
-        "Name": "パネル名称（例: G1B1W, G2B1UF）",
-        "Line": ["TG1L", "TG1", "TG1R"],  // 使用する線形名の配列
-        "Sec": ["GE1", "S1", "C1", "C2", "J1"],  // 使用する断面点名称の配列
+        "Name": "Panel name (e.g., G1B1W, G2B1UF)",
+        "Line": ["TG1L", "TG1", "TG1R"],  // Array of alignment names to use
+        "Sec": ["GE1", "S1", "C1", "C2", "J1"],  // Array of section point names to use
         "Type": {
-            "Girder": "G1",      // 桁番号
-            "Block": "B1",       // ブロック番号
-            "TypePanel": "W"     // パネルタイプ: W=Web, UF=Upper Flange, LF=Lower Flange, WL=Web Left, WR=Web Right
+            "Girder": "G1",      // Girder number
+            "Block": "B1",       // Block number
+            "TypePanel": "W"     // Panel type: W=Web, UF=Upper Flange, LF=Lower Flange, WL=Web Left, WR=Web Right
         },
         "Material": {
-            "Thick1": 4.5,       // 厚さ1（mm）
-            "Thick2": 4.5,       // 厚さ2（mm）
-            "Mat": "SM400A"      // 材料名
+            "Thick1": 4.5,       // Thickness 1 (mm)
+            "Thick2": 4.5,       // Thickness 2 (mm)
+            "Mat": "SM400A"      // Material name
         },
         "Expand": {
-            "E1": 0,             // 左側延長（mm）。数値または"A"（自動）
-            "E2": -0.5,          // 右側延長（mm）。数値または"A"（自動）
-            "E3": "A",           // 上側延長（mm）。数値または"A"（自動）
-            "E4": "A"            // 下側延長（mm）。数値または"A"（自動）
+            "E1": 0,             // Left extension (mm). Numeric value or "A" (auto)
+            "E2": -0.5,          // Right extension (mm). Numeric value or "A" (auto)
+            "E3": "A",           // Upper extension (mm). Numeric value or "A" (auto)
+            "E4": "A"            // Lower extension (mm). Numeric value or "A" (auto)
         },
         "Jbut": {
-            "S": ["TG2-BG2", "X/WFJ1/X", "TG2-BG2", "X/WBJ1/X"],  // 始端側のジョイント情報
-            "E": []              // 終端側のジョイント情報
+            "S": ["TG2-BG2", "X/WFJ1/X", "TG2-BG2", "X/WBJ1/X"],  // Joint info for start end
+            "E": []              // Joint info for terminal end
         },
-        "Break": {              // オプション: パネル分割情報
+        "Break": {              // Optional: Panel division info
             "Lenght": [19675, 900],
             "Extend": [0, 0],
             "Thick": ["0/22", "0/30"]
         },
-        "Corner": [],           // オプション: コーナーカット情報 [corner1, corner2, corner3, corner4]
-        "Lrib": [],             // オプション: 縦リブ情報
-        "Vstiff": [],           // オプション: 垂直補剛材情報
-        "Hstiff": [],           // オプション: 水平補剛材情報
-        "Atm": [],              // オプション: アンカーボルト・台座情報
-        "Cutout": [],           // オプション: 切り欠き情報
-        "Stud": []              // オプション: スタッド情報
+        "Corner": [],           // Optional: Corner cut info [corner1, corner2, corner3, corner4]
+        "Lrib": [],             // Optional: Longitudinal rib info
+        "Vstiff": [],           // Optional: Vertical stiffener info
+        "Hstiff": [],           // Optional: Horizontal stiffener info
+        "Atm": [],              // Optional: Anchor bolt / pedestal info
+        "Cutout": [],           // Optional: Cutout info
+        "Stud": []              // Optional: Stud info
     },
     ...
 ]
 ```
 
-**フィールド詳細説明：**
+**Detailed Field Descriptions:**
 
-#### 3.4.1 Type（パネルタイプ）
+#### 3.4.1 Type (Panel Type)
 
-- `"W"`: Web（ウェブ）パネル - 両側生成
-- `"WL"`: Web Left - 左側のみ
-- `"WR"`: Web Right - 右側のみ
-- `"UF"`: Upper Flange（上フランジ）
-- `"LF"`: Lower Flange（下フランジ）
+- `"W"`: Web panel - generated on both sides
+- `"WL"`: Web Left - left side only
+- `"WR"`: Web Right - right side only
+- `"UF"`: Upper Flange
+- `"LF"`: Lower Flange
 
-#### 3.4.2 Expand（延長）
+#### 3.4.2 Expand (Extension)
 
-各方向の延長量を指定します。数値（mm）または `"A"`（自動計算）を指定可能です。
+Specifies the extension amount in each direction. A numeric value (mm) or `"A"` (auto-calculation) can be specified.
 
-#### 3.4.3 Jbut（ジョイント）
+#### 3.4.3 Jbut (Joint)
 
-スプリットプレート（SPL）の配置情報です。
-
-```json
-{
-    "S": ["線形名", "ピッチ情報", "線形名", "ピッチ情報", ...],  // 始端側（Start）
-    "E": ["線形名", "ピッチ情報", ...]                          // 終端側（End）
-}
-```
-
-ピッチ情報の形式例：
-- `"X/WFJ1/X"`: 線形方向にX、断面方向にWFJ1、もう一方にX
-- `"40/LFJ23/X"`: 線形方向に40mm、断面方向にLFJ23、もう一方にX
-
-#### 3.4.4 Break（パネル分割）
-
-パネルを複数の区間に分割する場合の情報です。
+Placement information for splice plates (SPL).
 
 ```json
 {
-    "Lenght": [区間1の長さ, 区間2の長さ, ...],  // mm単位
-    "Extend": [区間1の延長, 区間2の延長, ...],
-    "Thick": ["Thick1/Thick2", "Thick1/Thick2", ...]  // 各区間の厚さ
+    "S": ["alignment name", "pitch info", "alignment name", "pitch info", ...],  // Start end
+    "E": ["alignment name", "pitch info", ...]                                   // Terminal end
 }
 ```
 
-#### 3.4.5 Corner（コーナーカット）
+Examples of pitch info format:
+- `"X/WFJ1/X"`: X in alignment direction, WFJ1 in section direction, X on the other side
+- `"40/LFJ23/X"`: 40mm in alignment direction, LFJ23 in section direction, X on the other side
 
-4隅のコーナーカット情報です。
+#### 3.4.4 Break (Panel Division)
+
+Information for dividing a panel into multiple segments.
+
+```json
+{
+    "Lenght": [segment 1 length, segment 2 length, ...],  // in mm
+    "Extend": [segment 1 extension, segment 2 extension, ...],
+    "Thick": ["Thick1/Thick2", "Thick1/Thick2", ...]  // Thickness for each segment
+}
+```
+
+#### 3.4.5 Corner (Corner Cut)
+
+Corner cut information for the four corners.
 
 ```json
 ["corner1", "corner2", "corner3", "corner4"]
 ```
 
-- `"N"`: カットなし
-- `"R数値"`: 半径数値mmの丸み（例: "R50"）
-- `"C数値"` または `"C数値x数値"`: 角カット（例: "C15" または "C15x10"）
+- `"N"`: No cut
+- `"R<value>"`: Rounding with radius of the specified value in mm (e.g., "R50")
+- `"C<value>"` or `"C<value>x<value>"`: Chamfer cut (e.g., "C15" or "C15x10")
 
-#### 3.4.6 Lrib（縦リブ）
+#### 3.4.6 Lrib (Longitudinal Rib)
 
-縦リブ（Long Rib）の配置情報です。
+Placement information for longitudinal ribs.
 
 ```json
 [
-    ["線形名", "ピッチ", "点名称範囲"],  // 最初の要素はピッチ定義
+    ["alignment name", "pitch", "point name range"],  // First element is pitch definition
     {
-        "Line": "点名称範囲（例: V1-V13）",
-        "Point": "断面点名称（例: TG2-BG2）",
-        "Face": "R",  // 配置面: "L"=左, "R"=右, "T"=上, "B"=下
-        "Name": "リブ名称範囲（例: VS1-VS13）",
-        "Ref": "参照リブ名（MemberRib内の名称）"
+        "Line": "Point name range (e.g., V1-V13)",
+        "Point": "Section point name (e.g., TG2-BG2)",
+        "Face": "R",  // Placement face: "L"=left, "R"=right, "T"=top, "B"=bottom
+        "Name": "Rib name range (e.g., VS1-VS13)",
+        "Ref": "Reference rib name (name within MemberRib)"
     },
     ...
 ]
 ```
 
-#### 3.4.7 Vstiff（垂直補剛材）
+#### 3.4.7 Vstiff (Vertical Stiffener)
 
-垂直補剛材（Vertical Stiffener）の配置情報です。
+Placement information for vertical stiffeners.
 
 ```json
 [
-    ["計算タイプ", "上側ピッチ", "下側ピッチ", "点名称範囲"],  // 最初の要素はピッチ定義
+    ["calculation type", "upper pitch", "lower pitch", "point name range"],  // First element is pitch definition
     {
-        "Line": "点名称範囲",
-        "Point": "断面点名称",
-        "Face": "R",  // または "ALL", "L"
-        "Name": "補剛材名称範囲",
-        "Ref": "参照補剛材名（MemberRib内の名称）"
+        "Line": "Point name range",
+        "Point": "Section point name",
+        "Face": "R",  // or "ALL", "L"
+        "Name": "Stiffener name range",
+        "Ref": "Reference stiffener name (name within MemberRib)"
     },
     ...
 ]
 ```
 
-計算タイプ: `"XY"`（XY平面での計算）など
+Calculation type: `"XY"` (calculation in the XY plane), etc.
 
-#### 3.4.8 Hstiff（水平補剛材）
+#### 3.4.8 Hstiff (Horizontal Stiffener)
 
-水平補剛材（Horizontal Stiffener）の配置情報です。
+Placement information for horizontal stiffeners.
 
 ```json
 [
-    ["線形名", "ピッチ", "点名称範囲"],
+    ["alignment name", "pitch", "point name range"],
     {
-        "Line": "点名称範囲",
-        "Point": "断面点名称範囲",
+        "Line": "Point name range",
+        "Point": "Section point name range",
         "Face": "R",
-        "Name": "補剛材名称",
-        "Ref": "参照補剛材名"
+        "Name": "Stiffener name",
+        "Ref": "Reference stiffener name"
     },
     ...
 ]
 ```
 
-#### 3.4.9 Atm（アンカーボルト・台座）
+#### 3.4.9 Atm (Anchor Bolt / Pedestal)
 
-アンカーボルトや台座の配置情報です。
+Placement information for anchor bolts and pedestals.
 
 ```json
 [
     [
-        ["方向", "ピッチ"],  // 縦方向ピッチ
-        ["線形名", "ピッチ"]  // 横方向ピッチ
+        ["direction", "pitch"],  // Vertical pitch
+        ["alignment name", "pitch"]  // Horizontal pitch
     ],
     {
-        "Angle": ["角度1", "角度2"],  // 角度設定（"V"=垂直、数値=角度）
-        "Face": "L",  // 配置面
-        "Name": "部材名称",
-        "Ref": "参照部材名（MemberData内の名称、例: ASHIBAR）"
+        "Angle": ["angle1", "angle2"],  // Angle setting ("V"=vertical, numeric value=angle)
+        "Face": "L",  // Placement face
+        "Name": "Member name",
+        "Ref": "Reference member name (name within MemberData, e.g., ASHIBAR)"
     },
     ...
 ]
 ```
 
-#### 3.4.10 Cutout（切り欠き）
+#### 3.4.10 Cutout
 
-パネルの切り欠き情報です。
+Cutout information for panels.
 
 ```json
 [
     [
-        ["断面範囲", "ピッチ"],  // 縦方向
-        ["線形名", "ピッチ"]     // 横方向
+        ["section range", "pitch"],  // Vertical direction
+        ["alignment name", "pitch"]  // Horizontal direction
     ],
     {
-        "Face": "L",  // 配置面
-        "Ref": "参照部材名（MemberData内の名称）"
+        "Face": "L",  // Placement face
+        "Ref": "Reference member name (name within MemberData)"
     },
     ...
 ]
 ```
 
-#### 3.4.11 Stud（スタッド）
+#### 3.4.11 Stud
 
-スタッドの配置情報です。
+Stud placement information.
 
 ```json
 [
     [
-        ["方向", "ピッチ"],
-        ["線形名", "ピッチ"]
+        ["direction", "pitch"],
+        ["alignment name", "pitch"]
     ],
     {
-        "Face": "T",  // 配置面
-        "Ref": "参照部材名（MemberData内の名称、例: ST1）"
+        "Face": "T",  // Placement face
+        "Ref": "Reference member name (name within MemberData, e.g., ST1)"
     },
     ...
 ]
@@ -335,23 +335,23 @@ JSONファイルは最上位で以下のキーを持つオブジェクトです�
 
 ---
 
-### 3.5 SubPanel（サブパネルデータ） - オプション
+### 3.5 SubPanel (Sub Panel Data) - Optional
 
-サブパネル（補助的な部材パネル）の定義です。
+Definitions for sub panels (auxiliary member panels).
 
 ```json
 [
     {
-        "Name": "サブパネル名称",
-        "Girder": "桁番号",
-        "Sec": ["断面開始", "断面終了"],
+        "Name": "Sub panel name",
+        "Girder": "Girder number",
+        "Sec": ["Section start", "Section end"],
         "Point": [
-            ["点名称1", "点名称2", "点名称3"],
+            ["Point name 1", "Point name 2", "Point name 3"],
             ...
         ],
         "Part": [
             {
-                "Name": "パート名称",
+                "Name": "Part name",
                 "Material": {
                     "Thick1": 4.5,
                     "Thick2": 4.5,
@@ -389,53 +389,53 @@ JSONファイルは最上位で以下のキーを持つオブジェクトです�
 ]
 ```
 
-**フィールド説明：**
-- `Point`: パネルの座標点を定義する点の組み合わせ
-- `Part`: パートの配列
-  - `Out`: 外形定義。`"LINE"`（直線）または`"ARC"`（円弧）で点を接続
-  - その他のフィールドは`MainPanel`と同様
+**Field Descriptions:**
+- `Point`: Combination of points that define the coordinate points of the panel
+- `Part`: Array of parts
+  - `Out`: Outline definition. Connects points using `"LINE"` (straight line) or `"ARC"` (arc)
+  - Other fields are the same as in `MainPanel`
 
 ---
 
-### 3.6 Taikeikou（対傾構データ） - オプション
+### 3.6 Taikeikou (Sway Bracing Data) - Optional
 
-対傾構（Diagonal Bracing）の定義です。
+Definitions for sway bracing (diagonal bracing).
 
 ```json
 [
     {
-        "Name": "対傾構名称（例: C1）",
-        "Type": ["Type1D", "位置1", "位置2"],  // Type1D=下側、Type1U=上側
-        "Girder": ["G3", "G4"],  // 接続する桁番号
-        "Point": ["TG3", "TG4", "BG4", "BG3"],  // 接続点の線形名
+        "Name": "Sway bracing name (e.g., C1)",
+        "Type": ["Type1D", "position1", "position2"],  // Type1D=lower side, Type1U=upper side
+        "Girder": ["G3", "G4"],  // Girder numbers to connect
+        "Point": ["TG3", "TG4", "BG4", "BG3"],  // Alignment names of connection points
         "Distmod": {
-            "TL": [75, 150],  // 左上（Top Left）の距離修正 [X, Y]
-            "TR": [75, 150],  // 右上
-            "BL": [75, 250],  // 左下（Bottom Left）
-            "BR": [75, 250]   // 右下
+            "TL": [75, 150],  // Top Left distance correction [X, Y]
+            "TR": [75, 150],  // Top Right
+            "BL": [75, 250],  // Bottom Left
+            "BR": [75, 250]   // Bottom Right
         },
         "Hole": {
-            "TL": [直径, "ピッチ", 0],
-            "TR": [直径, "ピッチ", 0],
-            "BL": [直径, "ピッチ", 0],
-            "BR": [直径, "ピッチ", 0]
+            "TL": [diameter, "pitch", 0],
+            "TR": [diameter, "pitch", 0],
+            "BL": [diameter, "pitch", 0],
+            "BR": [diameter, "pitch", 0]
         },
         "Vstiff": {
-            "L": [厚さ, 材料, 幅],
-            "R": [厚さ, 材料, 幅]
+            "L": [thickness, material, width],
+            "R": [thickness, material, width]
         },
         "Shape": {
-            "T": ["方向", "サイズ", "材料", "タイプ", 角度, "ピッチ"],
+            "T": ["direction", "size", "material", "type", angle, "pitch"],
             "B": [...],
             "L": [...],
             "R": [...]
         },
         "Guss": {
-            "TL": [厚さ, 材料, "寸法", "延長", 角度],
+            "TL": [thickness, material, "dimensions", "extension", angle],
             "TR": [...],
             "BL": [...],
             "BR": [...],
-            "Mid": [厚さ, 材料, "寸法", X, Y, Z]
+            "Mid": [thickness, material, "dimensions", X, Y, Z]
         }
     },
     ...
@@ -444,39 +444,39 @@ JSONファイルは最上位で以下のキーを持つオブジェクトです�
 
 ---
 
-### 3.7 Yokokou（横構データ） - オプション
+### 3.7 Yokokou (Lateral Bracing Data) - Optional
 
-横構（Cross Bracing）の定義です。
+Definitions for lateral bracing.
 
 ```json
 [
     {
-        "Name": "横構名称（例: G1-G2）",
-        "Type": ["L", "B"],  // タイプ（L=左、R=右、CL=中央左、CR=中央右、B=下側）
-        "Girder": ["G1/W", "G2/W"],  // 接続する桁/パネル
-        "Point": ["S1", 180, 0, "V2", 180, 490, "C1", 180, 0, ...],  // 点とオフセットの交互配列
+        "Name": "Lateral bracing name (e.g., G1-G2)",
+        "Type": ["L", "B"],  // Type (L=left, R=right, CL=center-left, CR=center-right, B=lower side)
+        "Girder": ["G1/W", "G2/W"],  // Girder/panel to connect
+        "Point": ["S1", 180, 0, "V2", 180, 490, "C1", 180, 0, ...],  // Alternating array of points and offsets
         "Shape": [
             {
-                "Name": "形状名称（例: Sh1）",
-                "Infor": ["CT", "118x176x8x8", "SS400"],  // タイプ、サイズ、材料
-                "Point": ["S1", "V2", "C1"],  // 形状の基準点
-                "Pitch": [390, "X", 137],  // ピッチ情報
+                "Name": "Shape name (e.g., Sh1)",
+                "Infor": ["CT", "118x176x8x8", "SS400"],  // Type, size, material
+                "Point": ["S1", "V2", "C1"],  // Reference points of the shape
+                "Pitch": [390, "X", 137],  // Pitch info
                 "Hole": {
-                    "S": [直径, "ピッチX", "ピッチY"],  // 始端側の穴
-                    "E": [直径, "ピッチX", "ピッチY"]   // 終端側の穴
+                    "S": [diameter, "pitchX", "pitchY"],  // Holes at start end
+                    "E": [diameter, "pitchX", "pitchY"]   // Holes at terminal end
                 }
             },
             ...
         ],
         "Guss": [
             {
-                "Name": "ガセット名称",
-                "Infor": [厚さ, 材料],
-                "Point": "接続点名称",
-                "Face": ["TK", "A160", "YK", "O40"],  // 面情報
-                "Edge": ["P", "P"],  // エッジ情報
-                "KL": [1, 8, 10],  // KL情報（オプション）
-                "Slot": "スロット名"  // または "N"
+                "Name": "Gusset plate name",
+                "Infor": [thickness, material],
+                "Point": "Connection point name",
+                "Face": ["TK", "A160", "YK", "O40"],  // Face info
+                "Edge": ["P", "P"],  // Edge info
+                "KL": [1, 8, 10],  // KL info (optional)
+                "Slot": "Slot name"  // or "N"
             },
             ...
         ]
@@ -487,47 +487,47 @@ JSONファイルは最上位で以下のキーを持つオブジェクトです�
 
 ---
 
-### 3.7.1 Yokokou_Structural（横桁データ） - オプション
+### 3.7.1 Yokokou_Structural (Cross Beam Data) - Optional
 
-横桁（Cross Beam / Structural Lateral Bracing）の定義です。主桁同士を水平方向につなぐトラス状の部材で、橋の横方向の剛性を高めます。
+Definitions for cross beams (structural lateral bracing). These are truss-shaped members that horizontally connect main girders to enhance the lateral rigidity of the bridge.
 
 ```json
 [
     {
-        "Name": "横桁名称（例: YS_G1_G2）",
-        "Position": "Bottom",           // "Top" or "Bottom"（省略時: "Bottom"）
-        "Girder": ["G1", "G2"],         // 接続する桁番号の配列
-        "SectionRange": ["S1", "E1"],   // 断面範囲（省略時: ["S1", "E1"]）
-        "ZOffset": 0,                   // Z方向オフセット（mm）（省略時: 0）
-        "Truss": {                      // トラス情報（省略可）
-            "Chord": ["CT", "118x176x8x8", "SM400A"],   // 弦材の形状
-            "Diagonal": ["CT", "95x152x8x8", "SM400A"]  // 斜め材の形状
+        "Name": "Cross beam name (e.g., YS_G1_G2)",
+        "Position": "Bottom",           // "Top" or "Bottom" (default: "Bottom")
+        "Girder": ["G1", "G2"],         // Array of girder numbers to connect
+        "SectionRange": ["S1", "E1"],   // Section range (default: ["S1", "E1"])
+        "ZOffset": 0,                   // Z-direction offset (mm) (default: 0)
+        "Truss": {                      // Truss info (optional)
+            "Chord": ["CT", "118x176x8x8", "SM400A"],   // Chord member shape
+            "Diagonal": ["CT", "95x152x8x8", "SM400A"]  // Diagonal member shape
         },
-        "Hole": {                       // 穴情報（省略可）
-            "S": [直径, "ピッチX", "ピッチY"],  // 始端側
-            "E": [直径, "ピッチX", "ピッチY"]   // 終端側
+        "Hole": {                       // Hole info (optional)
+            "S": [diameter, "pitchX", "pitchY"],  // Start end
+            "E": [diameter, "pitchX", "pitchY"]   // Terminal end
         },
-        "Guss": []                      // ガセット情報（省略可）
+        "Guss": []                      // Gusset plate info (optional)
     },
     ...
 ]
 ```
 
-**フィールド説明：**
-- `Name`: 横桁の名称
-- `Position`: 配置位置
-  - `"Top"`: 上側（上フランジレベル）
-  - `"Bottom"`: 下側（下フランジレベル）
-- `Girder`: 接続する主桁の番号（例: `["G1", "G2"]` で G1 と G2 を接続）
-- `SectionRange`: 横桁を配置する断面範囲
-- `ZOffset`: Z方向（高さ方向）のオフセット量（mm）
-- `Truss`: トラス部材の形状情報
-  - `Chord`: 弦材（水平部材）の形状 [タイプ, サイズ, 材料]
-  - `Diagonal`: 対角材（斜め部材）の形状 [タイプ, サイズ, 材料]
-- `Hole`: ボルト穴情報
-- `Guss`: ガセットプレート情報
+**Field Descriptions:**
+- `Name`: Name of the cross beam
+- `Position`: Placement position
+  - `"Top"`: Upper side (upper flange level)
+  - `"Bottom"`: Lower side (lower flange level)
+- `Girder`: Main girder numbers to connect (e.g., `["G1", "G2"]` connects G1 and G2)
+- `SectionRange`: Section range where the cross beam is placed
+- `ZOffset`: Offset amount in the Z direction (height direction) (mm)
+- `Truss`: Shape information for truss members
+  - `Chord`: Shape of chord members (horizontal members) [type, size, material]
+  - `Diagonal`: Shape of diagonal members [type, size, material]
+- `Hole`: Bolt hole information
+- `Guss`: Gusset plate information
 
-**使用例：**
+**Usage Example:**
 
 ```json
 {
@@ -544,68 +544,68 @@ JSONファイルは最上位で以下のキーを持つオブジェクトです�
 
 ---
 
-### 3.7.2 Yokogeta（I形横桁データ） - オプション
+### 3.7.2 Yokogeta (I-Shaped Cross Beam Data) - Optional
 
-I形横桁（Cross Beam）の定義です。主桁間を繋ぐI形断面の構造部材で、ウェブ+上フランジ+下フランジのプレートで構成されます。
+Definitions for I-shaped cross beams. These are structural members with an I-shaped section that connect between main girders, composed of web + upper flange + lower flange plates.
 
 ```json
 [
     {
-        "Name": "横桁名称（例: CB_G1_G2_C3）",
-        "Girder": ["G1", "G2"],         // 接続する桁番号の配列（2つ指定）
-        "Section": "C3",                // 配置する断面位置
-        "Reference": "Top",             // "Top" or "Bottom"（省略時: "Top"）
-        "Height": 600,                  // 横桁のせい（mm）
-        "ZOffset": 0,                   // 基準位置からのオフセット（mm）（省略時: 0）
-        "Web": {                        // ウェブ情報
-            "Thick": 12,                // 板厚（mm）
-            "Mat": "SM400A"             // 材料
+        "Name": "Cross beam name (e.g., CB_G1_G2_C3)",
+        "Girder": ["G1", "G2"],         // Array of girder numbers to connect (specify two)
+        "Section": "C3",                // Section position to place the cross beam
+        "Reference": "Top",             // "Top" or "Bottom" (default: "Top")
+        "Height": 600,                  // Cross beam depth (mm)
+        "ZOffset": 0,                   // Offset from reference position (mm) (default: 0)
+        "Web": {                        // Web info
+            "Thick": 12,                // Plate thickness (mm)
+            "Mat": "SM400A"             // Material
         },
-        "UFlange": {                    // 上フランジ情報
-            "Thick": 16,                // 板厚（mm）
-            "Width": 200,               // フランジ幅（mm）
-            "Mat": "SM400A"             // 材料
+        "UFlange": {                    // Upper flange info
+            "Thick": 16,                // Plate thickness (mm)
+            "Width": 200,               // Flange width (mm)
+            "Mat": "SM400A"             // Material
         },
-        "LFlange": {                    // 下フランジ情報
-            "Thick": 16,                // 板厚（mm）
-            "Width": 200,               // フランジ幅（mm）
-            "Mat": "SM400A"             // 材料
+        "LFlange": {                    // Lower flange info
+            "Thick": 16,                // Plate thickness (mm)
+            "Width": 200,               // Flange width (mm)
+            "Mat": "SM400A"             // Material
         },
-        "Break": {                      // 分割情報（省略時: 分割なし）
-            "Count": 2                  // 分割数
+        "Break": {                      // Division info (default: no division)
+            "Count": 2                  // Number of divisions
         }
     },
     ...
 ]
 ```
 
-**フィールド説明：**
-- `Name`: 横桁の名称
-- `Girder`: 接続する主桁の番号（2つ指定、例: `["G1", "G2"]` で G1 と G2 を接続）
-- `Section`: 横桁を配置する断面位置（例: "C1", "C3" など）
-- `Reference`: 配置基準位置（デフォルト: `"Top"`）
-  - `"Top"`: 横桁上フランジ上面が主桁上フランジ下面に合う
-  - `"Bottom"`: 横桁下フランジ下面が主桁下フランジ上面に合う
-- `Height`: 横桁のせい（断面高さ、mm）
-- `ZOffset`: 基準位置からの上下オフセット（mm）
-- `Web`: ウェブプレートの情報
-  - `Thick`: 板厚（mm）
-  - `Mat`: 材料名
-- `UFlange`: 上フランジプレートの情報
-  - `Thick`: 板厚（mm）
-  - `Width`: フランジ幅（mm）
-  - `Mat`: 材料名
-- `LFlange`: 下フランジプレートの情報（UFlangeと同様）
-- `Break`: 厚さ方向分割情報（省略可能、損傷面識別用）
-  - `Count`: 分割数（1以上の整数、省略時は1=分割なし）
-  - 各プレートを厚さ方向に分割（例: 16mm厚を2分割 → 8mm×2枚）
-  - 分割時は要素名に `_1`, `_2` などのサフィックスが付きます
-  - 命名規則:
-    - 上フランジ: `_UF_1`=上面側（外面）、`_UF_2`=下面側（内面）
-    - 下フランジ: `_LF_1`=下面側（外面）、`_LF_2`=上面側（内面）
-    - ウェブ: `_Web_1`=外面側、`_Web_2`=内面側
+**Field Descriptions:**
+- `Name`: Name of the cross beam
+- `Girder`: Main girder numbers to connect (specify two, e.g., `["G1", "G2"]` connects G1 and G2)
+- `Section`: Section position where the cross beam is placed (e.g., "C1", "C3", etc.)
+- `Reference`: Placement reference position (default: `"Top"`)
+  - `"Top"`: The top surface of the cross beam upper flange aligns with the bottom surface of the main girder upper flange
+  - `"Bottom"`: The bottom surface of the cross beam lower flange aligns with the top surface of the main girder lower flange
+- `Height`: Cross beam depth (section height, mm)
+- `ZOffset`: Vertical offset from the reference position (mm)
+- `Web`: Web plate information
+  - `Thick`: Plate thickness (mm)
+  - `Mat`: Material name
+- `UFlange`: Upper flange plate information
+  - `Thick`: Plate thickness (mm)
+  - `Width`: Flange width (mm)
+  - `Mat`: Material name
+- `LFlange`: Lower flange plate information (same as UFlange)
+- `Break`: Thickness-direction division information (optional, for damage surface identification)
+  - `Count`: Number of divisions (integer >= 1, default is 1 = no division)
+  - Each plate is divided in the thickness direction (e.g., 16mm thickness divided into 2 = 8mm x 2 plates)
+  - When divided, suffixes such as `_1`, `_2` are appended to element names
+  - Naming convention:
+    - Upper flange: `_UF_1`=top side (outer surface), `_UF_2`=bottom side (inner surface)
+    - Lower flange: `_LF_1`=bottom side (outer surface), `_LF_2`=top side (inner surface)
+    - Web: `_Web_1`=outer surface, `_Web_2`=inner surface
 
-**使用例：**
+**Usage Example:**
 
 ```json
 {
@@ -622,22 +622,22 @@ I形横桁（Cross Beam）の定義です。主桁間を繋ぐI形断面の構�
 }
 ```
 
-上記の例では、各プレートが厚さ方向に2分割され、以下の6要素が生成されます:
-- `CB_G1_G2_C3_Web_1`, `CB_G1_G2_C3_Web_2` （ウェブ）
-- `CB_G1_G2_C3_UF_1`, `CB_G1_G2_C3_UF_2` （上フランジ: 上面側/下面側）
-- `CB_G1_G2_C3_LF_1`, `CB_G1_G2_C3_LF_2` （下フランジ: 下面側/上面側）
+In the example above, each plate is divided into 2 in the thickness direction, generating the following 6 elements:
+- `CB_G1_G2_C3_Web_1`, `CB_G1_G2_C3_Web_2` (web)
+- `CB_G1_G2_C3_UF_1`, `CB_G1_G2_C3_UF_2` (upper flange: top side / bottom side)
+- `CB_G1_G2_C3_LF_1`, `CB_G1_G2_C3_LF_2` (lower flange: bottom side / top side)
 
-これにより、損傷情報を入力する際にどちらの面に損傷があるかを区別できます。
+This allows distinguishing which surface has damage when inputting damage information.
 
-**注意：**
-- 横桁の両端位置は、指定した主桁のウェブ中心位置から自動計算されます
-- 横桁のせい（Height）は主桁のウェブ高さ内に収まるように設定してください
+**Notes:**
+- The positions at both ends of the cross beam are automatically calculated from the web center position of the specified main girders
+- The cross beam depth (Height) should be set to fit within the web height of the main girders
 
 ---
 
-### 3.8 Shouban（床版データ） - オプション
+### 3.8 Shouban (Deck Slab Data) - Optional
 
-床版（Deck Slab）の定義です。
+Definitions for the deck slab.
 
 ```json
 [
@@ -664,52 +664,52 @@ I形横桁（Cross Beam）の定義です。主桁間を繋ぐI形断面の構�
 ]
 ```
 
-**フィールド説明：**
+**Field Descriptions:**
 
-| フィールド | 型 | デフォルト | 説明 |
-|-----------|-----|---------|------|
-| `Name` | string | 必須 | 床版の名称 |
-| `Line` | list | 必須 | 床版の4隅を定義する線形名（左上、右上、右下、左下の順） |
-| `Sec` | list | 必須 | 使用する断面点名称の配列 |
-| `Thick` | float | 200.0 | 床版厚さ（mm） |
-| `OverhangLeft` | float | 0 | 左側張り出し長さ（mm） |
-| `OverhangRight` | float | 0 | 右側張り出し長さ（mm） |
-| `ZOffset` | float | 0.0 | Z方向オフセット（mm） |
-| `Break` | dict | {} | 分割情報（下記参照） |
-| `Guardrail` | dict | {} | 高欄情報（下記参照） |
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `Name` | string | Required | Name of the deck slab |
+| `Line` | list | Required | Alignment names defining the four corners of the deck slab (in order: top-left, top-right, bottom-right, bottom-left) |
+| `Sec` | list | Required | Array of section point names to use |
+| `Thick` | float | 200.0 | Deck slab thickness (mm) |
+| `OverhangLeft` | float | 0 | Left overhang length (mm) |
+| `OverhangRight` | float | 0 | Right overhang length (mm) |
+| `ZOffset` | float | 0.0 | Z-direction offset (mm) |
+| `Break` | dict | {} | Division info (see below) |
+| `Guardrail` | dict | {} | Guardrail info (see below) |
 
-#### 3.8.1 Break（分割情報）
+#### 3.8.1 Break (Division Info)
 
 ```json
 {
-    "Thick": 2,                    // 厚さ方向の分割数（デフォルト: 1）
-    "X": 4,                        // X方向（橋軸方向）の分割数
-    "Y": 5,                        // Y方向（橋軸直角方向）の分割数
-    "NoThickBreakForFlange": true  // 上フランジ部分では厚さ分割しないフラグ
+    "Thick": 2,                    // Number of divisions in thickness direction (default: 1)
+    "X": 4,                        // Number of divisions in X direction (bridge longitudinal direction)
+    "Y": 5,                        // Number of divisions in Y direction (bridge transverse direction)
+    "NoThickBreakForFlange": true  // Flag to skip thickness division at upper flange locations
 }
 ```
 
-**X/Y分割の拡張形式:**
+**Extended format for X/Y division:**
 
 ```json
-// セクション位置で分割
+// Divide at section positions
 {"Type": "sections", "Sections": ["S1", "C1", "C5", "S2"]}
 
-// ウェブ位置で分割
+// Divide at web positions
 {"Type": "webs", "Girders": ["G1", "G2", "G3"]}
 
-// 等分割
+// Equal division
 {"Type": "equal", "Count": 4}
 ```
 
-#### 3.8.2 Guardrail（高欄情報）
+#### 3.8.2 Guardrail Info
 
 ```json
 {
     "Left": {
-        "Width": 200.0,    // 高欄の幅（mm）
-        "Height": 1000.0,  // 高欄の高さ（mm）
-        "Break": false     // 分割するかどうか
+        "Width": 200.0,    // Guardrail width (mm)
+        "Height": 1000.0,  // Guardrail height (mm)
+        "Break": false     // Whether to divide
     },
     "Right": {
         "Width": 200.0,
@@ -721,27 +721,27 @@ I形横桁（Cross Beam）の定義です。主桁間を繋ぐI形断面の構�
 
 ---
 
-### 3.9 MemberSPL（メンバーSPLデータ） - オプション
+### 3.9 MemberSPL (Member SPL Data) - Optional
 
-スプリットプレート（SPL）のメンバー定義です。
+Member definitions for splice plates (SPL).
 
 ```json
 [
     {
-        "Name": "SPL名称",
+        "Name": "SPL name",
         "Infor": {
-            "Thick": 厚さ（mm）,
-            "Mat": 材料名,
-            "Side": "側面",
-            "Ang": 角度,
-            "GLine": 基準線形名
+            "Thick": thickness (mm),
+            "Mat": material name,
+            "Side": "side",
+            "Ang": angle,
+            "GLine": reference alignment name
         },
-        "PJ": ["ピッチ1", "ピッチ2", ...],  // ジョイント方向のピッチ
-        "PL": ["ピッチ1", ...],  // 左側のピッチ
-        "PR": ["ピッチ1", ...],  // 右側のピッチ
-        "Out": [X1, Y1, X2, Y2],  // 外形オフセット
-        "Dhole": [直径1, 直径2],  // 穴の直径
-        "Solid": [長さ1, 長さ2]   // ソリッド長さ
+        "PJ": ["pitch1", "pitch2", ...],  // Pitch in the joint direction
+        "PL": ["pitch1", ...],  // Left side pitch
+        "PR": ["pitch1", ...],  // Right side pitch
+        "Out": [X1, Y1, X2, Y2],  // Outline offset
+        "Dhole": [diameter1, diameter2],  // Hole diameters
+        "Solid": [length1, length2]   // Solid lengths
     },
     ...
 ]
@@ -749,25 +749,25 @@ I形横桁（Cross Beam）の定義です。主桁間を繋ぐI形断面の構�
 
 ---
 
-### 3.10 MemberRib（メンバーリブデータ） - オプション
+### 3.10 MemberRib (Member Rib Data) - Optional
 
-リブ（補剛材）のメンバー定義です。
+Member definitions for ribs (stiffeners).
 
 ```json
 [
     {
-        "Name": "リブ名称（例: VSREF1, HSREF）",
+        "Name": "Rib name (e.g., VSREF1, HSREF)",
         "Infor": {
-            "Thick1": 厚さ1（mm）,
-            "Thick2": 厚さ2（mm）,
-            "Mat": 材料名,
-            "Width": 幅（mm）
+            "Thick1": thickness1 (mm),
+            "Thick2": thickness2 (mm),
+            "Mat": material name,
+            "Width": width (mm)
         },
-        "Ang": [角度1, 角度2, 角度3],
-        "Extend": [拡張1, 拡張2, 拡張3, 拡張4],  // または数値、"Auto"、"N"
+        "Ang": [angle1, angle2, angle3],
+        "Extend": [extension1, extension2, extension3, extension4],  // or numeric value, "Auto", "N"
         "Corner": [corner1, corner2, corner3, corner4],
-        "JointS": [],  // 始端側のジョイント
-        "JointE": []   // 終端側のジョイント
+        "JointS": [],  // Joint at start end
+        "JointE": []   // Joint at terminal end
     },
     ...
 ]
@@ -775,45 +775,45 @@ I形横桁（Cross Beam）の定義です。主桁間を繋ぐI形断面の構�
 
 ---
 
-### 3.11 MemberData（メンバーデータ） - オプション
+### 3.11 MemberData (Member Data) - Optional
 
-その他の部材データ（スロット、穴、アンカーボルト、スタッドなど）の定義です。
+Definitions for other member data (slots, holes, anchor bolts, studs, etc.).
 
-#### 3.11.1 SLOT（スロット）
+#### 3.11.1 SLOT
 
 ```json
 {
-    "Name": "スロット名称",
-    "Infor": [タイプ],
-    "Wide": [左側幅, 右側幅],
-    "Radius": [半径]
+    "Name": "Slot name",
+    "Infor": [type],
+    "Wide": [left width, right width],
+    "Radius": [radius]
 }
 ```
 
-#### 3.11.2 HOLE（穴）
+#### 3.11.2 HOLE
 
 ```json
 {
-    "Name": "穴名称",
-    "Infor": [タイプ],
-    "Length": [長さ1, 長さ2],
-    "Width": [幅1, 幅2],
-    "Radius": [半径1, 半径2, 半径3, 半径4],
+    "Name": "Hole name",
+    "Infor": [type],
+    "Length": [length1, length2],
+    "Width": [width1, width2],
+    "Radius": [radius1, radius2, radius3, radius4],
     "Stiff": [
-        [距離修正1, 距離修正2, 距離修正3, 距離修正4],
-        [補剛材名1, 補剛材名2, 補剛材名3, 補剛材名4]
+        [distance correction 1, distance correction 2, distance correction 3, distance correction 4],
+        [stiffener name 1, stiffener name 2, stiffener name 3, stiffener name 4]
     ]
 }
 ```
 
-#### 3.11.3 ASHIBA / TAICAU（アンカーボルト・台座）
+#### 3.11.3 ASHIBA / TAICAU (Anchor Bolt / Pedestal)
 
 ```json
 {
-    "Name": "部材名称（例: ASHIBAR）",
-    "Infor": [タイプ, パラメータ1, パラメータ2, 材料],
+    "Name": "Member name (e.g., ASHIBAR)",
+    "Infor": [type, parameter1, parameter2, material],
     "Point": [
-        ["点名称", X座標, Y座標, Z座標],
+        ["point name", X coordinate, Y coordinate, Z coordinate],
         ...
     ],
     "Out": [
@@ -822,122 +822,122 @@ I形横桁（Cross Beam）の定義です。主桁間を繋ぐI形断面の構�
         ...
     ],
     "Hole": [
-        ["点名称", "タイプ", 半径],
+        ["point name", "type", radius],
         ...
     ]
 }
 ```
 
-- `Out`の要素:
-  - `["LINE", "点1", "点2", ...]`: 直線で接続
-  - `["ARC", "点1", "点2", "点3"]`: 円弧で接続（点2が中心）
+- `Out` elements:
+  - `["LINE", "point1", "point2", ...]`: Connect with straight lines
+  - `["ARC", "point1", "point2", "point3"]`: Connect with an arc (point2 is the center)
 
-#### 3.11.4 STUD（スタッド）
+#### 3.11.4 STUD
 
 ```json
 {
-    "Name": "スタッド名称（例: ST1）",
-    "Infor": [タイプ, サイズ, 材料],  // 例: ["STUD", "20x140", "SS400"]
-    "Nut": [サイズ]  // 例: ["30x10"]
+    "Name": "Stud name (e.g., ST1)",
+    "Infor": [type, size, material],  // e.g., ["STUD", "20x140", "SS400"]
+    "Nut": [size]  // e.g., ["30x10"]
 }
 ```
 
 ---
 
-## 4. ピッチ表記の仕様
+## 4. Pitch Notation Specification
 
-### 4.1 基本形式
+### 4.1 Basic Format
 
-ピッチは `/` で区切られた数値の列です：
-
-```
-"100/200/300"  // 100mm, 200mm, 300mm のピッチ
-```
-
-### 4.2 繰り返し表記
-
-`@` を使用して繰り返しを表現：
+Pitch is a sequence of numeric values separated by `/`:
 
 ```
-"3@100"  // 100mmを3回繰り返し
-"3@100/200/50"  // 100mmを3回、200mm、50mm
+"100/200/300"  // Pitch of 100mm, 200mm, 300mm
 ```
 
-### 4.3 未知数（X）の使用
+### 4.2 Repetition Notation
 
-合計長さから自動計算される未知数を `X` で表現：
-
-```
-"100/200/X"  // 最初の2つのピッチは固定、残りはXとして計算
-"3@100/X"    // 100mmを3回、残りはX
-```
-
-### 4.4 比率表記
-
-`:` を使用して比率を表現：
+Use `@` to express repetition:
 
 ```
-"100:2"  // 100mmを2等分
+"3@100"  // Repeat 100mm three times
+"3@100/200/50"  // 100mm three times, 200mm, 50mm
 ```
 
-### 4.5 複合表記
+### 4.3 Use of Unknown (X)
 
-複数の形式を組み合わせ：
+An unknown value auto-calculated from the total length is expressed as `X`:
 
 ```
-"425/10@245/16@200/30@100/250"  // 425mm, 245mm×10回, 200mm×16回, 100mm×30回, 250mm
+"100/200/X"  // First two pitches are fixed, the remainder is calculated as X
+"3@100/X"    // 100mm three times, remainder is X
+```
+
+### 4.4 Ratio Notation
+
+Use `:` to express ratios:
+
+```
+"100:2"  // Divide 100mm into 2 equal parts
+```
+
+### 4.5 Compound Notation
+
+Combining multiple formats:
+
+```
+"425/10@245/16@200/30@100/250"  // 425mm, 245mm x10, 200mm x16, 100mm x30, 250mm
 ```
 
 ---
 
-## 5. 座標系と単位
+## 5. Coordinate System and Units
 
-- **座標単位**: ミリメートル（mm）
-- **座標系**: 3次元直交座標系（X, Y, Z）
-- Excelから読み込む際は、メートル単位の値を1000倍してmmに変換
-
----
-
-## 6. 名称規則
-
-### 6.1 線形名
-
-- `TG*`: 上フランジ（Top Girder）
-- `BG*`: 下フランジ（Bottom Girder）
-- 接尾辞: `L`=左、`R`=右、なし=中央
-
-### 6.2 断面点名
-
-- `P*`: 基準点
-- `GE*`: 端部（End）
-- `S*`: スタート点
-- `C*`: 中間点（Center）
-- `J*`: ジョイント点
-
-### 6.3 パネル名
-
-形式: `{桁番号}B{ブロック番号}{タイプ}`
-
-例：
-- `G1B1W`: 桁1、ブロック1、Webパネル
-- `G2B1UF`: 桁2、ブロック1、Upper Flangeパネル
-- `G2B1LF`: 桁2、ブロック1、Lower Flangeパネル
+- **Coordinate unit**: Millimeters (mm)
+- **Coordinate system**: 3D Cartesian coordinate system (X, Y, Z)
+- When reading from Excel, meter-unit values are multiplied by 1000 to convert to mm
 
 ---
 
-## 7. データの依存関係
+## 6. Naming Conventions
 
-1. **Senkei** → 他の全セクションの基準となる座標データ
-2. **MemberRib** → MainPanelのLrib, Vstiff, Hstiffで参照
-3. **MemberSPL** → MainPanelのJbutで参照
-4. **MemberData** → MainPanelのAtm, Cutout, Stud、Taikeikou、Yokokouで参照
-5. **MainPanel** → SubPanel、Taikeikou、Yokokouの位置計算で参照
+### 6.1 Alignment Names
+
+- `TG*`: Upper flange (Top Girder)
+- `BG*`: Lower flange (Bottom Girder)
+- Suffix: `L`=left, `R`=right, none=center
+
+### 6.2 Section Point Names
+
+- `P*`: Reference point
+- `GE*`: End point
+- `S*`: Start point
+- `C*`: Intermediate point (Center)
+- `J*`: Joint point
+
+### 6.3 Panel Names
+
+Format: `{girder number}B{block number}{type}`
+
+Examples:
+- `G1B1W`: Girder 1, Block 1, Web panel
+- `G2B1UF`: Girder 2, Block 1, Upper Flange panel
+- `G2B1LF`: Girder 2, Block 1, Lower Flange panel
 
 ---
 
-## 8. 使用例
+## 7. Data Dependencies
 
-### 8.1 最小構成のJSON
+1. **Senkei** -> Coordinate data that serves as the basis for all other sections
+2. **MemberRib** -> Referenced by Lrib, Vstiff, Hstiff in MainPanel
+3. **MemberSPL** -> Referenced by Jbut in MainPanel
+4. **MemberData** -> Referenced by Atm, Cutout, Stud in MainPanel, as well as by Taikeikou and Yokokou
+5. **MainPanel** -> Referenced for position calculations in SubPanel, Taikeikou, and Yokokou
+
+---
+
+## 8. Usage Examples
+
+### 8.1 Minimal JSON Configuration
 
 ```json
 {
@@ -966,7 +966,7 @@ I形横桁（Cross Beam）の定義です。主桁間を繋ぐI形断面の構�
 }
 ```
 
-### 8.2 Webパネルの定義例
+### 8.2 Web Panel Definition Example
 
 ```json
 {
@@ -1003,41 +1003,40 @@ I形横桁（Cross Beam）の定義です。主桁間を繋ぐI形断面の構�
 
 ---
 
-## 9. 注意事項
+## 9. Notes
 
-1. **必須フィールド**: `Infor`と`Senkei`は必須。他のセクションはオプションですが、空配列`[]`として定義することを推奨
-2. **名称の一意性**: 各セクション内で名称は一意である必要があります
-3. **参照の整合性**: 他のセクションを参照する際は、参照先の名称が存在することを確認してください
-4. **数値の型**: 座標値は数値型（integerまたはfloat）として定義してください
-5. **文字列の型**: 名称は文字列型として定義してください
-6. **配列の順序**: 配列の順序は処理順序に影響する場合があります
-7. **座標の単位**: すべての座標値はmm単位であることを確認してください
-
----
-
-## 10. エラーハンドリング
-
-プログラムは以下の場合にエラーを発生させる可能性があります：
-
-- `Senkei`内に参照されている線形名が存在しない
-- `MemberRib`、`MemberSPL`、`MemberData`で参照されている名称が定義されていない
-- ピッチ計算で合計長さが不足する（Xが計算できない）
-- 座標値が不正（NaN、無限大など）
+1. **Required fields**: `Infor` and `Senkei` are required. Other sections are optional, but it is recommended to define them as empty arrays `[]`
+2. **Name uniqueness**: Names must be unique within each section
+3. **Reference integrity**: When referencing other sections, ensure that the referenced name exists
+4. **Numeric types**: Coordinate values should be defined as numeric types (integer or float)
+5. **String types**: Names should be defined as string types
+6. **Array order**: The order of arrays may affect processing order
+7. **Coordinate units**: Ensure all coordinate values are in mm
 
 ---
 
-## 11. 更新履歴
+## 10. Error Handling
 
-- 初版: 2026年1月17日
-- 鋼桁橋IFCモデル生成システム用JSON仕様
+The program may raise errors in the following cases:
+
+- A referenced alignment name does not exist within `Senkei`
+- A referenced name in `MemberRib`, `MemberSPL`, or `MemberData` is not defined
+- The total length is insufficient for pitch calculation (X cannot be calculated)
+- Coordinate values are invalid (NaN, infinity, etc.)
 
 ---
 
-## 12. 参考資料
+## 11. Revision History
 
-- `src/bridge_json_to_ifc/senkei_models.py`: SenkeiSpec の Pydantic モデル定義
-- `src/bridge_json_to_ifc/convert_simple_to_senkei_json.py`: BridgeDesign → SenkeiSpec 変換
-- `src/bridge_json_to_ifc/convert_senkei_json_to_ifc.py`: SenkeiSpec → IFC 変換
-- `src/bridge_json_to_ifc/ifc_utils_new/io/DefJson.py`: Excel から JSON への変換処理
-- `src/bridge_json_to_ifc/ifc_utils_new/core/DefBridge.py`: JSON から IFC モデル生成処理
+- Initial version: January 17, 2026
+- JSON specification for the steel girder bridge IFC model generation system
 
+---
+
+## 12. References
+
+- `src/bridge_json_to_ifc/senkei_models.py`: Pydantic model definition for SenkeiSpec
+- `src/bridge_json_to_ifc/convert_simple_to_senkei_json.py`: BridgeDesign -> SenkeiSpec conversion
+- `src/bridge_json_to_ifc/convert_senkei_json_to_ifc.py`: SenkeiSpec -> IFC conversion
+- `src/bridge_json_to_ifc/ifc_utils_new/io/DefJson.py`: Excel to JSON conversion processing
+- `src/bridge_json_to_ifc/ifc_utils_new/core/DefBridge.py`: JSON to IFC model generation processing

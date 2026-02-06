@@ -1,218 +1,218 @@
 # AgenticGenBrim - CLAUDE.md
 
-このファイルは Claude Code がプロジェクトを理解するためのコンテキストを提供します。
+This file provides context for Claude Code to understand the project.
 
-## プロジェクト概要
+## Project Overview
 
-**鋼プレートガーダー橋 BrIM 生成エージェント**
+**Steel Plate Girder Bridge BrIM Generation Agent**
 
-鋼プレートガーダー橋（RC 床版）の断面モデルを RAG + OpenAI API で生成し、IFC まで出力するエージェント型 MVP。
+An agent-based MVP that generates cross-section models of Steel Plate Girder Bridges (RC Deck Slab) using RAG + OpenAI API and outputs them as IFC.
 
-## リポジトリ構成
+## Repository Structure
 
 ```
 AgenticGenBrim/
-├── src/                              # ソースコード
-│   ├── main.py                       # 統合CLI（Fire）
-│   ├── bridge_agentic_generate/      # LLM橋梁設計生成
+├── src/                              # Source code
+│   ├── main.py                       # Unified CLI (Fire)
+│   ├── bridge_agentic_generate/      # LLM bridge design generation
 │   │   ├── main.py                   # Designer/Judge CLI
-│   │   ├── designer/                 # 設計生成エージェント
-│   │   ├── judge/                    # 照査・修正提案（決定論計算+LLM）
-│   │   └── rag/                      # RAG（検索拡張生成）
-│   ├── bridge_json_to_ifc/           # JSON→IFC変換
-│   └── evaluation/                   # 評価（メトリクス, プロット）
-├── scripts/                          # ユーティリティスクリプト
-├── tests/                            # テスト
-├── data/                             # データ（.gitignore）
-│   ├── design_knowledge/             # 元PDF
-│   ├── extracted_by_*/               # 抽出テキスト
-│   ├── generated_simple_bridge_json/ # Designer出力
-│   ├── generated_bridge_raglog_json/ # RAGヒットログ
-│   ├── generated_judge_json/         # Judge出力
-│   ├── generated_senkei_json/        # Senkei JSON（IFC変換用中間形式）
-│   ├── generated_report_md/          # 修正ループレポート
-│   └── generated_ifc/                # IFC出力
-├── rag_index/                        # RAGインデックス（.gitignore）
-├── docs/                             # ドキュメント
-├── tasks/                            # タスクテンプレート
-├── .claude/                          # Claude Code 設定
-│   ├── commands/                     # カスタムコマンド
-│   └── agents/                       # カスタムエージェント
-└── Makefile                          # 開発コマンド
+│   │   ├── designer/                 # Design generation agent
+│   │   ├── judge/                    # Verification & fix proposals (deterministic calculation + LLM)
+│   │   └── rag/                      # RAG (Retrieval-Augmented Generation)
+│   ├── bridge_json_to_ifc/           # JSON to IFC conversion
+│   └── evaluation/                   # Evaluation (metrics, plots)
+├── scripts/                          # Utility scripts
+├── tests/                            # Tests
+├── data/                             # Data (.gitignore)
+│   ├── design_knowledge/             # Source PDFs
+│   ├── extracted_by_*/               # Extracted text
+│   ├── generated_simple_bridge_json/ # Designer output
+│   ├── generated_bridge_raglog_json/ # RAG hit logs
+│   ├── generated_judge_json/         # Judge output
+│   ├── generated_senkei_json/        # Senkei JSON (intermediate format for IFC conversion)
+│   ├── generated_report_md/          # Repair loop reports
+│   └── generated_ifc/               # IFC output
+├── rag_index/                        # RAG index (.gitignore)
+├── docs/                             # Documentation
+├── tasks/                            # Task templates
+├── .claude/                          # Claude Code settings
+│   ├── commands/                     # Custom commands
+│   └── agents/                       # Custom agents
+└── Makefile                          # Development commands
 ```
 
-## 主要機能
+## Key Features
 
-1. **RAG**: 道路橋示方書等の PDF をテキスト化・埋め込みし、設計時に参照する条文チャンクを検索
-2. **Designer**: 橋長 L・幅員 B を受け取り、RAG 文脈を踏まえた BridgeDesign（構造化 JSON）を生成
-3. **Judge**: 決定論的な照査計算（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）を行い、不合格時は LLM で PatchPlan を生成
-4. **Designer-Judge ループ**: 不合格時に PatchPlan を適用し、合格するまで繰り返す修正ループ
-5. **IFC Export**: BridgeDesign → Senkei JSON → IFC に変換し BrIM 環境に渡す
+1. **RAG**: Converts PDFs such as Japan Road Bridge Specifications (JRA) to text, generates embeddings, and searches for relevant specification chunks during design
+2. **Designer**: Receives bridge length L and total width B, and generates a BridgeDesign (structured JSON) based on RAG context
+3. **Judge**: Performs deterministic verification calculations (bending, shear, deflection, deck slab thickness, web slenderness ratio, cross beam placement) and generates a PatchPlan via LLM when verification fails
+4. **Designer-Judge Loop**: A repair loop that applies PatchPlan on failure and repeats until all verifications pass
+5. **IFC Export**: Converts BridgeDesign to Senkei JSON to IFC and passes it to the BrIM environment
 
-## 技術スタック
+## Tech Stack
 
-- **言語**: Python 3.13
-- **パッケージ管理**: uv
+- **Language**: Python 3.13
+- **Package management**: uv
 - **CLI**: fire
 - **LLM**: OpenAI API (Responses API / Structured Output)
-- **バリデーション**: Pydantic
-- **IFC 出力**: ifcopenshell
-- **フォーマット/Lint**: Ruff
+- **Validation**: Pydantic
+- **IFC output**: ifcopenshell
+- **Formatting/Lint**: Ruff
 
-詳細: `src/CLAUDE.md` 参照
+Details: See `src/CLAUDE.md`
 
-## カスタムコマンド
+## Custom commands
 
-### /impl [タスク内容]
+### /impl [task description]
 
-機能実装を行い、自動でレビューまで実行するコマンド。
+A command that performs feature implementation and automatically runs a review.
 
 ```bash
-# 使用例
+# Usage example
 /impl RAG検索の精度を改善
 ```
 
-**実行内容:**
-1. タスク内容に応じて `designer-impl` または `ifc-impl` エージェントで実装
-2. `make fmt && make lint` で検証
-3. `quality-check` エージェントでレビュー
-4. 問題があれば修正を繰り返す
+**Execution steps:**
+1. Implements using the `designer-impl` or `ifc-impl` agent depending on the task
+2. Validates with `make fmt && make lint`
+3. Reviews with the `quality-check` agent
+4. Repeats fixes if issues are found
 
-## カスタムエージェント
+## Custom agents
 
-| エージェント    | 用途                     |
-| --------------- | ------------------------ |
-| `designer-impl` | Designer/RAG 関連の実装  |
-| `ifc-impl`      | IFC 変換関連の実装       |
-| `quality-check` | コードレビュー・品質検証 |
+| Agent           | Purpose                              |
+| --------------- | ------------------------------------ |
+| `designer-impl` | Designer/RAG related implementation  |
+| `ifc-impl`      | IFC conversion related implementation |
+| `quality-check` | Code review and quality verification |
 
-詳細な規約は `.claude/agents/` 内の各ファイルを参照。
+See the individual files in `.claude/agents/` for detailed conventions.
 
-## 開発フロー
+## Development workflow
 
-### コード変更時
+### When changing code
 
 ```bash
-make fmt          # フォーマット
-make lint         # Lint（CI相当）
-make fix          # Lint + 自動修正 + フォーマット
+make fmt          # Format
+make lint         # Lint (CI equivalent)
+make fix          # Lint + auto-fix + format
 ```
 
-### 設計生成（Designer / Judge）
+### Design generation (Designer / Judge)
 
 ```bash
-# Designer のみ（Judge なし）
+# Designer only (without Judge)
 uv run python -m src.bridge_agentic_generate.main run \
   --bridge_length_m 50 \
   --total_width_m 10
 
-# Designer + Judge（1回照査のみ）
+# Designer + Judge (single verification only)
 uv run python -m src.bridge_agentic_generate.main run \
   --bridge_length_m 50 \
   --total_width_m 10 \
   --judge
 
-# バッチ実行（L=30,40,50,60,70m）
+# Batch execution (L=30,40,50,60,70m)
 uv run python -m src.bridge_agentic_generate.main batch
 
-# 生成 → IFC まで一括
+# Generation through IFC in one step
 uv run python -m src.main run \
   --bridge_length_m 50 \
   --total_width_m 10 \
   --model_name gpt-5-mini \
   --ifc_output_path data/generated_ifc/sample.ifc
 
-# 修正ループ付き（合格するまで繰り返し → IFC）
+# With repair loop (repeat until pass, then IFC)
 uv run python -m src.main run_with_repair \
   --bridge_length_m 50 \
   --total_width_m 10 \
   --max_iterations 5
 ```
 
-### RAG インデックス準備
+### RAG Index Preparation
 
 ```bash
-# 1. PDF を data/design_knowledge/ に配置
-# 2. テキスト抽出
+# 1. Place PDFs in data/design_knowledge/
+# 2. Extract text
 uv run python -m src.bridge_agentic_generate.rag.extract_pdfs_with_pdfplumber
 
-# 3. チャンク化・埋め込み生成
+# 3. Chunk and generate embeddings
 uv run python -m src.bridge_agentic_generate.rag.loader
 ```
 
-### IFC 変換のみ
+### IFC Conversion Only
 
 ```bash
 uv run python -m src.bridge_json_to_ifc.run_convert data/generated_simple_bridge_json/<file>.json
 ```
 
-## タスクテンプレート
+## Task templates
 
-`tasks/template.md` にタスク依頼用のテンプレートがあります。
+There is a task request template at `tasks/template.md`.
 
-### 使い方
+### How to use
 
-1. テンプレートをコピーしてタスクファイルを作成
+1. Copy the template to create a task file
    ```bash
-   cp tasks/template.md tasks/[タスク名].md
+   cp tasks/template.md tasks/[task-name].md
    ```
-2. 要件・対象ディレクトリ・受け入れ条件を記入
-3. Claude Code に渡す
+2. Fill in the requirements, target directories, and acceptance criteria
+3. Pass it to Claude Code
    ```bash
-   claude "tasks/[タスク名].md を読んで実装して"
+   claude "tasks/[task-name].md を読んで実装して"
    ```
 
-## コーディング規約
+## Coding conventions
 
-### 命名規則
+### Naming conventions
 
-- **変数・関数**: snake_case
-- **クラス**: PascalCase
-- **定数**: UPPER_SNAKE_CASE
+- **Variables and functions**: snake_case
+- **Classes**: PascalCase
+- **Constants**: UPPER_SNAKE_CASE
 
-### 型アノテーション
+### Type annotations
 
-- すべての関数に型アノテーション必須
-- Union 型は `X | Y` 形式（PEP 604）
-- 組み込みジェネリクス使用（PEP 585）
+- Type annotations are required for all functions
+- Use `X | Y` format for Union types (PEP 604)
+- Use built-in generics (PEP 585)
 
 ### Pydantic
 
-- 返り値に `dict` / `tuple` は使わず、Pydantic モデルで型を定義
-- 文字列ハードコーディングは `StrEnum` や Pydantic モデルで管理
-- `.value` は極力使わない
+- Do not use `dict` / `tuple` as return types; define types with Pydantic models
+- Manage hardcoded strings with `StrEnum` or Pydantic models
+- Avoid using `.value` whenever possible
 
-### ロギング
+### Logging
 
 ```python
 from src.bridge_agentic_generate.logger_config import logger
 logger.info("message")
 ```
 
-- `print` 禁止
+- `print` is prohibited
 
-### その他
+### Other
 
-- CLI の引数管理には `fire` を使用
-- マジックナンバーを避け、定数化
-- ファイル/ディレクトリ操作は `pathlib.Path`
-- Google スタイル Docstring
-- `try: ... except: pass` 禁止
-- 未使用コード・コメントアウトは削除
+- Use `fire` for CLI argument management
+- Avoid magic numbers; use constants instead
+- Use `pathlib.Path` for file/directory operations
+- Google-style Docstrings
+- `try: ... except: pass` is prohibited
+- Remove unused code and commented-out code
 
-## 注意事項
+## Notes
 
-- 環境変数は `.env` ファイルで管理（コミットしない）
-- `data/` と `rag_index/` は `.gitignore` に含まれる
-- LLM を使う処理のテストではモックを使用
-- `git add/commit` は自動実行しない（コミットメッセージの提案のみ）
+- Environment variables are managed via `.env` files (do not commit)
+- `data/` and `rag_index/` are included in `.gitignore`
+- Use mocks for tests that involve LLM calls
+- Do not automatically run `git add/commit` (only suggest commit messages)
 
-## ドキュメント
+## Documentation
 
-- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - ディレクトリ構成・コンポーネント概要
-- [docs/USAGE.md](docs/USAGE.md) - セットアップ・実行方法
-- [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md) - 開発メモ
-- [docs/COMPONENT_DESIGNER.md](docs/COMPONENT_DESIGNER.md) - Designer 詳細
-- [docs/COMPONENT_JUDGE.md](docs/COMPONENT_JUDGE.md) - Judge 詳細
-- [docs/EVALUATION.md](docs/EVALUATION.md) - 評価手法
-- [docs/json_spec.md](docs/json_spec.md) - Senkei JSON 仕様
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - Directory structure and component overview
+- [docs/USAGE.md](docs/USAGE.md) - Setup and usage instructions
+- [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md) - Development notes
+- [docs/COMPONENT_DESIGNER.md](docs/COMPONENT_DESIGNER.md) - Designer details
+- [docs/COMPONENT_JUDGE.md](docs/COMPONENT_JUDGE.md) - Judge details
+- [docs/EVALUATION.md](docs/EVALUATION.md) - Evaluation methods
+- [docs/json_spec.md](docs/json_spec.md) - Senkei JSON specification

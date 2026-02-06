@@ -1,141 +1,141 @@
 # COMPONENT_DESIGNER
 
-橋長 L と幅員 B を受け取り、RAG 文脈を踏まえた BridgeDesign（構造化 JSON）を生成する Designer の概要。
+Overview of the Designer, which takes bridge length L and total width B as inputs and generates a BridgeDesign (structured JSON) based on RAG context.
 
-## 入力パラメータ
+## Input Parameters
 
-`src/bridge_agentic_generate/designer/models.py` の `DesignerInput` クラスで定義されています。
+Defined by the `DesignerInput` class in `src/bridge_agentic_generate/designer/models.py`.
 
-- **bridge_length_m** (`float`): 橋長 $L$ [m]。
-- **total_width_m** (`float`): 幅員 $B$ [m]。
+- **bridge_length_m** (`float`): Bridge length $L$ [m].
+- **total_width_m** (`float`): Total width $B$ [m].
 
-## 出力 JSON スキーマ (BridgeDesign)
+## Output JSON Schema (BridgeDesign)
 
-`src/bridge_agentic_generate/designer/models.py` の `BridgeDesign` クラスで定義される構造化データです。
-主な構成要素は以下の通りです。
+Structured data defined by the `BridgeDesign` class in `src/bridge_agentic_generate/designer/models.py`.
+The main components are as follows.
 
-### 1. Dimensions (全体寸法)
+### 1. Dimensions (Overall Dimensions)
 
-- `bridge_length`: 橋長 [mm]
-- `total_width`: 全幅 [mm]
-- `num_girders`: 主桁本数
-- `girder_spacing`: 主桁間隔 [mm]
-- `panel_length`: パネル長 [mm]
-- `num_panels`（任意）: 明示指定がなければ `bridge_length / panel_length` で自動計算
+- `bridge_length`: Bridge length [mm]
+- `total_width`: Total width [mm]
+- `num_girders`: Number of main girders
+- `girder_spacing`: Main girder spacing [mm]
+- `panel_length`: Panel length [mm]
+- `num_panels` (optional): If not explicitly specified, automatically calculated as `bridge_length / panel_length`
 
-### 2. Sections (部材断面)
+### 2. Sections (Member Cross-Sections)
 
-- **girder_standard** (主桁標準断面 I 形)
-  - `web_height`, `web_thickness`: 腹板の高さ・厚さ [mm]
-  - `top_flange_width`, `top_flange_thickness`: 上フランジの幅・厚さ [mm]
-  - `bottom_flange_width`, `bottom_flange_thickness`: 下フランジの幅・厚さ [mm]
-- **crossbeam_standard** (横桁標準断面 I 形)
-  - `total_height`: 桁高 [mm]
-  - `web_thickness`: 腹板厚さ [mm]
-  - `flange_width`, `flange_thickness`: フランジの幅・厚さ [mm]
+- **girder_standard** (Main girder standard I-shaped cross-section)
+  - `web_height`, `web_thickness`: Web height and thickness [mm]
+  - `top_flange_width`, `top_flange_thickness`: Top flange width and thickness [mm]
+  - `bottom_flange_width`, `bottom_flange_thickness`: Bottom flange width and thickness [mm]
+- **crossbeam_standard** (Cross beam standard I-shaped cross-section)
+  - `total_height`: Girder height [mm]
+  - `web_thickness`: Web thickness [mm]
+  - `flange_width`, `flange_thickness`: Flange width and thickness [mm]
 
-### 3. Components (構成要素)
+### 3. Components
 
-- **deck** (床版)
-  - `thickness`: 床版厚 [mm]
+- **deck** (Deck slab)
+  - `thickness`: Deck slab thickness [mm]
 
-## 利用する RAG コンテキスト（マルチクエリ検索）
+## RAG Context Used (Multi-Query Search)
 
-Designer は設計生成時に、以下の 5 観点でマルチクエリ RAG 検索を行い、関連する条文や設計知識を取得してプロンプトに含めます。
+During design generation, the Designer performs multi-query RAG searches across the following 5 perspectives, retrieving relevant regulation clauses and design knowledge to include in the prompt.
 
-### 検索クエリ（5 観点）
+### Search Queries (5 Perspectives)
 
-1. **寸法関連（dimensions）**
-   - クエリ: `"鋼プレートガーダー橋 橋長{L}m 幅員{B}m 桁配置 主桁本数 桁間隔 パネル長"`
+1. **Dimensions-related (dimensions)**
+   - Query: `"鋼プレートガーダー橋 橋長{L}m 幅員{B}m 桁配置 主桁本数 桁間隔 パネル長"`
 
-2. **主桁配置（girder_layout）**
-   - クエリ: `"並列I桁 主桁間隔 幅員と主桁本数の関係 標準断面 主桁本数"`
+2. **Main girder layout (girder_layout)**
+   - Query: `"並列I桁 主桁間隔 幅員と主桁本数の関係 標準断面 主桁本数"`
 
-3. **主桁断面（girder_section）**
-   - クエリ: `"プレートガーダー橋 橋長{L}m 主桁断面 桁高 腹板厚さ フランジ幅 フランジ厚さ 経済的桁高 h/L"`
+3. **Main girder cross-section (girder_section)**
+   - Query: `"プレートガーダー橋 橋長{L}m 主桁断面 桁高 腹板厚さ フランジ幅 フランジ厚さ 経済的桁高 h/L"`
 
-4. **RC 床版（deck）**
-   - クエリ: `"RC床版合成桁 床版厚さ 最小床版厚 床版厚と支間の比"`
+4. **RC deck slab (deck)**
+   - Query: `"RC床版合成桁 床版厚さ 最小床版厚 床版厚と支間の比"`
 
-5. **横桁（crossbeam）**
-   - クエリ: `"横桁 対傾構 横構 設計"`
+5. **Cross beam (crossbeam)**
+   - Query: `"横桁 対傾構 横構 設計"`
 
-### 検索結果の利用
+### Use of Search Results
 
-- **参照ソース**: `data/design_knowledge/` 以下の PDF（道路橋示方書、鋼橋設計の基本など）から抽出されたテキストチャンク。
-- **top_k**: 各クエリで上位 5 件（合計最大 25 チャンク）を取得。
-- **プロンプトへの反映**: 検索でヒットしたチャンクが、参考文献として LLM に提示されます。
-- **RAG ログ**: `DesignerRagLog` として検索結果（rank, score, source, page, text）を記録し、`data/generated_bridge_raglog_json/` に保存。
+- **Reference sources**: Text chunks extracted from PDFs under `data/design_knowledge/` (Japan Road Bridge Specifications (JRA), Fundamentals of Steel Bridge Design, etc.).
+- **top_k**: Retrieves the top 5 results per query (up to 25 chunks total).
+- **Prompt integration**: Chunks matched by the search are presented to the LLM as reference materials.
+- **RAG log**: Search results (rank, score, source, page, text) are recorded as `DesignerRagLog` and saved to `data/generated_bridge_raglog_json/`.
 
-## LLM 出力スキーマ (DesignerOutput)
+## LLM Output Schema (DesignerOutput)
 
-`src/bridge_agentic_generate/designer/models.py` の `DesignerOutput` クラスで定義されます。
-LLM は BridgeDesign だけでなく、設計根拠や適用ルールも構造化して返します。
+Defined by the `DesignerOutput` class in `src/bridge_agentic_generate/designer/models.py`.
+The LLM returns not only the BridgeDesign but also the design rationale and applied rules in a structured format.
 
-- **reasoning** (`str`): 設計プロセス全体の思考・判断根拠（なぜその寸法を選んだか等）
-- **rules** (`list[DesignRule]`): 今回の設計で適用した設計ルール一覧
-- **dependency_rules** (`list[DependencyRule]`): 部材間の依存関係ルール（修正ループでの連動用）
-- **bridge_design** (`BridgeDesign`): 生成された断面設計
+- **reasoning** (`str`): Reasoning and judgment basis for the entire design process (e.g., why certain dimensions were chosen)
+- **rules** (`list[DesignRule]`): List of design rules applied in this design
+- **dependency_rules** (`list[DependencyRule]`): Dependency rules between members (used for cascading updates during the repair loop)
+- **bridge_design** (`BridgeDesign`): The generated cross-section design
 
 ### DesignRule
 
-RAG コンテキストから抽出した設計ルール 1 件分。
+A single design rule extracted from the RAG context.
 
-- `rule_id`: ルール ID（例: "R1"）
-- `category`: カテゴリ（`dimensions` / `girder_section` / `deck` / `crossbeam_section` / `other`）
-- `summary`: 日本語要約
-- `condition_expression`: 条件式（例: `"web_height ≒ L/20〜L/25"`）
-- `formula_latex`: LaTeX 風数式（任意）
-- `applies_to_fields`: 影響する BridgeDesign のフィールド名一覧
-- `source_hit_ranks`: 根拠となる RAG ヒットの rank 番号（根拠なしなら空）
+- `rule_id`: Rule ID (e.g., "R1")
+- `category`: Category (`dimensions` / `girder_section` / `deck` / `crossbeam_section` / `other`)
+- `summary`: Japanese-language summary
+- `condition_expression`: Condition expression (e.g., `"web_height ≒ L/20〜L/25"`)
+- `formula_latex`: LaTeX-style formula (optional)
+- `applies_to_fields`: List of BridgeDesign field names affected
+- `source_hit_ranks`: RAG hit rank numbers used as basis (empty if no basis)
 
 ### DependencyRule
 
-部材間の依存関係（例: 横桁高さ = 主桁高さ × 係数）。PatchPlan 適用後に自動連動させるために使用。
+Dependencies between members (e.g., cross beam height = main girder height x coefficient). Used for automatic cascading updates after PatchPlan application.
 
-- `rule_id`: ルール ID（例: "D1"）
-- `target_field`: 更新対象（例: `"crossbeam.total_height"`）
-- `source_field`: 参照元（例: `"girder.web_height"`）
-- `factor`: 係数（例: `0.8`）
-- `source_hit_ranks`: 根拠となる RAG ヒットの rank 番号
+- `rule_id`: Rule ID (e.g., "D1")
+- `target_field`: Target to update (e.g., `"crossbeam.total_height"`)
+- `source_field`: Source reference (e.g., `"girder.web_height"`)
+- `factor`: Coefficient (e.g., `0.8`)
+- `source_hit_ranks`: RAG hit rank numbers used as basis
 
-## 生成フロー
+## Generation Flow
 
 ```text
-DesignerInput（橋長 L, 幅員 B）
+DesignerInput (bridge length L, total width B)
     ↓
-マルチクエリ RAG 検索（5 観点）
+Multi-query RAG search (5 perspectives)
     ↓
-プロンプト構築（RAG コンテキスト + 設計指示）
+Prompt construction (RAG context + design instructions)
     ↓
-LLM 呼び出し（Structured Output → DesignerOutput）
+LLM call (Structured Output → DesignerOutput)
     ↓
-DesignerOutput を分解:
+Decompose DesignerOutput:
   - bridge_design → BridgeDesign
-  - reasoning, rules, dependency_rules → DesignerRagLog に記録
+  - reasoning, rules, dependency_rules → Recorded in DesignerRagLog
     ↓
-DesignResult（design + rag_log + rules + dependency_rules）
+DesignResult (design + rag_log + rules + dependency_rules)
     ↓
-JSON 保存 + RAG ログ保存
+Save JSON + Save RAG log
 ```
 
-## 代表的なユースケース
+## Typical Use Cases
 
-1. **概略設計の自動生成**
-   - ユーザーが橋長と幅員を指定するだけで、示方書や教科書に基づいた妥当な断面寸法（桁高、板厚など）の初期案を自動生成する。
+1. **Automatic preliminary design generation**
+   - By simply specifying bridge length and total width, the system automatically generates an initial proposal with reasonable cross-section dimensions (girder height, plate thickness, etc.) based on specifications and textbooks.
 
-2. **設計根拠の確認**
-   - 生成結果には RAG のログ (`DesignerRagLog`) が含まれるため、どの条文（ソースファイル名、ページ番号）を根拠にその寸法が決定されたかを確認できる。
+2. **Verifying design rationale**
+   - Since the generated results include RAG logs (`DesignerRagLog`), users can verify which regulation clauses (source file name, page number) served as the basis for determining each dimension.
 
-3. **BIM/CIM モデルへの連携**
-   - 出力された JSON は `bridge_json_to_ifc` モジュールを通じて IFC ファイルに変換され、3D モデルとして可視化・活用される。
+3. **Integration with BIM/CIM models**
+   - The output JSON is converted to an IFC file through the `bridge_json_to_ifc` module and can be visualized and utilized as a 3D model.
 
-4. **Judge との連携**
-   - 生成された BridgeDesign は Judge コンポーネントで照査され、不合格時は PatchPlan に基づいて修正される。
+4. **Integration with Judge**
+   - The generated BridgeDesign is verified by the Judge component, and when it fails verification, it is corrected based on the PatchPlan.
 
-## 関連ファイル
+## Related Files
 
-- `src/bridge_agentic_generate/designer/models.py`: Pydantic モデル定義（BridgeDesign, DesignerOutput, DesignRule, DependencyRule 等）
-- `src/bridge_agentic_generate/designer/services.py`: 生成ロジック（`generate_design_with_rag_log()`）
-- `src/bridge_agentic_generate/designer/prompts.py`: プロンプト構築（`build_designer_prompt()`）
-- `src/bridge_agentic_generate/rag/search.py`: RAG 検索（`search_text()`）
+- `src/bridge_agentic_generate/designer/models.py`: Pydantic model definitions (BridgeDesign, DesignerOutput, DesignRule, DependencyRule, etc.)
+- `src/bridge_agentic_generate/designer/services.py`: Generation logic (`generate_design_with_rag_log()`)
+- `src/bridge_agentic_generate/designer/prompts.py`: Prompt construction (`build_designer_prompt()`)
+- `src/bridge_agentic_generate/rag/search.py`: RAG search (`search_text()`)

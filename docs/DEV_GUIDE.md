@@ -1,30 +1,30 @@
 # DEV_GUIDE
 
-## 開発コマンド
+## Development Commands
 
 ```bash
-make fmt                # フォーマット（Ruff）
-make lint               # Lint（CI相当）
-make fix                # Lint + 自動修正 + フォーマット
-make rm-unused-imports  # 未使用インポートを削除
-make ifc                # 統合CLI（run_with_repair）を実行
+make fmt                # Format (Ruff)
+make lint               # Lint (equivalent to CI)
+make fix                # Lint + auto-fix + format
+make rm-unused-imports  # Remove unused imports
+make ifc                # Run the integrated CLI (run_with_repair)
 ```
 
-- Ruff の対象: `src tests scripts`（`src/bridge_json_to_ifc` は除外）
+- Ruff targets: `src tests scripts` (excluding `src/bridge_json_to_ifc`)
 
-## 命名規則
+## Naming Conventions
 
-- **変数・関数**: snake_case
-- **クラス**: PascalCase
-- **定数**: UPPER_SNAKE_CASE
+- **Variables and functions**: snake_case
+- **Classes**: PascalCase
+- **Constants**: UPPER_SNAKE_CASE
 
-## 型アノテーション
+## Type Annotations
 
-- すべての関数に型アノテーション必須
-- Union 型は `X | Y` 形式（PEP 604）
-- 組み込みジェネリクス使用（PEP 585）
-  - `list[str]` ○ / `List[str]` ×
-  - `dict[str, int]` ○ / `Dict[str, int]` ×
+- Type annotations are required for all functions
+- Union types use the `X | Y` syntax (PEP 604)
+- Use built-in generics (PEP 585)
+  - `list[str]` OK / `List[str]` NG
+  - `dict[str, int]` OK / `Dict[str, int]` NG
 
 ```python
 # Good
@@ -39,9 +39,9 @@ def process(items: List[str]) -> Optional[Dict[str, int]]:
 
 ## Pydantic
 
-- 返り値に `dict` / `tuple` は使わず、Pydantic モデルで型を定義する
-- 文字列ハードコーディングは `StrEnum` や Pydantic モデルで管理する
-- `.value` は極力使わない（`StrEnum` を直接使う）
+- Do not use `dict` / `tuple` as return types; define types using Pydantic models instead
+- Manage hardcoded strings with `StrEnum` or Pydantic models
+- Avoid using `.value` as much as possible (use `StrEnum` directly)
 
 ```python
 # Good
@@ -57,21 +57,21 @@ def get_check() -> str:
     return "deck"
 ```
 
-## ロギング
+## Logging
 
 ```python
 from src.bridge_agentic_generate.logger_config import logger
 
-logger.info("処理開始")
-logger.debug(f"パラメータ: {params}")
-logger.error(f"エラー発生: {e}")
+logger.info("Processing started")
+logger.debug(f"Parameters: {params}")
+logger.error(f"Error occurred: {e}")
 ```
 
-- `print` 禁止
+- `print` is prohibited
 
 ## CLI
 
-- CLI の引数管理には必ず `fire` を使用する
+- Always use `fire` for CLI argument management
 
 ```python
 import fire
@@ -84,9 +84,9 @@ if __name__ == "__main__":
     fire.Fire(CLI)
 ```
 
-## ファイル操作
+## File Operations
 
-- ファイル/ディレクトリ操作は `pathlib.Path` を使う
+- Use `pathlib.Path` for file and directory operations
 
 ```python
 from pathlib import Path
@@ -98,7 +98,7 @@ output_path = output_dir / "sample.ifc"
 
 ## Docstring
 
-- Google スタイル Docstring（日本語）
+- Google-style Docstrings (in Japanese)
 
 ```python
 def calculate_util(stress: float, allowable: float) -> float:
@@ -114,12 +114,12 @@ def calculate_util(stress: float, allowable: float) -> float:
     return stress / allowable
 ```
 
-## 禁止事項
+## Prohibited Practices
 
-- `try: ... except: pass` のような例外の握りつぶしは禁止
-- 未使用コード・コメントアウトは削除する
-- 後方互換性の残骸（未使用の `_vars`、re-export、`// removed` コメント等）を残さない
-- マジックナンバーを避け、定数化してから利用する
+- Swallowing exceptions with `try: ... except: pass` is prohibited
+- Remove unused code and commented-out code
+- Do not leave backward-compatibility remnants (unused `_vars`, re-exports, `// removed` comments, etc.)
+- Avoid magic numbers; define them as constants before use
 
 ```python
 # Bad
@@ -132,13 +132,13 @@ if thickness < MIN_DECK_THICKNESS_MM:
     ...
 ```
 
-## テスト
+## Testing
 
-- LLM を使う処理のテストではモックを使用
-- テストファイルは `tests/` ディレクトリに配置
+- Use mocks for tests that involve LLM processing
+- Place test files in the `tests/` directory
 
 ## Git
 
-- `git add/commit` は自動実行しない（コミットメッセージの提案のみ）
-- `.env` ファイルはコミットしない
-- `data/` と `rag_index/` は `.gitignore` に含まれる
+- Do not automatically run `git add/commit` (only suggest commit messages)
+- Do not commit `.env` files
+- `data/` and `rag_index/` are included in `.gitignore`

@@ -1,156 +1,156 @@
 # USAGE
 
-## セットアップ
+## Setup
 
-Python 3.13 + uv を利用。
+Uses Python 3.13 + uv.
 
 ```bash
 uv python install 3.13
 uv venv .venv --python 3.13
-. .venv/bin/activate  # Windows は .venv\Scripts\activate
+. .venv/bin/activate  # Windows: .venv\Scripts\activate
 uv sync
 
-# OpenAI API Key を .env に置く
+# Place your OpenAI API Key in .env
 echo "OPENAI_API_KEY=sk-xxxxxxxx" > .env
 ```
 
-## RAG インデックスの準備
+## Preparing the RAG Index
 
-1. `src/bridge_agentic_generate/rag/embedding_config.py` の `FileNamesUsedForRag` にある PDF を `data/design_knowledge/` に配置。
+1. Place the PDFs listed in `FileNamesUsedForRag` in `src/bridge_agentic_generate/rag/embedding_config.py` into the `data/design_knowledge/` directory.
    - 鋼橋設計の基本\_第一章 概論.pdf
    - 鋼橋設計の基本\_第四章 鋼橋の設計法.pdf
    - 鋼橋設計の基本\_第六章 床版.pdf
    - 鋼橋設計の基本\_第七章 プレートガーダー橋.pdf
    - 道路橋示方書\_鋼橋・鋼部材編.pdf
 
-2. PDF → テキスト抽出（pdfplumber 推奨）。
+2. Extract text from PDFs (pdfplumber recommended).
 
    ```bash
-   # 推奨
+   # Recommended
    uv run python -m src.bridge_agentic_generate.rag.extract_pdfs_with_pdfplumber
 
-   # 代替
+   # Alternatives
    uv run python -m src.bridge_agentic_generate.rag.extract_pdfs_with_pypdf
    uv run python -m src.bridge_agentic_generate.rag.extract_pdfs_with_pymupdf4llm
    ```
 
-   出力は `data/extracted_by_*/*.txt|.md`。
+   Output is saved to `data/extracted_by_*/*.txt|.md`.
 
-3. チャンク化 & 埋め込み生成（デフォルトは pdfplumber の抽出物を使用）。
+3. Chunking & embedding generation (defaults to using pdfplumber-extracted text).
 
    ```bash
    uv run python -m src.bridge_agentic_generate.rag.loader
    ```
 
-   `rag_index/pdfplumber/meta.jsonl` と `embeddings.npy` が生成され、`rag.search.search_text()` が利用する。
+   This generates `rag_index/pdfplumber/meta.jsonl` and `embeddings.npy`, which are used by `rag.search.search_text()`.
 
-## 生成・評価・IFC 出力
+## Generation, Evaluation, and IFC Output
 
 ### Designer / Judge CLI
 
 ```bash
-# Designer のみ（Judge なし）
+# Designer only (without Judge)
 uv run python -m src.bridge_agentic_generate.main run \
   --bridge_length_m 50 \
   --total_width_m 10
 
-# Designer + Judge（1回照査のみ）
+# Designer + Judge (single verification only)
 uv run python -m src.bridge_agentic_generate.main run \
   --bridge_length_m 50 \
   --total_width_m 10 \
   --judge
 
-# バッチ実行（L=30,40,50,60,70m）
+# Batch execution (L=30,40,50,60,70m)
 uv run python -m src.bridge_agentic_generate.main batch
 ```
 
-出力:
+Output:
 
-- `data/generated_simple_bridge_json/design_L{L}_B{B}_{timestamp}.json` - Designer 出力
-- `data/generated_bridge_raglog_json/*_design_log.json` - RAG ヒットログ
-- `data/generated_judge_json/*_judge.json` - Judge 出力（照査結果）
+- `data/generated_simple_bridge_json/design_L{L}_B{B}_{timestamp}.json` - Designer output
+- `data/generated_bridge_raglog_json/*_design_log.json` - RAG hit log
+- `data/generated_judge_json/*_judge.json` - Judge output (verification results)
 
-### 生成 → IFC 一括実行
+### Generation to IFC (All-in-One Execution)
 
 ```bash
-# Designer → Judge → IFC まで一括実行
+# Designer -> Judge -> IFC all-in-one execution
 uv run python -m src.main run \
   --bridge_length_m 50 \
   --total_width_m 10 \
   --model_name gpt-5-mini \
   --ifc_output_path data/generated_ifc/sample.ifc
 
-# Designer → Judge → 修正ループ → IFC（途中経過全保存）
+# Designer -> Judge -> Repair loop -> IFC (all intermediate results saved)
 uv run python -m src.main run_with_repair \
   --bridge_length_m 50 \
   --total_width_m 10 \
   --max_iterations 5
 ```
 
-出力:
+Output:
 
-- `data/generated_simple_bridge_json/…` - Designer 出力（各イテレーション + final）
-- `data/generated_judge_json/…` - Judge 出力（各イテレーション）
-- `data/generated_bridge_raglog_json/…` - RAG ヒットログ
-- `data/generated_senkei_json/….senkei.json` - Senkei JSON（各イテレーション + final）
-- `data/generated_report_md/…_report.md` - 修正ループレポート（Markdown）
-- `data/generated_ifc/….ifc` - IFC ファイル（各イテレーション + final）
+- `data/generated_simple_bridge_json/…` - Designer output (each iteration + final)
+- `data/generated_judge_json/…` - Judge output (each iteration)
+- `data/generated_bridge_raglog_json/…` - RAG hit log
+- `data/generated_senkei_json/….senkei.json` - Senkei JSON (each iteration + final)
+- `data/generated_report_md/…_report.md` - Repair loop report (Markdown)
+- `data/generated_ifc/….ifc` - IFC file (each iteration + final)
 
-### 既存 JSON を IFC 変換のみ
+### Convert Existing JSON to IFC Only
 
 ```bash
 uv run python -m src.bridge_json_to_ifc.run_convert data/generated_simple_bridge_json/<file>.json
 ```
 
-出力:
+Output:
 
 - `data/generated_senkei_json/<file>.senkei.json` - Senkei JSON
-- `data/generated_ifc/<file>.ifc` - IFC ファイル
+- `data/generated_ifc/<file>.ifc` - IFC file
 
-## CLI オプション一覧
+## CLI Options Reference
 
-### src.main（統合 CLI）
+### src.main (Integrated CLI)
 
-#### run コマンド
+#### run Command
 
-| オプション          | 型     | デフォルト  | 説明                                |
-| ------------------- | ------ | ----------- | ----------------------------------- |
-| `bridge_length_m`   | float  | 40.0        | 橋長 [m]                            |
-| `total_width_m`     | float  | 10.0        | 幅員 [m]                            |
-| `model_name`        | str    | gpt-5-mini  | 使用する LLM モデル                 |
-| `top_k`             | int    | 5           | RAG 検索時の取得件数                |
-| `judge_enabled`     | bool   | True        | Judge を実行するか                  |
-| `senkei_json_path`  | str    | None        | Senkei JSON 出力パス（自動生成可）  |
-| `ifc_output_path`   | str    | None        | IFC 出力パス（自動生成可）          |
+| Option              | Type   | Default     | Description                                     |
+| ------------------- | ------ | ----------- | ----------------------------------------------- |
+| `bridge_length_m`   | float  | 40.0        | Bridge length [m]                               |
+| `total_width_m`     | float  | 10.0        | Total width [m]                                 |
+| `model_name`        | str    | gpt-5-mini  | LLM model to use                                |
+| `top_k`             | int    | 5           | Number of results to retrieve in RAG search     |
+| `judge_enabled`     | bool   | True        | Whether to run Judge                            |
+| `senkei_json_path`  | str    | None        | Senkei JSON output path (auto-generated if omitted) |
+| `ifc_output_path`   | str    | None        | IFC output path (auto-generated if omitted)     |
 
-#### run_with_repair コマンド
+#### run_with_repair Command
 
-| オプション         | 型     | デフォルト  | 説明                               |
-| ------------------ | ------ | ----------- | ---------------------------------- |
-| `bridge_length_m`  | float  | 20.0        | 橋長 [m]                           |
-| `total_width_m`    | float  | 5.0         | 幅員 [m]                           |
-| `model_name`       | str    | gpt-5.1     | 使用する LLM モデル                |
-| `top_k`            | int    | 5           | RAG 検索時の取得件数               |
-| `max_iterations`   | int    | 5           | 修正ループの最大イテレーション     |
+| Option             | Type   | Default     | Description                                     |
+| ------------------ | ------ | ----------- | ----------------------------------------------- |
+| `bridge_length_m`  | float  | 20.0        | Bridge length [m]                               |
+| `total_width_m`    | float  | 5.0         | Total width [m]                                 |
+| `model_name`       | str    | gpt-5.1     | LLM model to use                                |
+| `top_k`            | int    | 5           | Number of results to retrieve in RAG search     |
+| `max_iterations`   | int    | 5           | Maximum iterations for the repair loop          |
 
-### src.bridge_agentic_generate.main（Designer/Judge CLI）
+### src.bridge_agentic_generate.main (Designer/Judge CLI)
 
-#### run コマンド
+#### run Command
 
-| オプション         | 型       | デフォルト  | 説明                   |
-| ------------------ | -------- | ----------- | ---------------------- |
-| `bridge_length_m`  | float    | 50.0        | 橋長 [m]               |
-| `total_width_m`    | float    | 10.0        | 幅員 [m]               |
-| `model_name`       | LlmModel | gpt-5-mini  | 使用する LLM モデル    |
-| `top_k`            | int      | 5           | RAG 検索時の取得件数   |
-| `judge`            | bool     | False       | Judge を実行するか     |
+| Option             | Type     | Default     | Description                                     |
+| ------------------ | -------- | ----------- | ----------------------------------------------- |
+| `bridge_length_m`  | float    | 50.0        | Bridge length [m]                               |
+| `total_width_m`    | float    | 10.0        | Total width [m]                                 |
+| `model_name`       | LlmModel | gpt-5-mini  | LLM model to use                                |
+| `top_k`            | int      | 5           | Number of results to retrieve in RAG search     |
+| `judge`            | bool     | False       | Whether to run Judge                            |
 
-#### batch コマンド
+#### batch Command
 
-| オプション         | 型       | デフォルト  | 説明                              |
-| ------------------ | -------- | ----------- | --------------------------------- |
-| `model_name`       | LlmModel | gpt-5-mini  | 使用する LLM モデル               |
-| `total_width_m`    | float    | 10.0        | 幅員 [m]（全ケース共通）          |
-| `top_k`            | int      | 5           | RAG 検索時の取得件数              |
+| Option             | Type     | Default     | Description                                     |
+| ------------------ | -------- | ----------- | ----------------------------------------------- |
+| `model_name`       | LlmModel | gpt-5-mini  | LLM model to use                                |
+| `total_width_m`    | float    | 10.0        | Total width [m] (shared across all cases)       |
+| `top_k`            | int      | 5           | Number of results to retrieve in RAG search     |
 
-**Note:** 修正ループ付き実行（`run_with_repair`）は `src.main` の統合 CLI を使用してください。
+**Note:** For execution with the repair loop (`run_with_repair`), use the integrated CLI at `src.main`.

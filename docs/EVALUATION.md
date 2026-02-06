@@ -1,67 +1,67 @@
-# 評価方針
+# Evaluation Policy
 
-本ドキュメントでは、鋼プレートガーダー橋 BrIM 生成エージェントの評価方針を定義する。
-論文用の定量的評価指標と、システムの限界を明確にすることを目的とする。
-
----
-
-## 1. 評価の目的
-
-1. **システム性能の定量化**: 設計生成・修正ループの有効性を客観的に示す
-2. **RAG の貢献度評価**: RAG あり/なしの比較により、知識検索の効果を定量化する
-3. **限界の明示**: システムが対応できる範囲と対応できない範囲を明確にする
+This document defines the evaluation policy for the Steel Plate Girder Bridge BrIM Generation Agent.
+The purpose is to establish quantitative evaluation metrics for the paper and to clarify the limitations of the system.
 
 ---
 
-## 2. 評価指標
+## 1. Purpose of Evaluation
 
-### 2.1 設計生成品質（Design Quality Metrics）
-
-| 指標 | 定義 | 計算方法 |
-|------|------|----------|
-| **初回合格率 (First-Pass Rate)** | 初回生成で全照査項目をパスした割合 | `iterations[0].report.pass_fail == True` の件数 / 全件数 |
-| **修正収束率 (Convergence Rate)** | 最大反復回数以内に合格に到達した割合 | `converged == True` の件数 / 全件数 |
-| **平均修正回数 (Avg. Iterations)** | 合格に至るまでの平均反復回数 | 収束ケースのみ `len(iterations)` の平均 |
-| **最終合格率 (Final Pass Rate)** | 修正ループ後の最終合格率 | `final_report.pass_fail == True` の件数 / 全件数 |
-
-### 2.2 照査項目別評価（Per-Check Metrics）
-
-各照査項目について、初回設計での合格率を測定する。
-
-| 照査項目 | 合格条件 |
-|----------|----------|
-| 曲げ (bend) | `util_bend ≤ 1.0` |
-| せん断 (shear) | `util_shear ≤ 1.0` |
-| たわみ (deflection) | `util_deflection ≤ 1.0` |
-| 床版厚 (deck) | `util_deck ≤ 1.0` |
-| 腹板幅厚比 (web_slenderness) | `util_web_slenderness ≤ 1.0` |
-| 横桁配置 (crossbeam_layout) | `crossbeam_layout_ok == True` |
-
-**目的**: どの照査項目が LLM にとって難しいかを特定する。
-
-### 2.3 RAG 貢献度評価（RAG Contribution Metrics）
-
-RAG あり/なしの条件で同一ケースを生成し、以下を比較する。
-
-| 比較指標 | 説明 |
-|----------|------|
-| **初回合格率の差** | RAG あり vs なし |
-| **平均修正回数の差** | RAG あり vs なし |
-| **初回 max_util の差** | 初回設計の最大 util 値の比較 |
-| **収束率の差** | RAG あり vs なし |
-
-**仮説**: RAG ありの方が初回合格率が高く、修正回数が少ない。
+1. **Quantify System Performance**: Objectively demonstrate the effectiveness of design generation and repair loops
+2. **Assess RAG Contribution**: Quantify the effect of knowledge retrieval by comparing with and without RAG
+3. **Clarify Limitations**: Clearly define the scope the system can and cannot handle
 
 ---
 
-## 3. 評価ケース
+## 2. Evaluation Metrics
 
-### 3.1 評価ケース一覧
+### 2.1 Design Quality Metrics
 
-橋長 L=20〜70m、幅員 B=8〜24m の組み合わせ（32 ケース）を選定する。
-ケース定義は `src/evaluation/main.py` の `DEFAULT_EVALUATION_CASES` で管理。
+| Metric | Definition | Calculation Method |
+|--------|------------|-------------------|
+| **First-Pass Rate** | Percentage of cases that passed all verification items on the first generation | Count of `iterations[0].report.pass_fail == True` / total count |
+| **Convergence Rate** | Percentage of cases that reached a pass within the maximum number of iterations | Count of `converged == True` / total count |
+| **Avg. Iterations** | Average number of iterations to reach a pass | Mean of `len(iterations)` for converged cases only |
+| **Final Pass Rate** | Final pass rate after the repair loop | Count of `final_report.pass_fail == True` / total count |
 
-| L (m) | B (m) の組み合わせ |
+### 2.2 Per-Check Metrics
+
+Measure the pass rate for each verification item on the initial design.
+
+| Verification Item | Pass Condition |
+|-------------------|----------------|
+| Bending (bend) | `util_bend <= 1.0` |
+| Shear (shear) | `util_shear <= 1.0` |
+| Deflection (deflection) | `util_deflection <= 1.0` |
+| Deck slab thickness (deck) | `util_deck <= 1.0` |
+| Web slenderness ratio (web_slenderness) | `util_web_slenderness <= 1.0` |
+| Cross beam layout (crossbeam_layout) | `crossbeam_layout_ok == True` |
+
+**Purpose**: Identify which verification items are difficult for the LLM.
+
+### 2.3 RAG Contribution Metrics
+
+Generate the same cases with and without RAG, and compare the following.
+
+| Comparison Metric | Description |
+|-------------------|-------------|
+| **Difference in First-Pass Rate** | With RAG vs without RAG |
+| **Difference in Avg. Iterations** | With RAG vs without RAG |
+| **Difference in First max_util** | Comparison of maximum util values in the initial design |
+| **Difference in Convergence Rate** | With RAG vs without RAG |
+
+**Hypothesis**: With RAG, the first-pass rate is higher and the number of repair iterations is lower.
+
+---
+
+## 3. Evaluation Cases
+
+### 3.1 List of Evaluation Cases
+
+A total of 32 cases are selected from combinations of bridge length L=20-70m and total width B=8-24m.
+Case definitions are managed in `DEFAULT_EVALUATION_CASES` in `src/evaluation/main.py`.
+
+| L (m) | B (m) combinations |
 |-------|---------------------|
 | 20 | 8, 10 |
 | 25 | 8, 10, 12 |
@@ -75,51 +75,51 @@ RAG あり/なしの条件で同一ケースを生成し、以下を比較する
 | 65 | 12, 16, 24 |
 | 70 | 12, 16, 24 |
 
-**備考**:
-- 支間 80m 以下が L 荷重の適用範囲（システム制約）
-- 短橋（L≤35m）では狭幅員（B=8〜12m）、長橋（L≥50m）では広幅員（B=16〜24m）を含む
+**Notes**:
+- Span <= 80m is the applicable range for L-loading (system constraint)
+- Short bridges (L<=35m) include narrow widths (B=8-12m), long bridges (L>=50m) include wide widths (B=16-24m)
 
-### 3.2 試行回数
+### 3.2 Number of Trials
 
-| 条件 | 試行回数 | 理由 |
-|------|----------|------|
-| 各ケース × RAG条件 | 3回 | LLM 生成のばらつきを考慮 |
+| Condition | Number of Trials | Reason |
+|-----------|-----------------|--------|
+| Each case x RAG condition | 3 | To account for variability in LLM generation |
 
-**合計実行数**: 32ケース × 2条件 × 3回 = 192回
+**Total number of runs**: 32 cases x 2 conditions x 3 trials = 192 runs
 
-### 3.3 使用モデル
+### 3.3 Model Used
 
-| 項目 | 値 |
-|------|-----|
-| LLM モデル | GPT-5.1 (`gpt-5-1`) |
+| Item | Value |
+|------|-------|
+| LLM Model | GPT-5.1 (`gpt-5-1`) |
 
-**備考**: Designer（設計生成）と Judge（PatchPlan生成）の両方で同一モデルを使用する。
+**Note**: The same model is used for both the Designer (design generation) and Judge (PatchPlan generation).
 
-### 3.4 最大修正回数
+### 3.4 Maximum Number of Repair Iterations
 
-| パラメータ | 値 |
-|------------|-----|
+| Parameter | Value |
+|-----------|-------|
 | max_iterations | 5 |
 
 ---
 
-## 4. 評価手順
+## 4. Evaluation Procedure
 
-### 4.1 実行フロー
+### 4.1 Execution Flow
 
 ```
-1. 評価ケース（L, B）の組み合わせを定義
-2. 各ケースについて:
-   a. RAG あり で N 回生成・修正ループ実行
-   b. RAG なし で N 回生成・修正ループ実行
-   c. 各試行の結果を記録
-3. 結果を集計し、指標を算出
-4. レポートを出力
+1. Define evaluation case (L, B) combinations
+2. For each case:
+   a. Run N generation and repair loop iterations with RAG enabled
+   b. Run N generation and repair loop iterations with RAG disabled
+   c. Record the results of each trial
+3. Aggregate results and calculate metrics
+4. Output report
 ```
 
-### 4.2 RAG なし生成
+### 4.2 Generation Without RAG
 
-`generate_design_with_rag_log` の `use_rag` パラメータで RAG の有無を切り替える（実装済み）。
+Toggle RAG on/off using the `use_rag` parameter of `generate_design_with_rag_log` (already implemented).
 
 ```python
 def generate_design_with_rag_log(
@@ -128,16 +128,16 @@ def generate_design_with_rag_log(
     model_name: LlmModel = LlmModel.GPT_5_MINI,
     use_rag: bool = True,
 ) -> DesignResult:
-    """use_rag=False の場合、RAG 検索をスキップし空のコンテキストで生成する。"""
+    """When use_rag=False, skip RAG retrieval and generate with an empty context."""
 ```
 
 ---
 
-## 5. 出力形式
+## 5. Output Format
 
-### 5.1 生データ（JSON）
+### 5.1 Raw Data (JSON)
 
-各試行の詳細結果を JSON で保存する。
+Save detailed results of each trial as JSON.
 
 ```json
 {
@@ -170,33 +170,33 @@ def generate_design_with_rag_log(
 }
 ```
 
-### 5.2 集計レポート（Markdown）
+### 5.2 Aggregated Report (Markdown)
 
 ```markdown
-## 評価結果サマリー
+## Evaluation Results Summary
 
-### 全体指標
+### Overall Metrics
 
-| 条件 | 初回合格率 | 収束率 | 平均修正回数 | 最終合格率 |
-|------|-----------|--------|--------------|------------|
-| RAG あり | 32% (8/25) | 92% (23/25) | 2.1 | 92% |
-| RAG なし | 12% (3/25) | 72% (18/25) | 3.4 | 72% |
+| Condition | First-Pass Rate | Convergence Rate | Avg. Iterations | Final Pass Rate |
+|-----------|----------------|-----------------|-----------------|-----------------|
+| With RAG | 32% (8/25) | 92% (23/25) | 2.1 | 92% |
+| Without RAG | 12% (3/25) | 72% (18/25) | 3.4 | 72% |
 
-### 照査項目別初回合格率
+### First-Pass Rate by Verification Item
 
-| 照査項目 | RAG あり | RAG なし | 差分 |
-|----------|----------|----------|------|
-| 曲げ | 76% | 56% | +20% |
-| せん断 | 92% | 84% | +8% |
-| たわみ | 48% | 28% | +20% |
-| 床版厚 | 88% | 88% | 0% |
-| 腹板幅厚比 | 80% | 64% | +16% |
-| 横桁配置 | 96% | 92% | +4% |
+| Verification Item | With RAG | Without RAG | Difference |
+|-------------------|----------|-------------|------------|
+| Bending | 76% | 56% | +20% |
+| Shear | 92% | 84% | +8% |
+| Deflection | 48% | 28% | +20% |
+| Deck slab thickness | 88% | 88% | 0% |
+| Web slenderness ratio | 80% | 64% | +16% |
+| Cross beam layout | 96% | 92% | +4% |
 
-### 橋長別の収束率
+### Convergence Rate by Bridge Length
 
-| 橋長 | RAG あり | RAG なし |
-|------|----------|----------|
+| Bridge Length | With RAG | Without RAG |
+|--------------|----------|-------------|
 | 30m | 100% | 80% |
 | 40m | 100% | 80% |
 | 50m | 80% | 60% |
@@ -206,77 +206,77 @@ def generate_design_with_rag_log(
 
 ---
 
-## 6. システムの限界
+## 6. System Limitations
 
-評価結果とは別に、システムの適用限界を明記する。
+Separately from the evaluation results, the applicable limitations of the system are documented here.
 
-### 6.1 対応範囲
+### 6.1 Supported Scope
 
-| 項目 | 範囲 |
-|------|------|
-| 橋梁形式 | 単純支持プレートガーダー橋（RC床版） |
-| 支間長 | ≤ 80m（L荷重適用範囲） |
-| 荷重条件 | B活荷重（L荷重・p1/p2ルール） |
-| 設計段階 | 概略設計（断面寸法の決定） |
+| Item | Scope |
+|------|-------|
+| Bridge type | Simply supported plate girder bridge (RC deck slab) |
+| Span length | <= 80m (applicable range for L-loading) |
+| Load conditions | B live load (L-loading / p1/p2 rules) |
+| Design stage | Preliminary design (determination of cross-sectional dimensions) |
 
-### 6.2 非対応項目
+### 6.2 Unsupported Items
 
-| 項目 | 理由 |
-|------|------|
-| 連続桁・ラーメン橋 | 単純桁の解析モデルのみ実装 |
-| 支間 > 80m | L荷重の適用範囲外 |
-| 詳細設計 | 溶接・ボルト接合・疲労照査等は未実装 |
-| FEM解析 | 決定論的な簡易計算のみ |
-| 特殊荷重 | 標準B活荷重のみ対応 |
-
----
-
-## 7. 今後の拡張可能性
-
-1. **専門家評価の追加**: 生成された設計の実務適用可能性を専門家が評価
-2. **異なるLLMモデルの比較**: GPT-5.1 vs GPT-5-mini 等
-3. **RAG精度の詳細評価**: Recall@k, MRR などの検索精度指標
+| Item | Reason |
+|------|--------|
+| Continuous girder / Rigid frame bridge | Only simple girder analysis model is implemented |
+| Span > 80m | Outside the applicable range of L-loading |
+| Detailed design | Welding, bolted connections, fatigue verification, etc. are not implemented |
+| FEM analysis | Only deterministic simplified calculations |
+| Special loads | Only standard B live load is supported |
 
 ---
 
-## 8. 実装状況
+## 7. Future Extension Possibilities
 
-### Phase 1: 評価基盤（完了）
+1. **Adding Expert Evaluation**: Experts evaluate the practical applicability of generated designs
+2. **Comparison of Different LLM Models**: GPT-5.1 vs GPT-5-mini, etc.
+3. **Detailed RAG Accuracy Evaluation**: Retrieval accuracy metrics such as Recall@k, MRR
 
-- [x] 評価用モデル定義（`src/evaluation/models.py`）
-- [x] 指標計算ロジック（`src/evaluation/metrics.py`）
-- [x] RAG なし生成オプション追加（`use_rag` パラメータ）
-- [x] バッチ評価 CLI（`src/evaluation/runner.py`）
-- [x] グラフ出力（`src/evaluation/plot.py`）
-- [x] 評価 CLI エントリーポイント（`src/evaluation/main.py`）
+---
 
-### Phase 2: 評価実行
+## 8. Implementation Status
 
-- [ ] 全ケースの評価実行
-- [ ] 結果の集計・レポート生成
-- [ ] 論文用の図表作成
+### Phase 1: Evaluation Infrastructure (Completed)
 
-### 評価 CLI コマンド
+- [x] Evaluation model definitions (`src/evaluation/models.py`)
+- [x] Metric calculation logic (`src/evaluation/metrics.py`)
+- [x] Added generation option without RAG (`use_rag` parameter)
+- [x] Batch evaluation CLI (`src/evaluation/runner.py`)
+- [x] Graph output (`src/evaluation/plot.py`)
+- [x] Evaluation CLI entry point (`src/evaluation/main.py`)
+
+### Phase 2: Evaluation Execution
+
+- [ ] Run evaluation for all cases
+- [ ] Aggregate results and generate reports
+- [ ] Create figures and tables for the paper
+
+### Evaluation CLI Commands
 
 ```bash
-# 全ケース実行（32ケース × RAG有無 × 3試行）
+# Run all cases (32 cases x with/without RAG x 3 trials)
 uv run python -m src.evaluation.main run
 
-# 単一ケースのテスト実行
+# Test run for a single case
 uv run python -m src.evaluation.main single_case \
   --bridge_length_m 50 --total_width_m 10
 
-# RAG なしで単一ケース実行
+# Run a single case without RAG
 uv run python -m src.evaluation.main single_case \
   --bridge_length_m 50 --total_width_m 10 --use_rag False
 
-# 評価結果のグラフ生成
+# Generate graphs from evaluation results
 uv run python -m src.evaluation.main plot --data_dir data/evaluation_v5
 ```
 
 ---
 
-## 参考資料
+## References
 
-- [docs/COMPONENT_DESIGNER.md](COMPONENT_DESIGNER.md) - Designer 詳細
-- [docs/COMPONENT_JUDGE.md](COMPONENT_JUDGE.md) - Judge 詳細
+- [docs/COMPONENT_DESIGNER.md](COMPONENT_DESIGNER.md) - Designer Details
+- [docs/COMPONENT_JUDGE.md](COMPONENT_JUDGE.md) - Judge Details

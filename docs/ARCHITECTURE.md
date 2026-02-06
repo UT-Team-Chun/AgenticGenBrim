@@ -1,138 +1,147 @@
 # ARCHITECTURE
 
-## ディレクトリ構成
+## Directory Structure
 
 ```text
 data/
-  design_knowledge/               # 元 PDF 配置場所
-  extracted_by_pdfplumber/        # pdfplumber で抽出したテキスト
-  extracted_by_pypdf/             # pypdf で抽出したテキスト
-  extracted_by_pymupdf4llm/       # pymupdf4llm で抽出したテキスト
-  generated_simple_bridge_json/   # Designer 出力 JSON（BridgeDesign）
-  generated_bridge_raglog_json/   # RAG ヒットログ
-  generated_judge_json/           # Judge 出力 JSON（JudgeReport）
-  generated_senkei_json/          # IFC 変換用の Senkei JSON
-  generated_report_md/            # 修正ループレポート（Markdown）
-  generated_ifc/                  # IFC 出力
+  design_knowledge/               # Source PDF storage location
+  extracted_by_pdfplumber/        # Text extracted with pdfplumber
+  extracted_by_pypdf/             # Text extracted with pypdf
+  extracted_by_pymupdf4llm/       # Text extracted with pymupdf4llm
+  generated_simple_bridge_json/   # Designer output JSON (BridgeDesign)
+  generated_bridge_raglog_json/   # RAG hit logs
+  generated_judge_json/           # Judge output JSON (JudgeReport)
+  generated_senkei_json/          # Senkei JSON for IFC conversion
+  generated_report_md/            # Repair loop reports (Markdown)
+  generated_ifc/                  # IFC output
 rag_index/
   pdfplumber/{meta.jsonl,embeddings.npy}
   pymupdf/{meta.jsonl,embeddings.npy}
-scripts/                          # ユーティリティスクリプト
-tests/                            # テスト
+scripts/                          # Utility scripts
+tests/                            # Tests
 src/
-  main.py                         # Designer→IFC の統合 CLI (Fire)
+  main.py                         # Integrated CLI for Designer to IFC (Fire)
   bridge_agentic_generate/
     main.py                       # Designer/Judge CLI (Fire)
-    config.py                     # パス定義（AppConfig）
-    llm_client.py                 # Responses API / Structured Output ラッパー
-    logger_config.py              # 共通ロガー
-    designer/                     # モデル・プロンプト・RAG付き生成
-      models.py                   # Pydantic モデル（BridgeDesign 等）
-      prompts.py                  # LLM プロンプト生成
-      services.py                 # 生成ロジック
-    judge/                        # 照査・修正提案（決定論計算+LLM）
-      models.py                   # 入出力モデル（JudgeReport, PatchPlan 等）
-      prompts.py                  # PatchPlan 生成プロンプト
-      services.py                 # 照査計算・修正適用
-      report.py                   # 修正ループレポート生成
-    rag/                          # PDF 抽出・チャンク化・埋め込み・検索
-      embedding_config.py         # 埋め込み設定・インデックス構造
-      loader.py                   # チャンク化・埋め込み生成
-      search.py                   # ベクトル検索
-      extract_pdfs_with_*.py      # PDF抽出スクリプト（3種）
+    config.py                     # Path definitions (AppConfig)
+    llm_client.py                 # Responses API / Structured Output wrapper
+    logger_config.py              # Common logger
+    designer/                     # Models, prompts, RAG-assisted generation
+      models.py                   # Pydantic models (BridgeDesign, etc.)
+      prompts.py                  # LLM prompt generation
+      services.py                 # Generation logic
+    judge/                        # Verification and repair suggestions (deterministic calculation + LLM)
+      models.py                   # I/O models (JudgeReport, PatchPlan, etc.)
+      prompts.py                  # PatchPlan generation prompts
+      services.py                 # Verification calculations and repair application
+      report.py                   # Repair loop report generation
+    rag/                          # PDF extraction, chunking, embedding, search
+      embedding_config.py         # Embedding configuration and index structure
+      loader.py                   # Chunking and embedding generation
+      search.py                   # Vector search
+      extract_pdfs_with_*.py      # PDF extraction scripts (3 variants)
   bridge_json_to_ifc/
-    run_convert.py                # 変換 CLI
-    models.py                     # 詳細 JSON スキーマ（DetailedBridgeSpec）
-    senkei_models.py              # Senkei JSON スキーマ（SenkeiSpec）
+    run_convert.py                # Conversion CLI
+    models.py                     # Detailed JSON schema (DetailedBridgeSpec)
+    senkei_models.py              # Senkei JSON schema (SenkeiSpec)
     convert_simple_to_senkei_json.py    # BridgeDesign -> Senkei JSON
     convert_senkei_json_to_ifc.py       # Senkei JSON -> IFC
-    ifc_utils/                    # 旧 IFC ユーティリティ
-    ifc_utils_new/                # 新 IFC ユーティリティ（Senkei用）
-      core/                       # DefBridge, DefIFC, DefMath 等
-      components/                 # DefBracing, DefPanel, DefStiffener 等
+    ifc_utils/                    # Legacy IFC utilities
+    ifc_utils_new/                # New IFC utilities (for Senkei)
+      core/                       # DefBridge, DefIFC, DefMath, etc.
+      components/                 # DefBracing, DefPanel, DefStiffener, etc.
       io/                         # DefExcel, DefJson, DefStrings
       utils/                      # DefBridgeUtils, logger
-  evaluation/                     # 評価（メトリクス, プロット）
-    main.py                       # 評価 CLI
-    models.py                     # 評価用モデル
-    metrics.py                    # メトリクス計算
-    plot.py                       # グラフ描画
-    runner.py                     # 評価ランナー
+  evaluation/                     # Evaluation (metrics, plots)
+    main.py                       # Evaluation CLI
+    models.py                     # Evaluation models
+    metrics.py                    # Metrics calculation
+    plot.py                       # Graph rendering
+    runner.py                     # Evaluation runner
 ```
 
-## コンポーネント概要
+## Component Overview
 
 ### RAG
 
-指定 PDF をテキスト化・埋め込みし、設計時に参照する条文チャンクを検索。
+Converts specified PDFs to text and generates embeddings, then searches for regulation text chunks to reference during design.
 
-- **対象 PDF**: 鋼橋設計の基本（第一章、第四章、第六章、第七章）、道路橋示方書\_鋼橋・鋼部材編
-- **埋め込みモデル**: text-embedding-3-small（OpenAI）
-- **マルチクエリ検索**: 寸法・主桁配置・主桁断面・床版・横桁の 5 観点で並行検索
+- **Target PDFs**: Fundamentals of Steel Bridge Design (Chapters 1, 4, 6, 7), Japan Road Bridge Specifications (JRA) -- Steel Bridge and Steel Member Edition
+- **Embedding model**: text-embedding-3-small (OpenAI)
+- **Multi-query search**: Parallel search across 5 aspects -- dimensions, main girder arrangement, main girder cross-section, deck slab, and cross beams
 
 ### Designer
 
-橋長 L と幅員 B を受け取り、RAG 文脈を踏まえた BridgeDesign（構造化 JSON）を生成。
+Takes bridge length L and total width B as input and generates a BridgeDesign (structured JSON) informed by RAG context.
 
-- **入力**: 橋長 L [m]、幅員 B [m]
-- **出力**: BridgeDesign（dimensions, sections, components）
+- **Input**: Bridge length L [m], total width B [m]
+- **Output**: BridgeDesign (dimensions, sections, components)
 - **LLM**: OpenAI Responses API + Structured Output
 
 ### Judge
 
-決定論的な照査計算（曲げ・せん断・たわみ・床版厚・腹板幅厚比・横桁配置）を行い、不合格時は LLM で PatchPlan を生成。
+Performs deterministic verification calculations (bending, shear, deflection, deck slab thickness, web slenderness ratio, cross beam arrangement) and generates a PatchPlan via LLM when the design fails.
 
-- **入力**: JudgeInput（BridgeDesign + 材料 + パラメータ）
-- **活荷重**: L荷重（p1/p2ルール）に基づいて内部計算（支間80m以下が適用範囲）
-- **出力**: JudgeReport（pass_fail, utilization, diagnostics, patch_plan, evaluated_candidates）
-- **PatchPlan 生成**: 複数候補方式（LLM が3案生成 → 仮適用・評価 → 最良案選択）
-- **詳細**: [COMPONENT_JUDGE.md](COMPONENT_JUDGE.md) 参照
+- **Input**: JudgeInput (BridgeDesign + materials + parameters)
+- **Live load**: Internally computed based on L-load (p1/p2 rules) (applicable for spans of 80 m or less)
+- **Output**: JudgeReport (pass_fail, utilization, diagnostics, patch_plan, evaluated_candidates)
+- **PatchPlan generation**: Multi-candidate approach (LLM generates 3 proposals, each is tentatively applied and evaluated, then the best proposal is selected)
+- **Details**: See [COMPONENT_JUDGE.md](COMPONENT_JUDGE.md)
 
-### Designer-Judge ループ
+### Designer-Judge Loop
 
-不合格時に PatchPlan を適用し、合格するまで繰り返す修正ループ（`run_with_repair_loop`）。
+A repair loop (`run_with_repair_loop`) that applies a PatchPlan when verification fails, repeating until the design passes.
 
-- **最大イテレーション**: 設定可能（デフォルト 5）
-- **出力**: RepairLoopResult（converged, iterations, final_design, final_report）
+- **Max iterations**: Configurable (default: 5)
+- **Output**: RepairLoopResult (converged, iterations, final_design, final_report)
 
 ### IFC Export
 
-BridgeDesign → Senkei JSON → IFC に変換して BrIM 環境に渡す。
+Converts BridgeDesign to Senkei JSON to IFC and delivers it to the BrIM environment.
 
-- **変換パイプライン**: BridgeDesign → Senkei JSON → IFC
-- **生成要素**: 床版（Brep）、主桁（SweptSolid）、横桁（SweptSolid）
-- **ライブラリ**: ifcopenshell
+- **Conversion pipeline**: BridgeDesign -> Senkei JSON -> IFC
+- **Generated elements**: Deck slab (Brep), main girders (SweptSolid), cross beams (SweptSolid)
+- **Library**: ifcopenshell
 
 ### Evaluation
 
-修正ループの収束性や設計品質を評価する。
+Evaluates the convergence and design quality of the repair loop.
 
-- **メトリクス**: 収束率、イテレーション数、最終 max_util 等
-- **プロット**: ヒートマップ、収束グラフ等
-- **詳細**: [EVALUATION.md](EVALUATION.md) 参照
+- **Metrics**: Convergence rate, number of iterations, final max_util, etc.
+- **Plots**: Heatmaps, convergence graphs, etc.
+- **Details**: See [EVALUATION.md](EVALUATION.md)
 
-## データフロー
+## Data Flow
 
 ```text
-入力（橋長 L, 幅員 B）
-    ↓
-RAG 検索（マルチクエリ 5 観点）
-    ↓
-LLM で BridgeDesign 生成
-    ↓
-Judge（決定論的照査計算）
-    ↓
-合格？
-  ├ Yes → final_design
-  └ No → LLM で PatchPlan 生成
-        ↓
-      PatchPlan 適用
-        ↓
-      (最大イテレーションまで繰り返し)
-    ↓
-BridgeDesign JSON 保存
-    ↓
-Senkei JSON 変換 → IFC 変換
-    ↓
-IFC ファイル出力
+Input (bridge length L, total width B)
+    |
+    v
+RAG search (multi-query across 5 aspects)
+    |
+    v
+BridgeDesign generation via LLM
+    |
+    v
+Judge (deterministic verification calculations)
+    |
+    v
+Pass?
+  +- Yes -> final_design
+  +- No  -> PatchPlan generation via LLM
+              |
+              v
+            Apply PatchPlan
+              |
+              v
+            (repeat up to max iterations)
+    |
+    v
+Save BridgeDesign JSON
+    |
+    v
+Senkei JSON conversion -> IFC conversion
+    |
+    v
+IFC file output
 ```

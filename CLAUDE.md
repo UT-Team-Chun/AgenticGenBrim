@@ -70,7 +70,6 @@ AgenticGenBrim/
 ```bash
 # 使用例
 /impl RAG検索の精度を改善
-/impl --ultrathink 複雑なリファクタリング
 ```
 
 **実行内容:**

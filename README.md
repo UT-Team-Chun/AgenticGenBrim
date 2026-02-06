@@ -144,6 +144,90 @@ make lint  # Lint
 make fix   # Lint + 自動修正 + フォーマット
 ```
 
+## Claude Code で開発
+
+このプロジェクトは Claude Code 向けのカスタムコマンド・エージェント・タスクテンプレートを用意しています。
+
+### カスタムコマンド
+
+```bash
+# /impl: 実装 → fmt/lint → レビューを一括実行
+/impl RAG検索の精度を改善
+```
+
+`/impl` はタスク内容に応じて適切なエージェントを自動選択し、実装 → `make fmt && make lint` → `quality-check` レビューまでを繰り返します。
+
+### カスタムエージェント
+
+| エージェント | 用途 | 対象ディレクトリ |
+|---|---|---|
+| `designer-impl` | Designer/RAG/Judge の実装 | `src/bridge_agentic_generate/` |
+| `ifc-impl` | IFC 変換の実装 | `src/bridge_json_to_ifc/` |
+| `quality-check` | コードレビュー・品質検証 | 全体 |
+
+### タスクテンプレート
+
+定型的なタスク依頼には `tasks/template.md` を利用できます。
+
+```bash
+# 1. テンプレートをコピー
+cp tasks/template.md tasks/my-task.md
+
+# 2. 要件・対象ディレクトリ・受け入れ条件を記入
+
+# 3. Claude Code に渡す
+claude "tasks/my-task.md を読んで実装して"
+```
+
+### 設定ファイル
+
+| ファイル | 内容 |
+|---|---|
+| `CLAUDE.md` | プロジェクト概要・規約・コマンド一覧 |
+| `src/CLAUDE.md` | ソースコード詳細・モジュール説明 |
+| `.claude/commands/impl.md` | `/impl` コマンド定義 |
+| `.claude/agents/*.md` | カスタムエージェント定義 |
+
+### カスタムコマンド・エージェントの追加方法
+
+**カスタムコマンド**（`/xxx` で呼び出せるスラッシュコマンド）:
+
+```bash
+# .claude/commands/ に Markdown ファイルを作成
+# ファイル名がコマンド名になる（例: review.md → /review）
+cat > .claude/commands/review.md << 'EOF'
+# /review
+
+指定されたファイルをレビューしてください。
+
+引数: $ARGUMENTS
+EOF
+```
+
+- `$ARGUMENTS` でコマンド引数を受け取れる
+- Claude Code 上で `/review src/main.py` のように実行
+
+**カスタムエージェント**（サブエージェントとして呼び出される専門 AI）:
+
+```bash
+# .claude/agents/ に Markdown ファイルを作成
+cat > .claude/agents/my-agent.md << 'EOF'
+---
+name: my-agent
+description: このエージェントの説明（Task ツールの選択時に参照される）
+model: opus
+color: green
+---
+
+エージェントへの指示をここに記述。
+対象ディレクトリ、コーディング規約、責務などを定義する。
+EOF
+```
+
+- YAML フロントマターで `name`、`description`、`model`、`color` を指定
+- `description` は Task ツールがエージェント選択時に参照する
+- 他のコマンドやエージェントから `my-agent エージェントを使用して` と指示して呼び出す
+
 ## 出力スキーマ
 
 ### BridgeDesign（Designer 出力）

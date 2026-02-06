@@ -1,31 +1,31 @@
 # /impl
 
-指定されたタスクに対して、適切なサブエージェントを選択して以下の順で実装してください。
-2 のレビューで問題点があれば、1 に戻って修正を行います。すべてのレビューをクリアするまで、1 と 2 を繰り返します。
+Select the appropriate sub-agent for the given task and implement in the following order.
+If the review in step 2 finds issues, return to step 1 to fix them. Repeat steps 1 and 2 until all reviews pass.
 
-引数: $ARGUMENTS
+Arguments: $ARGUMENTS
 
-1. タスク要件に従い、機能実装を行う
+1. Implement the feature according to the task requirements
 
-- タスク内容に応じて適切なエージェントを選択する
-  - Designer/RAG 関連: `designer-impl` エージェント
-  - IFC 変換関連: `ifc-impl` エージェント
-- プロジェクト内容を詳細に理解したうえで、要件に基づいて実装する
-- `make fmt` でフォーマットを適用する
-- `make lint` で Lint エラーがないことを確認する
+- Select the appropriate agent based on the task content
+  - Designer/RAG related: `designer-impl` agent
+  - IFC conversion related: `ifc-impl` agent
+- Thoroughly understand the project before implementing based on requirements
+- Apply formatting with `make fmt`
+- Verify there are no Lint errors with `make lint`
 
-2. 実装内容が要件に沿っているか確認する
+2. Verify the implementation meets the requirements
 
-- 必ず `quality-check` エージェントを使用して確認する
-- 実装要件に抜け漏れがないか、バグやセキュリティリスクなど潜在的な問題がないか、徹底的にレビューする
+- Always use the `quality-check` agent for verification
+- Thoroughly review for missing requirements, bugs, security risks, and other potential issues
 
-## 技術スタック
+## Tech Stack
 
 - Python 3.13 / uv
 - OpenAI API (Responses API / Structured Output)
 - Pydantic / StrEnum
-- ifcopenshell (IFC出力)
-- text-embedding-3-small (埋め込み)
-- pdfplumber / pypdf / pymupdf4llm (PDF抽出)
+- ifcopenshell (IFC output)
+- text-embedding-3-small (embeddings)
+- pdfplumber / pypdf / pymupdf4llm (PDF extraction)
 - fire (CLI)
 - Ruff (Lint/Format)

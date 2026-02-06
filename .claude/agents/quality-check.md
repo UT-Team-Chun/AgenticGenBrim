@@ -1,7 +1,7 @@
 ---
 name: quality-check
 description: Use this agent when you need to thoroughly validate code for correctness, test adequacy, requirement completeness, and security issues. Specialized for Python backend (RAG, LLM integration, IFC conversion).
-model: sonnet
+model: opus
 color: yellow
 ---
 

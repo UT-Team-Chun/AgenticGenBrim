@@ -328,8 +328,11 @@ class EvaluatedCandidate(BaseModel):
 | `increase_bottom_flange_thickness` | girder.bottom_flange_thickness | +2, +4, +6 mm |
 | `increase_top_flange_width` | girder.top_flange_width | +50, +100 mm |
 | `increase_bottom_flange_width` | girder.bottom_flange_width | +50, +100 mm |
+| `increase_num_girders` | dims.num_girders | +1 |
 | `set_deck_thickness_to_required` | deck.thickness | = required |
 | `fix_crossbeam_layout` | dims.num_panels | = round(L / panel_length) |
+
+> **`increase_num_girders`**: 桁本数を +1 し、overhang を維持したまま girder_spacing を再計算する。新しい girder_spacing で必要床版厚が増える場合は deck.thickness も連動更新される。
 
 ### PatchPlan の制約
 
@@ -363,7 +366,10 @@ LLM（PatchPlan 3案生成）
     ↓
 仮適用・評価（各案）
     ↓
-最良案選択・適用
+最良案選択・適用（apply_patch_plan）
+    ↓
+依存関係ルール適用（apply_dependency_rules）
+  └ 例: 横桁高さ = 主桁高さ × factor
     ↓
 （最大イテレーションまで繰り返し）
 ```

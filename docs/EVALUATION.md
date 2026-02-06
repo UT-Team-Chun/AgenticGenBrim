@@ -58,25 +58,26 @@ RAG あり/なしの条件で同一ケースを生成し、以下を比較する
 
 ### 3.1 評価ケース一覧
 
-実務的な橋長・幅員の組み合わせを選定する。
+橋長 L=20〜70m、幅員 B=8〜24m の組み合わせ（32 ケース）を選定する。
+ケース定義は `src/evaluation/main.py` の `DEFAULT_EVALUATION_CASES` で管理。
 
-| No | L (m) | B (m) | 想定シーン |
-|----|-------|-------|------------|
-| 1 | 30 | 6 | 短橋・狭幅員（山間部・農道） |
-| 2 | 30 | 10 | 短橋・標準幅員（市街地2車線） |
-| 3 | 40 | 8 | 短中橋・やや狭 |
-| 4 | 40 | 12 | 短中橋・やや広 |
-| 5 | 50 | 6 | 中橋・狭幅員 |
-| 6 | 50 | 10 | 中橋・標準（基準ケース） |
-| 7 | 50 | 14 | 中橋・広幅員（幹線道路） |
-| 8 | 60 | 10 | 長橋・標準幅員 |
-| 9 | 60 | 14 | 長橋・広幅員 |
-| 10 | 70 | 10 | 最長・標準幅員 |
-| 11 | 70 | 14 | 最長・広幅員 |
+| L (m) | B (m) の組み合わせ |
+|-------|---------------------|
+| 20 | 8, 10 |
+| 25 | 8, 10, 12 |
+| 30 | 8, 10, 12 |
+| 35 | 8, 10, 16 |
+| 40 | 8, 10, 20 |
+| 45 | 8, 10, 20 |
+| 50 | 10, 16, 24 |
+| 55 | 10, 16, 24 |
+| 60 | 10, 16, 24 |
+| 65 | 12, 16, 24 |
+| 70 | 12, 16, 24 |
 
 **備考**:
 - 支間 80m 以下が L 荷重の適用範囲（システム制約）
-- 幅員 6m: 2本桁、8-10m: 3本桁、12-14m: 4-5本桁 を想定
+- 短橋（L≤35m）では狭幅員（B=8〜12m）、長橋（L≥50m）では広幅員（B=16〜24m）を含む
 
 ### 3.2 試行回数
 
@@ -84,7 +85,7 @@ RAG あり/なしの条件で同一ケースを生成し、以下を比較する
 |------|----------|------|
 | 各ケース × RAG条件 | 3回 | LLM 生成のばらつきを考慮 |
 
-**合計実行数**: 11ケース × 2条件 × 3回 = 66回
+**合計実行数**: 32ケース × 2条件 × 3回 = 192回
 
 ### 3.3 使用モデル
 
@@ -116,20 +117,18 @@ RAG あり/なしの条件で同一ケースを生成し、以下を比較する
 4. レポートを出力
 ```
 
-### 4.2 RAG なし生成の実装方針
+### 4.2 RAG なし生成
 
-現状の `generate_design_with_rag_log` を拡張し、RAG をスキップするオプションを追加する。
+`generate_design_with_rag_log` の `use_rag` パラメータで RAG の有無を切り替える（実装済み）。
 
 ```python
 def generate_design_with_rag_log(
     inputs: DesignerInput,
     top_k: int = TOP_K,
     model_name: LlmModel = LlmModel.GPT_5_MINI,
-    use_rag: bool = True,  # 新規追加
-) -> DesignerResultWithRagLog:
-    """
-    use_rag=False の場合、RAG 検索をスキップし空のコンテキストで生成する。
-    """
+    use_rag: bool = True,
+) -> DesignResult:
+    """use_rag=False の場合、RAG 検索をスキップし空のコンテキストで生成する。"""
 ```
 
 ---
@@ -235,20 +234,21 @@ def generate_design_with_rag_log(
 ## 7. 今後の拡張可能性
 
 1. **専門家評価の追加**: 生成された設計の実務適用可能性を専門家が評価
-2. **異なるLLMモデルの比較**: GPT-4o vs GPT-4o-mini 等
+2. **異なるLLMモデルの比較**: GPT-5.1 vs GPT-5-mini 等
 3. **RAG精度の詳細評価**: Recall@k, MRR などの検索精度指標
-4. **幅員バリエーション**: 幅員を変動させた追加評価
 
 ---
 
-## 8. 実装計画
+## 8. 実装状況
 
-### Phase 1: 評価基盤（現在）
+### Phase 1: 評価基盤（完了）
 
-- [ ] 評価用モデル定義（`src/evaluation/models.py`）
-- [ ] 指標計算ロジック（`src/evaluation/metrics.py`）
-- [ ] RAG なし生成オプション追加
-- [ ] バッチ評価 CLI（`src/evaluation/runner.py`）
+- [x] 評価用モデル定義（`src/evaluation/models.py`）
+- [x] 指標計算ロジック（`src/evaluation/metrics.py`）
+- [x] RAG なし生成オプション追加（`use_rag` パラメータ）
+- [x] バッチ評価 CLI（`src/evaluation/runner.py`）
+- [x] グラフ出力（`src/evaluation/plot.py`）
+- [x] 評価 CLI エントリーポイント（`src/evaluation/main.py`）
 
 ### Phase 2: 評価実行
 
@@ -256,10 +256,27 @@ def generate_design_with_rag_log(
 - [ ] 結果の集計・レポート生成
 - [ ] 論文用の図表作成
 
+### 評価 CLI コマンド
+
+```bash
+# 全ケース実行（32ケース × RAG有無 × 3試行）
+uv run python -m src.evaluation.main run
+
+# 単一ケースのテスト実行
+uv run python -m src.evaluation.main single_case \
+  --bridge_length_m 50 --total_width_m 10
+
+# RAG なしで単一ケース実行
+uv run python -m src.evaluation.main single_case \
+  --bridge_length_m 50 --total_width_m 10 --use_rag False
+
+# 評価結果のグラフ生成
+uv run python -m src.evaluation.main plot --data_dir data/evaluation_v5
+```
+
 ---
 
 ## 参考資料
 
 - [docs/COMPONENT_DESIGNER.md](COMPONENT_DESIGNER.md) - Designer 詳細
 - [docs/COMPONENT_JUDGE.md](COMPONENT_JUDGE.md) - Judge 詳細
-- [src/bridge_agentic_generate/judge/CLAUDE.md](../src/bridge_agentic_generate/judge/CLAUDE.md) - Judge 実装仕様

@@ -3,10 +3,14 @@
 ## 開発コマンド
 
 ```bash
-make fmt          # フォーマット（Ruff）
-make lint         # Lint（CI相当）
-make fix          # Lint + 自動修正 + フォーマット
+make fmt                # フォーマット（Ruff）
+make lint               # Lint（CI相当）
+make fix                # Lint + 自動修正 + フォーマット
+make rm-unused-imports  # 未使用インポートを削除
+make ifc                # 統合CLI（run_with_repair）を実行
 ```
+
+- Ruff の対象: `src tests scripts`（`src/bridge_json_to_ifc` は除外）
 
 ## 命名規則
 

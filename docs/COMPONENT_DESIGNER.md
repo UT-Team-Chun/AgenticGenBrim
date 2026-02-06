@@ -67,6 +67,38 @@ Designer は設計生成時に、以下の 5 観点でマルチクエリ RAG 検
 - **プロンプトへの反映**: 検索でヒットしたチャンクが、参考文献として LLM に提示されます。
 - **RAG ログ**: `DesignerRagLog` として検索結果（rank, score, source, page, text）を記録し、`data/generated_bridge_raglog_json/` に保存。
 
+## LLM 出力スキーマ (DesignerOutput)
+
+`src/bridge_agentic_generate/designer/models.py` の `DesignerOutput` クラスで定義されます。
+LLM は BridgeDesign だけでなく、設計根拠や適用ルールも構造化して返します。
+
+- **reasoning** (`str`): 設計プロセス全体の思考・判断根拠（なぜその寸法を選んだか等）
+- **rules** (`list[DesignRule]`): 今回の設計で適用した設計ルール一覧
+- **dependency_rules** (`list[DependencyRule]`): 部材間の依存関係ルール（修正ループでの連動用）
+- **bridge_design** (`BridgeDesign`): 生成された断面設計
+
+### DesignRule
+
+RAG コンテキストから抽出した設計ルール 1 件分。
+
+- `rule_id`: ルール ID（例: "R1"）
+- `category`: カテゴリ（`dimensions` / `girder_section` / `deck` / `crossbeam_section` / `other`）
+- `summary`: 日本語要約
+- `condition_expression`: 条件式（例: `"web_height ≒ L/20〜L/25"`）
+- `formula_latex`: LaTeX 風数式（任意）
+- `applies_to_fields`: 影響する BridgeDesign のフィールド名一覧
+- `source_hit_ranks`: 根拠となる RAG ヒットの rank 番号（根拠なしなら空）
+
+### DependencyRule
+
+部材間の依存関係（例: 横桁高さ = 主桁高さ × 係数）。PatchPlan 適用後に自動連動させるために使用。
+
+- `rule_id`: ルール ID（例: "D1"）
+- `target_field`: 更新対象（例: `"crossbeam.total_height"`）
+- `source_field`: 参照元（例: `"girder.web_height"`）
+- `factor`: 係数（例: `0.8`）
+- `source_hit_ranks`: 根拠となる RAG ヒットの rank 番号
+
 ## 生成フロー
 
 ```text
@@ -76,11 +108,13 @@ DesignerInput（橋長 L, 幅員 B）
     ↓
 プロンプト構築（RAG コンテキスト + 設計指示）
     ↓
-LLM 呼び出し（Structured Output）
+LLM 呼び出し（Structured Output → DesignerOutput）
     ↓
-BridgeDesign（構造化 JSON）
+DesignerOutput を分解:
+  - bridge_design → BridgeDesign
+  - reasoning, rules, dependency_rules → DesignerRagLog に記録
     ↓
-バリデーション（Pydantic）
+DesignResult（design + rag_log + rules + dependency_rules）
     ↓
 JSON 保存 + RAG ログ保存
 ```
@@ -101,7 +135,7 @@ JSON 保存 + RAG ログ保存
 
 ## 関連ファイル
 
-- `src/bridge_agentic_generate/designer/models.py`: Pydantic モデル定義
+- `src/bridge_agentic_generate/designer/models.py`: Pydantic モデル定義（BridgeDesign, DesignerOutput, DesignRule, DependencyRule 等）
 - `src/bridge_agentic_generate/designer/services.py`: 生成ロジック（`generate_design_with_rag_log()`）
 - `src/bridge_agentic_generate/designer/prompts.py`: プロンプト構築（`build_designer_prompt()`）
 - `src/bridge_agentic_generate/rag/search.py`: RAG 検索（`search_text()`）

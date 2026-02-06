@@ -17,6 +17,7 @@ JSONファイルは最上位で以下のキーを持つオブジェクトです�
     "SubPanel": [ ... ],
     "Taikeikou": [ ... ],
     "Yokokou": [ ... ],
+    "Yokogeta": [ ... ],
     "Shouban": [ ... ],
     "MemberSPL": [ ... ],
     "MemberRib": [ ... ],
@@ -24,7 +25,7 @@ JSONファイルは最上位で以下のキーを持つオブジェクトです�
 }
 ```
 
-各セクションは省略可能ですが、最低限 `"Infor"` と `"Senkei"` は必須です。
+各セクションは省略可能ですが、最低限 `"Infor"`、`"Senkei"`、`"MainPanel"`、`"Yokogeta"`、`"Shouban"` は必須です。
 
 ## 3. 各セクションの詳細仕様
 
@@ -553,7 +554,7 @@ I形横桁（Cross Beam）の定義です。主桁間を繋ぐI形断面の構�
         "Name": "横桁名称（例: CB_G1_G2_C3）",
         "Girder": ["G1", "G2"],         // 接続する桁番号の配列（2つ指定）
         "Section": "C3",                // 配置する断面位置
-        "Reference": "Bottom",          // "Top" or "Bottom"（省略時: "Bottom"）
+        "Reference": "Top",             // "Top" or "Bottom"（省略時: "Top"）
         "Height": 600,                  // 横桁のせい（mm）
         "ZOffset": 0,                   // 基準位置からのオフセット（mm）（省略時: 0）
         "Web": {                        // ウェブ情報
@@ -582,9 +583,9 @@ I形横桁（Cross Beam）の定義です。主桁間を繋ぐI形断面の構�
 - `Name`: 横桁の名称
 - `Girder`: 接続する主桁の番号（2つ指定、例: `["G1", "G2"]` で G1 と G2 を接続）
 - `Section`: 横桁を配置する断面位置（例: "C1", "C3" など）
-- `Reference`: 配置基準位置
-  - `"Top"`: 横桁上フランジが主桁上フランジ下面に合う
-  - `"Bottom"`: 横桁下フランジが主桁下フランジ上面に合う
+- `Reference`: 配置基準位置（デフォルト: `"Top"`）
+  - `"Top"`: 横桁上フランジ上面が主桁上フランジ下面に合う
+  - `"Bottom"`: 横桁下フランジ下面が主桁下フランジ上面に合う
 - `Height`: 横桁のせい（断面高さ、mm）
 - `ZOffset`: 基準位置からの上下オフセット（mm）
 - `Web`: ウェブプレートの情報
@@ -611,7 +612,7 @@ I形横桁（Cross Beam）の定義です。主桁間を繋ぐI形断面の構�
     "Name": "CB_G1_G2_C3",
     "Girder": ["G1", "G2"],
     "Section": "C3",
-    "Reference": "Bottom",
+    "Reference": "Top",
     "Height": 600,
     "ZOffset": 0,
     "Web": {"Thick": 12, "Mat": "SM400A"},
@@ -1034,7 +1035,9 @@ I形横桁（Cross Beam）の定義です。主桁間を繋ぐI形断面の構�
 
 ## 12. 参考資料
 
-- `DefJson.py`: ExcelからJSONへの変換処理
-- `DefBridge.py`: JSONからのIFCモデル生成処理
-- `sample.json`: 実例データファイル
+- `src/bridge_json_to_ifc/senkei_models.py`: SenkeiSpec の Pydantic モデル定義
+- `src/bridge_json_to_ifc/convert_simple_to_senkei_json.py`: BridgeDesign → SenkeiSpec 変換
+- `src/bridge_json_to_ifc/convert_senkei_json_to_ifc.py`: SenkeiSpec → IFC 変換
+- `src/bridge_json_to_ifc/ifc_utils_new/io/DefJson.py`: Excel から JSON への変換処理
+- `src/bridge_json_to_ifc/ifc_utils_new/core/DefBridge.py`: JSON から IFC モデル生成処理
 

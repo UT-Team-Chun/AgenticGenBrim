@@ -1,7 +1,7 @@
 ---
 name: designer-impl
 description: Use this agent when you need to design, implement, or optimize the Designer/RAG components. This includes bridge design generation, RAG search implementation, LLM integration, prompt engineering, and Pydantic model design.
-model: sonnet
+model: opus
 color: green
 ---
 

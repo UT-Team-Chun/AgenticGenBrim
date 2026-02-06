@@ -127,9 +127,9 @@ uv run python -m src.bridge_json_to_ifc.run_convert data/generated_simple_bridge
 
 | オプション         | 型     | デフォルト  | 説明                               |
 | ------------------ | ------ | ----------- | ---------------------------------- |
-| `bridge_length_m`  | float  | 40.0        | 橋長 [m]                           |
-| `total_width_m`    | float  | 10.0        | 幅員 [m]                           |
-| `model_name`       | str    | gpt-5-mini  | 使用する LLM モデル                |
+| `bridge_length_m`  | float  | 20.0        | 橋長 [m]                           |
+| `total_width_m`    | float  | 5.0         | 幅員 [m]                           |
+| `model_name`       | str    | gpt-5.1     | 使用する LLM モデル                |
 | `top_k`            | int    | 5           | RAG 検索時の取得件数               |
 | `max_iterations`   | int    | 5           | 修正ループの最大イテレーション     |
 

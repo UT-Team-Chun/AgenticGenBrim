@@ -1,7 +1,7 @@
 ---
 name: ifc-impl
 description: Use this agent when you need to design, implement, or optimize the IFC conversion components. This includes BridgeDesign to IFC transformation, ifcopenshell usage, geometric modeling, and coordinate system handling.
-model: sonnet
+model: opus
 color: blue
 ---
 

@@ -11,13 +11,14 @@ data/
   generated_simple_bridge_json/   # Designer 出力 JSON（BridgeDesign）
   generated_bridge_raglog_json/   # RAG ヒットログ
   generated_judge_json/           # Judge 出力 JSON（JudgeReport）
-  generated_senkei_json/          # IFC 変換用の Senkei JSON（推奨）
-  generated_detailed_bridge_json/ # IFC 変換用の詳細 JSON（旧方式）
+  generated_senkei_json/          # IFC 変換用の Senkei JSON
   generated_report_md/            # 修正ループレポート（Markdown）
   generated_ifc/                  # IFC 出力
 rag_index/
   pdfplumber/{meta.jsonl,embeddings.npy}
   pymupdf/{meta.jsonl,embeddings.npy}
+scripts/                          # ユーティリティスクリプト
+tests/                            # テスト
 src/
   main.py                         # Designer→IFC の統合 CLI (Fire)
   bridge_agentic_generate/
@@ -43,9 +44,7 @@ src/
     run_convert.py                # 変換 CLI
     models.py                     # 詳細 JSON スキーマ（DetailedBridgeSpec）
     senkei_models.py              # Senkei JSON スキーマ（SenkeiSpec）
-    convert_simple_to_detailed_json.py  # BridgeDesign -> 詳細 JSON
     convert_simple_to_senkei_json.py    # BridgeDesign -> Senkei JSON
-    convert_detailed_json_to_ifc.py     # 詳細 JSON -> IFC
     convert_senkei_json_to_ifc.py       # Senkei JSON -> IFC
     ifc_utils/                    # 旧 IFC ユーティリティ
     ifc_utils_new/                # 新 IFC ユーティリティ（Senkei用）
@@ -53,6 +52,12 @@ src/
       components/                 # DefBracing, DefPanel, DefStiffener 等
       io/                         # DefExcel, DefJson, DefStrings
       utils/                      # DefBridgeUtils, logger
+  evaluation/                     # 評価（メトリクス, プロット）
+    main.py                       # 評価 CLI
+    models.py                     # 評価用モデル
+    metrics.py                    # メトリクス計算
+    plot.py                       # グラフ描画
+    runner.py                     # 評価ランナー
 ```
 
 ## コンポーネント概要
@@ -92,13 +97,19 @@ src/
 
 ### IFC Export
 
-BridgeDesign → 中間 JSON（Senkei または Detailed）→ IFC に変換して BrIM 環境に渡す。
+BridgeDesign → Senkei JSON → IFC に変換して BrIM 環境に渡す。
 
-- **変換パイプライン**:
-  - BridgeDesign → Senkei JSON → IFC（推奨、新方式）
-  - BridgeDesign → 詳細 JSON → IFC（旧方式）
+- **変換パイプライン**: BridgeDesign → Senkei JSON → IFC
 - **生成要素**: 床版（Brep）、主桁（SweptSolid）、横桁（SweptSolid）
 - **ライブラリ**: ifcopenshell
+
+### Evaluation
+
+修正ループの収束性や設計品質を評価する。
+
+- **メトリクス**: 収束率、イテレーション数、最終 max_util 等
+- **プロット**: ヒートマップ、収束グラフ等
+- **詳細**: [EVALUATION.md](EVALUATION.md) 参照
 
 ## データフロー
 

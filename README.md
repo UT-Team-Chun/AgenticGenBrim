@@ -97,7 +97,7 @@ This project provides custom commands, agents, and task templates for use with C
 
 ```bash
 # /impl: Run implementation → fmt/lint → review all at once
-/impl RAG検索の精度を改善
+/impl Improve RAG search accuracy
 ```
 
 `/impl` automatically selects the appropriate agent based on the task content, and repeats the cycle of implementation → `make fmt && make lint` → `quality-check` review.
@@ -121,7 +121,7 @@ cp tasks/template.md tasks/my-task.md
 # 2. Fill in requirements, target directories, and acceptance criteria
 
 # 3. Pass it to Claude Code
-claude "tasks/my-task.md を読んで実装して"
+claude "Read tasks/my-task.md and implement it"
 ```
 
 ### Configuration Files
@@ -143,9 +143,9 @@ claude "tasks/my-task.md を読んで実装して"
 cat > .claude/commands/review.md << 'EOF'
 # /review
 
-指定されたファイルをレビューしてください。
+Review the specified file.
 
-引数: $ARGUMENTS
+Arguments: $ARGUMENTS
 EOF
 ```
 
@@ -159,13 +159,13 @@ EOF
 cat > .claude/agents/my-agent.md << 'EOF'
 ---
 name: my-agent
-description: このエージェントの説明（Task ツールの選択時に参照される）
+description: Description of this agent (referenced when the Task tool selects an agent)
 model: opus
 color: green
 ---
 
-エージェントへの指示をここに記述。
-対象ディレクトリ、コーディング規約、責務などを定義する。
+Write instructions for the agent here.
+Define target directories, coding conventions, responsibilities, etc.
 EOF
 ```
 

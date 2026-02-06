@@ -47,20 +47,26 @@ IFC 出力（BIM/CIM 連携）
 AgenticGenBrim/
 ├── src/
 │   ├── main.py                       # 統合CLI（Designer → Judge → IFC）
-│   └── bridge_agentic_generate/
-│       ├── main.py                   # Designer/Judge CLI
-│       ├── designer/                 # 設計生成（models, prompts, services）
-│       ├── judge/                    # 照査・修正提案（決定論計算 + LLM）
-│       └── rag/                      # RAG（PDF抽出, チャンク化, 検索）
-│   └── bridge_json_to_ifc/           # JSON → IFC 変換
+│   ├── bridge_agentic_generate/
+│   │   ├── main.py                   # Designer/Judge CLI
+│   │   ├── designer/                 # 設計生成（models, prompts, services）
+│   │   ├── judge/                    # 照査・修正提案（決定論計算 + LLM）
+│   │   └── rag/                      # RAG（PDF抽出, チャンク化, 検索）
+│   ├── bridge_json_to_ifc/           # JSON → IFC 変換
+│   └── evaluation/                   # 評価（メトリクス, プロット）
+├── scripts/                          # ユーティリティスクリプト
+├── tests/                            # テスト
 ├── data/                             # データ（.gitignore）
 │   ├── design_knowledge/             # 元 PDF
 │   ├── generated_simple_bridge_json/ # Designer 出力
+│   ├── generated_bridge_raglog_json/ # RAG ヒットログ
 │   ├── generated_judge_json/         # Judge 出力
 │   ├── generated_senkei_json/        # Senkei JSON（IFC 変換用）
+│   ├── generated_report_md/          # 修正ループレポート
 │   └── generated_ifc/                # IFC 出力
 ├── rag_index/                        # RAG インデックス（.gitignore）
 ├── docs/                             # ドキュメント
+├── tasks/                            # タスクテンプレート
 └── Makefile                          # 開発コマンド
 ```
 
@@ -115,8 +121,11 @@ uv run python -m src.bridge_agentic_generate.main run \
 uv run python -m src.bridge_agentic_generate.main run \
   --bridge_length_m 50 --total_width_m 10 --judge
 
-# Designer + Judge + 修正ループ
-uv run python -m src.bridge_agentic_generate.main run_with_repair \
+# バッチ実行（L=30,40,50,60,70m）
+uv run python -m src.bridge_agentic_generate.main batch
+
+# Designer + Judge + 修正ループ（統合CLI）
+uv run python -m src.main run_with_repair \
   --bridge_length_m 50 --total_width_m 10 --max_iterations 5
 ```
 
@@ -146,10 +155,13 @@ BridgeDesign
 │   ├── total_width [mm]
 │   ├── num_girders
 │   ├── girder_spacing [mm]
-│   └── panel_length [mm]
+│   ├── panel_length [mm]
+│   └── num_panels
 ├── sections
-│   ├── girder_standard（I形: web_height, web_thickness, flange等）
-│   └── crossbeam_standard（I形）
+│   ├── girder_standard（I形: web_height, web_thickness,
+│   │     top/bottom_flange_width, top/bottom_flange_thickness）
+│   └── crossbeam_standard（I形: total_height, web_thickness,
+│         flange_width, flange_thickness）
 └── components
     └── deck.thickness [mm]
 ```
@@ -174,4 +186,5 @@ JudgeReport
 - [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md) - 開発規約
 - [docs/COMPONENT_DESIGNER.md](docs/COMPONENT_DESIGNER.md) - Designer 詳細
 - [docs/COMPONENT_JUDGE.md](docs/COMPONENT_JUDGE.md) - Judge 詳細
+- [docs/EVALUATION.md](docs/EVALUATION.md) - 評価手法
 - [docs/json_spec.md](docs/json_spec.md) - Senkei JSON 仕様

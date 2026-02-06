@@ -19,7 +19,10 @@ AgenticGenBrim/
 │   │   ├── designer/                 # 設計生成エージェント
 │   │   ├── judge/                    # 照査・修正提案（決定論計算+LLM）
 │   │   └── rag/                      # RAG（検索拡張生成）
-│   └── bridge_json_to_ifc/           # JSON→IFC変換
+│   ├── bridge_json_to_ifc/           # JSON→IFC変換
+│   └── evaluation/                   # 評価（メトリクス, プロット）
+├── scripts/                          # ユーティリティスクリプト
+├── tests/                            # テスト
 ├── data/                             # データ（.gitignore）
 │   ├── design_knowledge/             # 元PDF
 │   ├── extracted_by_*/               # 抽出テキスト
@@ -27,12 +30,10 @@ AgenticGenBrim/
 │   ├── generated_bridge_raglog_json/ # RAGヒットログ
 │   ├── generated_judge_json/         # Judge出力
 │   ├── generated_senkei_json/        # Senkei JSON（IFC変換用中間形式）
-│   ├── generated_detailed_bridge_json/ # 詳細JSON（旧方式）
 │   ├── generated_report_md/          # 修正ループレポート
 │   └── generated_ifc/                # IFC出力
 ├── rag_index/                        # RAGインデックス（.gitignore）
 ├── docs/                             # ドキュメント
-├── backlog/                          # プロジェクト仕様
 ├── tasks/                            # タスクテンプレート
 ├── .claude/                          # Claude Code 設定
 │   ├── commands/                     # カスタムコマンド
@@ -121,6 +122,12 @@ uv run python -m src.main run \
   --total_width_m 10 \
   --model_name gpt-5-mini \
   --ifc_output_path data/generated_ifc/sample.ifc
+
+# 修正ループ付き（合格するまで繰り返し → IFC）
+uv run python -m src.main run_with_repair \
+  --bridge_length_m 50 \
+  --total_width_m 10 \
+  --max_iterations 5
 ```
 
 ### RAG インデックス準備
@@ -208,3 +215,5 @@ logger.info("message")
 - [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md) - 開発メモ
 - [docs/COMPONENT_DESIGNER.md](docs/COMPONENT_DESIGNER.md) - Designer 詳細
 - [docs/COMPONENT_JUDGE.md](docs/COMPONENT_JUDGE.md) - Judge 詳細
+- [docs/EVALUATION.md](docs/EVALUATION.md) - 評価手法
+- [docs/json_spec.md](docs/json_spec.md) - Senkei JSON 仕様

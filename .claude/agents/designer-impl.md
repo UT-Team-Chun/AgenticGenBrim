@@ -91,7 +91,7 @@ from src.bridge_agentic_generate.config import (
 1. **RAG（検索拡張生成）**
    - PDF からのテキスト抽出（pdfplumber / pypdf / pymupdf4llm）
    - テキストのチャンク化と埋め込み生成
-   - sentence-transformers を使用したベクトル検索
+   - text-embedding-3-small を使用したベクトル検索
    - 検索結果のランキングとフィルタリング
 
 2. **LLM 統合**

@@ -25,7 +25,7 @@
 - OpenAI API (Responses API / Structured Output)
 - Pydantic / StrEnum
 - ifcopenshell (IFC出力)
-- sentence-transformers (埋め込み)
+- text-embedding-3-small (埋め込み)
 - pdfplumber / pypdf / pymupdf4llm (PDF抽出)
 - fire (CLI)
 - Ruff (Lint/Format)

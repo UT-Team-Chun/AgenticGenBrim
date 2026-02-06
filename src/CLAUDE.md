@@ -148,83 +148,8 @@ convert(
 
 ## Commands
 
-```bash
-# Format
-make fmt
-
-# Lint + auto-fix + format
-make fix
-
-# Lint only (equivalent to CI)
-make lint
-
-# Designer only (without Judge)
-uv run python -m src.bridge_agentic_generate.main run \
-  --bridge_length_m 50 \
-  --total_width_m 10
-
-# Designer + Judge (single verification only)
-uv run python -m src.bridge_agentic_generate.main run \
-  --bridge_length_m 50 \
-  --total_width_m 10 \
-  --judge
-
-# Batch execution (L=30,40,50,60,70m)
-uv run python -m src.bridge_agentic_generate.main batch
-
-# Unified CLI (Designer→Judge→IFC)
-uv run python -m src.main run \
-  --bridge_length_m 50 \
-  --total_width_m 10 \
-  --model_name gpt-5-mini \
-  --ifc_output_path data/generated_ifc/sample.ifc
-
-# Unified CLI (Designer→Judge→Repair Loop→IFC)
-uv run python -m src.main run_with_repair \
-  --bridge_length_m 50 \
-  --total_width_m 10 \
-  --max_iterations 5
-```
+See [docs/USAGE.md](../docs/USAGE.md) for full CLI reference and [docs/DEV_GUIDE.md](../docs/DEV_GUIDE.md) for development commands (`make fmt`, `make lint`, `make fix`).
 
 ## Coding Conventions
 
-See `/.claude/agents/designer-impl.md` for details. Key rules:
-
-### Naming Conventions
-- **Variables & functions**: snake_case
-- **Classes**: PascalCase
-- **Constants**: UPPER_SNAKE_CASE
-
-### Type Annotations
-- Type annotations are required for all functions
-- Avoid `Any` type
-- Use `X | Y` syntax for Union types (PEP 604)
-- Use built-in generics (PEP 585)
-
-### Docstrings
-- Google style
-- Written in Japanese
-
-### Pydantic
-- Do not use `dict` / `tuple` as return types; define types using Pydantic models
-- Manage hardcoded strings with `StrEnum` or Pydantic models
-
-### Logging
-```python
-from src.bridge_agentic_generate.logger_config import logger
-logger.info("message")
-```
-- `print` is prohibited
-
-### Code Quality
-- Remove unused code and commented-out code
-- Do not leave backward-compatibility remnants
-- One responsibility per function
-- `try: ... except: pass` is prohibited
-
-## Notes
-
-- Always use mocks when testing processes that use LLM
-- Environment variables are managed in `.env` (do not commit)
-- Use `fire` for CLI argument management
-- Use `pathlib.Path` for file/directory operations
+See [docs/DEV_GUIDE.md](../docs/DEV_GUIDE.md) for the full coding conventions (naming, types, Pydantic, logging, prohibited practices, etc.).

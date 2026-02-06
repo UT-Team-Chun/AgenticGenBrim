@@ -12,34 +12,18 @@ An agent-based MVP that generates cross-section models of Steel Plate Girder Bri
 
 ```
 AgenticGenBrim/
-├── src/                              # Source code
-│   ├── main.py                       # Unified CLI (Fire)
-│   ├── bridge_agentic_generate/      # LLM bridge design generation
-│   │   ├── main.py                   # Designer/Judge CLI
-│   │   ├── designer/                 # Design generation agent
-│   │   ├── judge/                    # Verification & fix proposals (deterministic calculation + LLM)
-│   │   └── rag/                      # RAG (Retrieval-Augmented Generation)
-│   ├── bridge_json_to_ifc/           # JSON to IFC conversion
-│   └── evaluation/                   # Evaluation (metrics, plots)
-├── scripts/                          # Utility scripts
-├── tests/                            # Tests
-├── data/                             # Data (.gitignore)
-│   ├── design_knowledge/             # Source PDFs
-│   ├── extracted_by_*/               # Extracted text
-│   ├── generated_simple_bridge_json/ # Designer output
-│   ├── generated_bridge_raglog_json/ # RAG hit logs
-│   ├── generated_judge_json/         # Judge output
-│   ├── generated_senkei_json/        # Senkei JSON (intermediate format for IFC conversion)
-│   ├── generated_report_md/          # Repair loop reports
-│   └── generated_ifc/               # IFC output
-├── rag_index/                        # RAG index (.gitignore)
-├── docs/                             # Documentation
-├── tasks/                            # Task templates
-├── .claude/                          # Claude Code settings
-│   ├── commands/                     # Custom commands
-│   └── agents/                       # Custom agents
-└── Makefile                          # Development commands
+├── src/                    # Source code (see src/CLAUDE.md for details)
+├── scripts/                # Utility scripts
+├── tests/                  # Tests
+├── data/                   # Data (.gitignore)
+├── rag_index/              # RAG index (.gitignore)
+├── docs/                   # Documentation
+├── tasks/                  # Task templates (see tasks/template.md)
+├── .claude/                # Claude Code settings (commands/, agents/)
+└── Makefile                # Development commands
 ```
+
+Full directory tree: See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 
 ## Key Features
 
@@ -51,15 +35,9 @@ AgenticGenBrim/
 
 ## Tech Stack
 
-- **Language**: Python 3.13
-- **Package management**: uv
-- **CLI**: fire
-- **LLM**: OpenAI API (Responses API / Structured Output)
-- **Validation**: Pydantic
-- **IFC output**: ifcopenshell
-- **Formatting/Lint**: Ruff
-
-Details: See `src/CLAUDE.md`
+- **Language**: Python 3.13 / **Package management**: uv
+- **LLM**: OpenAI API (Responses API / Structured Output) / **Validation**: Pydantic
+- **IFC output**: ifcopenshell / **CLI**: fire / **Formatting/Lint**: Ruff
 
 ## Custom commands
 
@@ -68,7 +46,6 @@ Details: See `src/CLAUDE.md`
 A command that performs feature implementation and automatically runs a review.
 
 ```bash
-# Usage example
 /impl RAG検索の精度を改善
 ```
 
@@ -90,121 +67,25 @@ See the individual files in `.claude/agents/` for detailed conventions.
 
 ## Development workflow
 
-### When changing code
+For all CLI commands (Designer, Judge, IFC, batch, etc.), see [docs/USAGE.md](docs/USAGE.md).
 
-```bash
-make fmt          # Format
-make lint         # Lint (CI equivalent)
-make fix          # Lint + auto-fix + format
-```
+For development commands (`make fmt`, `make lint`, `make fix`), see [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md).
 
-### Design generation (Designer / Judge)
+## Coding conventions (summary)
 
-```bash
-# Designer only (without Judge)
-uv run python -m src.bridge_agentic_generate.main run \
-  --bridge_length_m 50 \
-  --total_width_m 10
+- **Naming**: snake_case (vars/funcs), PascalCase (classes), UPPER_SNAKE_CASE (constants)
+- **Types**: Annotations required on all functions; use `X | Y` (PEP 604), built-in generics (PEP 585)
+- **Pydantic**: Use models instead of `dict`/`tuple` returns; use `StrEnum` for string constants
+- **Logging**: Use `logger` from `logger_config`; `print` is prohibited
+- **Quality**: No unused/commented-out code; no `try: except: pass`; no magic numbers
+- **Files**: Use `pathlib.Path`; use `fire` for CLI; Google-style Docstrings
 
-# Designer + Judge (single verification only)
-uv run python -m src.bridge_agentic_generate.main run \
-  --bridge_length_m 50 \
-  --total_width_m 10 \
-  --judge
-
-# Batch execution (L=30,40,50,60,70m)
-uv run python -m src.bridge_agentic_generate.main batch
-
-# Generation through IFC in one step
-uv run python -m src.main run \
-  --bridge_length_m 50 \
-  --total_width_m 10 \
-  --model_name gpt-5-mini \
-  --ifc_output_path data/generated_ifc/sample.ifc
-
-# With repair loop (repeat until pass, then IFC)
-uv run python -m src.main run_with_repair \
-  --bridge_length_m 50 \
-  --total_width_m 10 \
-  --max_iterations 5
-```
-
-### RAG Index Preparation
-
-```bash
-# 1. Place PDFs in data/design_knowledge/
-# 2. Extract text
-uv run python -m src.bridge_agentic_generate.rag.extract_pdfs_with_pdfplumber
-
-# 3. Chunk and generate embeddings
-uv run python -m src.bridge_agentic_generate.rag.loader
-```
-
-### IFC Conversion Only
-
-```bash
-uv run python -m src.bridge_json_to_ifc.run_convert data/generated_simple_bridge_json/<file>.json
-```
-
-## Task templates
-
-There is a task request template at `tasks/template.md`.
-
-### How to use
-
-1. Copy the template to create a task file
-   ```bash
-   cp tasks/template.md tasks/[task-name].md
-   ```
-2. Fill in the requirements, target directories, and acceptance criteria
-3. Pass it to Claude Code
-   ```bash
-   claude "tasks/[task-name].md を読んで実装して"
-   ```
-
-## Coding conventions
-
-### Naming conventions
-
-- **Variables and functions**: snake_case
-- **Classes**: PascalCase
-- **Constants**: UPPER_SNAKE_CASE
-
-### Type annotations
-
-- Type annotations are required for all functions
-- Use `X | Y` format for Union types (PEP 604)
-- Use built-in generics (PEP 585)
-
-### Pydantic
-
-- Do not use `dict` / `tuple` as return types; define types with Pydantic models
-- Manage hardcoded strings with `StrEnum` or Pydantic models
-- Avoid using `.value` whenever possible
-
-### Logging
-
-```python
-from src.bridge_agentic_generate.logger_config import logger
-logger.info("message")
-```
-
-- `print` is prohibited
-
-### Other
-
-- Use `fire` for CLI argument management
-- Avoid magic numbers; use constants instead
-- Use `pathlib.Path` for file/directory operations
-- Google-style Docstrings
-- `try: ... except: pass` is prohibited
-- Remove unused code and commented-out code
+Full conventions: See [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md)
 
 ## Notes
 
-- Environment variables are managed via `.env` files (do not commit)
-- `data/` and `rag_index/` are included in `.gitignore`
-- Use mocks for tests that involve LLM calls
+- `.env` for secrets (do not commit); `data/` and `rag_index/` are in `.gitignore`
+- Use mocks for LLM-related tests
 - Do not automatically run `git add/commit` (only suggest commit messages)
 
 ## Documentation

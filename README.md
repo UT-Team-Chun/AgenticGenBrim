@@ -43,32 +43,7 @@ IFC Output (BIM/CIM integration)
 
 ## Repository Structure
 
-```
-AgenticGenBrim/
-├── src/
-│   ├── main.py                       # Integrated CLI (Designer → Judge → IFC)
-│   ├── bridge_agentic_generate/
-│   │   ├── main.py                   # Designer/Judge CLI
-│   │   ├── designer/                 # Design generation (models, prompts, services)
-│   │   ├── judge/                    # Verification & repair suggestions (deterministic calculations + LLM)
-│   │   └── rag/                      # RAG (PDF extraction, chunking, search)
-│   ├── bridge_json_to_ifc/           # JSON → IFC conversion
-│   └── evaluation/                   # Evaluation (metrics, plots)
-├── scripts/                          # Utility scripts
-├── tests/                            # Tests
-├── data/                             # Data (.gitignore)
-│   ├── design_knowledge/             # Source PDFs
-│   ├── generated_simple_bridge_json/ # Designer output
-│   ├── generated_bridge_raglog_json/ # RAG hit logs
-│   ├── generated_judge_json/         # Judge output
-│   ├── generated_senkei_json/        # Senkei JSON (for IFC conversion)
-│   ├── generated_report_md/          # Repair loop reports
-│   └── generated_ifc/               # IFC output
-├── rag_index/                        # RAG index (.gitignore)
-├── docs/                             # Documentation
-├── tasks/                            # Task templates
-└── Makefile                          # Development commands
-```
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full directory tree with file-level details.
 
 ## Quick Start
 
@@ -108,41 +83,11 @@ uv run python -m src.main run_with_repair \
   --max_iterations 5
 ```
 
-## Main Commands
+## Commands
 
-### Designer / Judge
+For the full CLI reference (Designer, Judge, IFC, batch execution, options), see [docs/USAGE.md](docs/USAGE.md).
 
-```bash
-# Designer only
-uv run python -m src.bridge_agentic_generate.main run \
-  --bridge_length_m 50 --total_width_m 10
-
-# Designer + Judge (single verification)
-uv run python -m src.bridge_agentic_generate.main run \
-  --bridge_length_m 50 --total_width_m 10 --judge
-
-# Batch execution (L=30,40,50,60,70m)
-uv run python -m src.bridge_agentic_generate.main batch
-
-# Designer + Judge + Repair Loop (integrated CLI)
-uv run python -m src.main run_with_repair \
-  --bridge_length_m 50 --total_width_m 10 --max_iterations 5
-```
-
-### IFC Conversion Only
-
-```bash
-uv run python -m src.bridge_json_to_ifc.run_convert \
-  data/generated_simple_bridge_json/<file>.json
-```
-
-### Development
-
-```bash
-make fmt   # Format
-make lint  # Lint
-make fix   # Lint + auto-fix + format
-```
+For development commands (`make fmt`, `make lint`, `make fix`), see [docs/DEV_GUIDE.md](docs/DEV_GUIDE.md).
 
 ## Developing with Claude Code
 

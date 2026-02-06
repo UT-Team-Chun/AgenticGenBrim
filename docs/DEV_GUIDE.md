@@ -23,6 +23,7 @@ make ifc                # Run the integrated CLI (run_with_repair)
 - Type annotations are required for all functions
 - Union types use the `X | Y` syntax (PEP 604)
 - Use built-in generics (PEP 585)
+- Avoid using `Any` type
   - `list[str]` OK / `List[str]` NG
   - `dict[str, int]` OK / `Dict[str, int]` NG
 
@@ -120,6 +121,7 @@ def calculate_util(stress: float, allowable: float) -> float:
 - Remove unused code and commented-out code
 - Do not leave backward-compatibility remnants (unused `_vars`, re-exports, `// removed` comments, etc.)
 - Avoid magic numbers; define them as constants before use
+- One responsibility per function — keep functions focused and composable
 
 ```python
 # Bad

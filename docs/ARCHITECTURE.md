@@ -3,61 +3,68 @@
 ## Directory Structure
 
 ```text
-data/
-  design_knowledge/               # Source PDF storage location
-  extracted_by_pdfplumber/        # Text extracted with pdfplumber
-  extracted_by_pypdf/             # Text extracted with pypdf
-  extracted_by_pymupdf4llm/       # Text extracted with pymupdf4llm
-  generated_simple_bridge_json/   # Designer output JSON (BridgeDesign)
-  generated_bridge_raglog_json/   # RAG hit logs
-  generated_judge_json/           # Judge output JSON (JudgeReport)
-  generated_senkei_json/          # Senkei JSON for IFC conversion
-  generated_report_md/            # Repair loop reports (Markdown)
-  generated_ifc/                  # IFC output
-rag_index/
-  pdfplumber/{meta.jsonl,embeddings.npy}
-  pymupdf/{meta.jsonl,embeddings.npy}
-scripts/                          # Utility scripts
-tests/                            # Tests
-src/
-  main.py                         # Integrated CLI for Designer to IFC (Fire)
-  bridge_agentic_generate/
-    main.py                       # Designer/Judge CLI (Fire)
-    config.py                     # Path definitions (AppConfig)
-    llm_client.py                 # Responses API / Structured Output wrapper
-    logger_config.py              # Common logger
-    designer/                     # Models, prompts, RAG-assisted generation
-      models.py                   # Pydantic models (BridgeDesign, etc.)
-      prompts.py                  # LLM prompt generation
-      services.py                 # Generation logic
-    judge/                        # Verification and repair suggestions (deterministic calculation + LLM)
-      models.py                   # I/O models (JudgeReport, PatchPlan, etc.)
-      prompts.py                  # PatchPlan generation prompts
-      services.py                 # Verification calculations and repair application
-      report.py                   # Repair loop report generation
-    rag/                          # PDF extraction, chunking, embedding, search
-      embedding_config.py         # Embedding configuration and index structure
-      loader.py                   # Chunking and embedding generation
-      search.py                   # Vector search
-      extract_pdfs_with_*.py      # PDF extraction scripts (3 variants)
-  bridge_json_to_ifc/
-    run_convert.py                # Conversion CLI
-    models.py                     # Detailed JSON schema (DetailedBridgeSpec)
-    senkei_models.py              # Senkei JSON schema (SenkeiSpec)
-    convert_simple_to_senkei_json.py    # BridgeDesign -> Senkei JSON
-    convert_senkei_json_to_ifc.py       # Senkei JSON -> IFC
-    ifc_utils/                    # Legacy IFC utilities
-    ifc_utils_new/                # New IFC utilities (for Senkei)
-      core/                       # DefBridge, DefIFC, DefMath, etc.
-      components/                 # DefBracing, DefPanel, DefStiffener, etc.
-      io/                         # DefExcel, DefJson, DefStrings
-      utils/                      # DefBridgeUtils, logger
-  evaluation/                     # Evaluation (metrics, plots)
-    main.py                       # Evaluation CLI
-    models.py                     # Evaluation models
-    metrics.py                    # Metrics calculation
-    plot.py                       # Graph rendering
-    runner.py                     # Evaluation runner
+AgenticGenBrim/
+├── src/                              # Source code
+│   ├── main.py                       # Integrated CLI for Designer to IFC (Fire)
+│   ├── bridge_agentic_generate/      # LLM bridge design generation
+│   │   ├── main.py                   # Designer/Judge CLI (Fire)
+│   │   ├── config.py                 # Path definitions (AppConfig)
+│   │   ├── llm_client.py            # Responses API / Structured Output wrapper
+│   │   ├── logger_config.py         # Common logger
+│   │   ├── designer/                # Models, prompts, RAG-assisted generation
+│   │   │   ├── models.py            # Pydantic models (BridgeDesign, etc.)
+│   │   │   ├── prompts.py           # LLM prompt generation
+│   │   │   └── services.py          # Generation logic
+│   │   ├── judge/                   # Verification and repair suggestions
+│   │   │   ├── models.py            # I/O models (JudgeReport, PatchPlan, etc.)
+│   │   │   ├── prompts.py           # PatchPlan generation prompts
+│   │   │   ├── services.py          # Verification calculations and repair application
+│   │   │   └── report.py            # Repair loop report generation
+│   │   └── rag/                     # PDF extraction, chunking, embedding, search
+│   │       ├── embedding_config.py  # Embedding configuration and index structure
+│   │       ├── loader.py            # Chunking and embedding generation
+│   │       ├── search.py            # Vector search
+│   │       └── extract_pdfs_with_*.py  # PDF extraction scripts (3 variants)
+│   ├── bridge_json_to_ifc/          # JSON to IFC conversion
+│   │   ├── run_convert.py           # Conversion CLI
+│   │   ├── models.py                # Detailed JSON schema (DetailedBridgeSpec)
+│   │   ├── senkei_models.py         # Senkei JSON schema (SenkeiSpec)
+│   │   ├── convert_simple_to_senkei_json.py  # BridgeDesign -> Senkei JSON
+│   │   ├── convert_senkei_json_to_ifc.py     # Senkei JSON -> IFC
+│   │   ├── ifc_utils/               # Legacy IFC utilities
+│   │   └── ifc_utils_new/           # New IFC utilities (for Senkei)
+│   │       ├── core/                # DefBridge, DefIFC, DefMath, etc.
+│   │       ├── components/          # DefBracing, DefPanel, DefStiffener, etc.
+│   │       ├── io/                  # DefExcel, DefJson, DefStrings
+│   │       └── utils/               # DefBridgeUtils, logger
+│   └── evaluation/                  # Evaluation (metrics, plots)
+│       ├── main.py                  # Evaluation CLI
+│       ├── models.py                # Evaluation models
+│       ├── metrics.py               # Metrics calculation
+│       ├── plot.py                  # Graph rendering
+│       └── runner.py                # Evaluation runner
+├── scripts/                         # Utility scripts
+├── tests/                           # Tests
+├── data/                            # Data (.gitignore)
+│   ├── design_knowledge/            # Source PDF storage location
+│   ├── extracted_by_pdfplumber/     # Text extracted with pdfplumber
+│   ├── extracted_by_pypdf/          # Text extracted with pypdf
+│   ├── extracted_by_pymupdf4llm/    # Text extracted with pymupdf4llm
+│   ├── generated_simple_bridge_json/  # Designer output JSON (BridgeDesign)
+│   ├── generated_bridge_raglog_json/  # RAG hit logs
+│   ├── generated_judge_json/        # Judge output JSON (JudgeReport)
+│   ├── generated_senkei_json/       # Senkei JSON for IFC conversion
+│   ├── generated_report_md/         # Repair loop reports (Markdown)
+│   └── generated_ifc/              # IFC output
+├── rag_index/                       # RAG index (.gitignore)
+│   ├── pdfplumber/{meta.jsonl, embeddings.npy}
+│   └── pymupdf/{meta.jsonl, embeddings.npy}
+├── docs/                            # Documentation
+├── tasks/                           # Task templates
+├── .claude/                         # Claude Code settings
+│   ├── commands/                    # Custom commands
+│   └── agents/                      # Custom agents
+└── Makefile                         # Development commands
 ```
 
 ## Component Overview
